@@ -1,5 +1,4 @@
 
-import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -37,9 +36,10 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
+  const collapsed = state === "collapsed";
 
   const isActive = (path: string) => {
     if (path === "/" && currentPath === "/") return true;
@@ -57,7 +57,7 @@ export function AppSidebar() {
   return (
     <Sidebar
       className={`${collapsed ? "w-16" : "w-64"} border-r border-secondary-medium bg-white transition-all duration-300`}
-      collapsible
+      collapsible="icon"
     >
       <div className="p-4 border-b border-secondary-medium">
         <div className="flex items-center gap-3">

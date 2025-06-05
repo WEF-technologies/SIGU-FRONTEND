@@ -7,6 +7,12 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { MainLayout } from "./components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import Vehicles from "./pages/Vehicles";
+import Users from "./pages/Users";
+import Contracts from "./pages/Contracts";
+import Routes from "./pages/Routes";
+import Drivers from "./pages/Drivers";
+import SpareParts from "./pages/SpareParts";
+import Maintenance from "./pages/Maintenance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,13 +27,12 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/vehiculos" element={<Vehicles />} />
-            {/* Próximas rutas */}
-            <Route path="/usuarios" element={<div className="p-8 text-center text-secondary-dark">Módulo de Usuarios - En desarrollo</div>} />
-            <Route path="/contratos" element={<div className="p-8 text-center text-secondary-dark">Módulo de Contratos - En desarrollo</div>} />
-            <Route path="/rutas" element={<div className="p-8 text-center text-secondary-dark">Módulo de Rutas - En desarrollo</div>} />
-            <Route path="/choferes" element={<div className="p-8 text-center text-secondary-dark">Módulo de Choferes - En desarrollo</div>} />
-            <Route path="/repuestos" element={<div className="p-8 text-center text-secondary-dark">Módulo de Repuestos - En desarrollo</div>} />
-            <Route path="/mantenimiento" element={<div className="p-8 text-center text-secondary-dark">Módulo de Mantenimiento - En desarrollo</div>} />
+            <Route path="/usuarios" element={<Users />} />
+            <Route path="/contratos" element={<Contracts />} />
+            <Route path="/rutas" element={<Routes />} />
+            <Route path="/choferes" element={<Drivers />} />
+            <Route path="/repuestos" element={<SpareParts />} />
+            <Route path="/mantenimiento" element={<Maintenance />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
