@@ -83,7 +83,41 @@ export default function Contracts() {
       header: 'Estado',
       render: (value: any) => <StatusBadge status={value} />
     },
-    { key: 'actions' as keyof Contract, header: 'Acciones' }
+    { 
+      key: 'actions' as const, 
+      header: 'Acciones',
+      render: (value: any, item: Contract) => (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleViewDetails(item)}
+            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+            title="Ver Detalles"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEdit(item)}
+            className="border-primary-200 text-primary hover:bg-primary-50"
+            title="Editar"
+          >
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleDelete(item)}
+            className="border-red-200 text-red-600 hover:bg-red-50"
+            title="Eliminar"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      )
+    }
   ];
 
   const handleAdd = () => {
@@ -217,49 +251,7 @@ export default function Contracts() {
     <div>
       <DataTable
         data={contracts}
-        columns={columns.map(col => ({
-          ...col,
-          render: col.key === 'actions' ? (value: any, item: Contract) => (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewDetails(item)}
-                className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                title="Ver Detalles"
-              >
-                <Eye className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEdit(item)}
-                className="border-primary-200 text-primary hover:bg-primary-50"
-                title="Editar"
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleAddShift(item)}
-                className="border-green-200 text-green-600 hover:bg-green-50"
-                title="Agregar Turno"
-              >
-                <Plus className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDelete(item)}
-                className="border-red-200 text-red-600 hover:bg-red-50"
-                title="Eliminar"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          ) : col.render
-        }))}
+        columns={columns}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
