@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -7,19 +6,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Maintenance, MaintenanceType } from "@/types";
+import { Maintenance as MaintenanceType } from "@/types";
 
-const mockMaintenances: Maintenance[] = [
+const mockMaintenance: MaintenanceType[] = [
   {
     id: "1",
     vehicle_id: "1",
     vehicle_plate: "ABC-123",
     description: "Cambio de aceite y filtros",
-    type: "M3",
+    type: "M1",
     date: "2024-01-15",
-    kilometers: 15000,
-    next_maintenance_km: 20000,
+    kilometers: 50000,
+    next_maintenance_km: 55000,
     created_at: "2024-01-15",
     updated_at: "2024-01-15"
   },
@@ -27,11 +25,12 @@ const mockMaintenances: Maintenance[] = [
     id: "2",
     vehicle_id: "2",
     vehicle_plate: "XYZ-789",
-    description: "Revisión diaria - nivel de aceite",
-    type: "M1",
-    date: "2024-01-20",
-    kilometers: 8500,
-    created_at: "2024-01-20",
+    description: "Revisión de frenos y suspensión",
+    type: "M2",
+    date: "2024-01-10",
+    kilometers: 75000,
+    next_maintenance_km: 85000,
+    created_at: "2024-01-10",
     updated_at: "2024-01-20"
   }
 ];
@@ -43,49 +42,30 @@ const mockVehicles = [
 ];
 
 export default function Maintenance() {
-  const [maintenances, setMaintenances] = useState<Maintenance[]>(mockMaintenances);
+  const [maintenance, setMaintenance] = useState<MaintenanceType[]>(mockMaintenance);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingMaintenance, setEditingMaintenance] = useState<Maintenance | null>(null);
+  const [editingMaintenance, setEditingMaintenance] = useState<MaintenanceType | null>(null);
   const [formData, setFormData] = useState({
     vehicle_plate: "",
     description: "",
-    type: "M1" as MaintenanceType,
+    type: "M1" as 'M1' | 'M2' | 'M3',
     date: "",
     kilometers: 0,
     next_maintenance_km: 0
   });
 
-  const getMaintenanceTypeBadge = (type: MaintenanceType) => {
-    const typeConfig = {
-      M1: { label: "M1 - Revisión Diaria", color: "bg-green-100 text-green-800" },
-      M2: { label: "M2 - Engrase/Lavado", color: "bg-yellow-100 text-yellow-800" },
-      M3: { label: "M3 - Servicio Mayor", color: "bg-red-100 text-red-800" }
-    };
-    
-    const config = typeConfig[type];
-    return <Badge className={config.color}>{config.label}</Badge>;
-  };
-
   const columns = [
-    { key: 'vehicle_plate' as keyof Maintenance, header: 'Placa Vehículo' },
-    { key: 'description' as keyof Maintenance, header: 'Descripción' },
+    { key: 'vehicle_plate' as keyof MaintenanceType, header: 'Placa Vehículo' },
+    { key: 'description' as keyof MaintenanceType, header: 'Descripción' },
+    { key: 'type' as keyof MaintenanceType, header: 'Tipo' },
     { 
-      key: 'type' as keyof Maintenance, 
-      header: 'Tipo',
-      render: (value: MaintenanceType) => getMaintenanceTypeBadge(value)
-    },
-    { 
-      key: 'date' as keyof Maintenance, 
+      key: 'date' as keyof MaintenanceType, 
       header: 'Fecha',
       render: (value: any) => new Date(value).toLocaleDateString()
     },
-    { key: 'kilometers' as keyof Maintenance, header: 'Kilometraje' },
-    { 
-      key: 'next_maintenance_km' as keyof Maintenance, 
-      header: 'Próximo Mant. (km)',
-      render: (value: any) => value || 'N/A'
-    },
-    { key: 'actions' as keyof Maintenance, header: 'Acciones' }
+    { key: 'kilometers' as keyof MaintenanceType, header: 'Kilómetros' },
+    { key: 'next_maintenance_km' as keyof MaintenanceType, header: 'Próximo Mant. (km)' },
+    { key: 'actions' as keyof MaintenanceType, header: 'Acciones' }
   ];
 
   const handleAdd = () => {
@@ -101,7 +81,7 @@ export default function Maintenance() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (maintenance: Maintenance) => {
+  const handleEdit = (maintenance: MaintenanceType) => {
     setEditingMaintenance(maintenance);
     setFormData({
       vehicle_plate: maintenance.vehicle_plate || "",
@@ -114,28 +94,28 @@ export default function Maintenance() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (maintenance: Maintenance) => {
-    setMaintenances(maintenances.filter(m => m.id !== maintenance.id));
+  const handleDelete = (maintenance: MaintenanceType) => {
+    setMaintenance(prev => prev.filter(m => m.id !== maintenance.id));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (editingMaintenance) {
-      setMaintenances(maintenances.map(m => 
+      setMaintenance(prev => prev.map(m => 
         m.id === editingMaintenance.id 
           ? { ...m, ...formData, updated_at: new Date().toISOString() }
           : m
       ));
     } else {
-      const newMaintenance: Maintenance = {
+      const newMaintenance: MaintenanceType = {
         id: Date.now().toString(),
-        vehicle_id: Date.now().toString(), // En producción se buscaría por placa
+        vehicle_id: Date.now().toString(),
         ...formData,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-      setMaintenances([...maintenances, newMaintenance]);
+      setMaintenance(prev => [...prev, newMaintenance]);
     }
     
     setIsModalOpen(false);
@@ -144,21 +124,21 @@ export default function Maintenance() {
   return (
     <div>
       <DataTable
-        data={maintenances}
+        data={maintenance}
         columns={columns}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
         title="Gestión de Mantenimiento"
-        addButtonText="Registrar Mantenimiento"
-        searchField="vehicle_plate"
-        searchPlaceholder="Buscar por placa..."
+        addButtonText="Agregar Mantenimiento"
+        searchField="description"
+        searchPlaceholder="Buscar mantenimiento..."
       />
 
       <FormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingMaintenance ? "Editar Mantenimiento" : "Registrar Mantenimiento"}
+        title={editingMaintenance ? "Editar Mantenimiento" : "Agregar Mantenimiento"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -196,19 +176,19 @@ export default function Maintenance() {
               <Label htmlFor="type">Tipo de Mantenimiento</Label>
               <Select
                 value={formData.type}
-                onValueChange={(value: MaintenanceType) => setFormData({...formData, type: value})}
+                onValueChange={(value: 'M1' | 'M2' | 'M3') => setFormData({...formData, type: value})}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="M1">M1 - Revisión Diaria</SelectItem>
-                  <SelectItem value="M2">M2 - Engrase/Lavado</SelectItem>
-                  <SelectItem value="M3">M3 - Servicio Mayor</SelectItem>
+                  <SelectItem value="M1">M1 - Preventivo</SelectItem>
+                  <SelectItem value="M2">M2 - Correctivo</SelectItem>
+                  <SelectItem value="M3">M3 - Predictivo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
+            
             <div>
               <Label htmlFor="date">Fecha</Label>
               <Input
@@ -223,14 +203,14 @@ export default function Maintenance() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="kilometers">Kilometraje Actual</Label>
+              <Label htmlFor="kilometers">Kilómetros Actuales</Label>
               <Input
                 id="kilometers"
                 type="number"
                 min="0"
                 value={formData.kilometers}
                 onChange={(e) => setFormData({...formData, kilometers: parseInt(e.target.value) || 0})}
-                placeholder="Kilometraje al momento del mantenimiento"
+                placeholder="Kilómetros del vehículo"
               />
             </div>
             
@@ -242,7 +222,7 @@ export default function Maintenance() {
                 min="0"
                 value={formData.next_maintenance_km}
                 onChange={(e) => setFormData({...formData, next_maintenance_km: parseInt(e.target.value) || 0})}
-                placeholder="Kilometraje para próximo mantenimiento"
+                placeholder="Kilómetros para próximo mantenimiento"
               />
             </div>
           </div>
@@ -256,7 +236,7 @@ export default function Maintenance() {
               Cancelar
             </Button>
             <Button type="submit">
-              {editingMaintenance ? "Actualizar Mantenimiento" : "Registrar Mantenimiento"}
+              {editingMaintenance ? "Actualizar Mantenimiento" : "Crear Mantenimiento"}
             </Button>
           </div>
         </form>

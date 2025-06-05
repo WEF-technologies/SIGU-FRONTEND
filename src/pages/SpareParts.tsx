@@ -16,7 +16,8 @@ const mockSpareParts: SparePart[] = [
     vehicle_plate: "ABC-123",
     description: "Filtro de aceite marca Fram",
     quantity: 5,
-    location: "Bodega A - Estante 3",
+    company_location: "Bodega A - Estante 3",
+    store_location: "Repuestos García - Calle 26 #15-30",
     created_at: "2024-01-15",
     updated_at: "2024-01-15"
   },
@@ -26,7 +27,8 @@ const mockSpareParts: SparePart[] = [
     vehicle_plate: "XYZ-789",
     description: "Pastillas de freno delanteras",
     quantity: 8,
-    location: "Bodega B - Estante 1",
+    company_location: "Bodega B - Estante 1",
+    store_location: "AutoPartes Central - Av. Caracas #45-12",
     created_at: "2024-01-10",
     updated_at: "2024-01-20"
   }
@@ -46,14 +48,16 @@ export default function SpareParts() {
     vehicle_plate: "",
     description: "",
     quantity: 0,
-    location: ""
+    company_location: "",
+    store_location: ""
   });
 
   const columns = [
     { key: 'vehicle_plate' as keyof SparePart, header: 'Placa Vehículo' },
     { key: 'description' as keyof SparePart, header: 'Descripción' },
     { key: 'quantity' as keyof SparePart, header: 'Cantidad' },
-    { key: 'location' as keyof SparePart, header: 'Ubicación' },
+    { key: 'company_location' as keyof SparePart, header: 'Ubicación Empresa' },
+    { key: 'store_location' as keyof SparePart, header: 'Tienda' },
     { key: 'actions' as keyof SparePart, header: 'Acciones' }
   ];
 
@@ -63,7 +67,8 @@ export default function SpareParts() {
       vehicle_plate: "",
       description: "",
       quantity: 0,
-      location: ""
+      company_location: "",
+      store_location: ""
     });
     setIsModalOpen(true);
   };
@@ -74,7 +79,8 @@ export default function SpareParts() {
       vehicle_plate: sparePart.vehicle_plate || "",
       description: sparePart.description,
       quantity: sparePart.quantity,
-      location: sparePart.location
+      company_location: sparePart.company_location,
+      store_location: sparePart.store_location
     });
     setIsModalOpen(true);
   };
@@ -95,7 +101,7 @@ export default function SpareParts() {
     } else {
       const newSparePart: SparePart = {
         id: Date.now().toString(),
-        vehicle_id: Date.now().toString(), // En producción se buscaría por placa
+        vehicle_id: Date.now().toString(),
         ...formData,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -156,30 +162,39 @@ export default function SpareParts() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="quantity">Cantidad</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="0"
-                value={formData.quantity}
-                onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
-                placeholder="Cantidad disponible"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="location">Ubicación</Label>
-              <Input
-                id="location"
-                value={formData.location}
-                onChange={(e) => setFormData({...formData, location: e.target.value})}
-                placeholder="Bodega, estante, ubicación específica"
-                required
-              />
-            </div>
+          <div>
+            <Label htmlFor="quantity">Cantidad</Label>
+            <Input
+              id="quantity"
+              type="number"
+              min="0"
+              value={formData.quantity}
+              onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
+              placeholder="Cantidad disponible"
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="company_location">Ubicación en la Empresa</Label>
+            <Input
+              id="company_location"
+              value={formData.company_location}
+              onChange={(e) => setFormData({...formData, company_location: e.target.value})}
+              placeholder="Ej: Bodega A - Estante 3"
+              required
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="store_location">Tienda de Compra</Label>
+            <Input
+              id="store_location"
+              value={formData.store_location}
+              onChange={(e) => setFormData({...formData, store_location: e.target.value})}
+              placeholder="Ej: Repuestos García - Calle 26 #15-30"
+              required
+            />
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">

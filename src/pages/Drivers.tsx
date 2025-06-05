@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -13,7 +14,7 @@ const mockDrivers: Driver[] = [
     id: "1",
     name: "Carlos Alberto",
     last_name: "Mendoza Silva",
-    license_number: "123456789",
+    document_number: "12345678",
     license_type: "B1",
     telephone: "3001234567",
     status: "active",
@@ -24,7 +25,7 @@ const mockDrivers: Driver[] = [
     id: "2",
     name: "Ana María",
     last_name: "Rodríguez Castro",
-    license_number: "987654321",
+    document_number: "87654321",
     license_type: "B2",
     telephone: "3109876543",
     status: "inactive",
@@ -40,7 +41,7 @@ export default function Drivers() {
   const [formData, setFormData] = useState({
     name: "",
     last_name: "",
-    license_number: "",
+    document_number: "",
     license_type: "",
     telephone: "",
     status: "active" as 'active' | 'inactive'
@@ -49,7 +50,7 @@ export default function Drivers() {
   const columns = [
     { key: 'name' as keyof Driver, header: 'Nombre' },
     { key: 'last_name' as keyof Driver, header: 'Apellido' },
-    { key: 'license_number' as keyof Driver, header: 'Núm. Licencia' },
+    { key: 'document_number' as keyof Driver, header: 'Núm. Cédula' },
     { key: 'license_type' as keyof Driver, header: 'Tipo Licencia' },
     { key: 'telephone' as keyof Driver, header: 'Teléfono' },
     {
@@ -65,7 +66,7 @@ export default function Drivers() {
     setFormData({
       name: "",
       last_name: "",
-      license_number: "",
+      document_number: "",
       license_type: "",
       telephone: "",
       status: "active" as 'active' | 'inactive'
@@ -78,7 +79,7 @@ export default function Drivers() {
     setFormData({
       name: driver.name,
       last_name: driver.last_name,
-      license_number: driver.license_number,
+      document_number: driver.document_number,
       license_type: driver.license_type,
       telephone: driver.telephone,
       status: driver.status
@@ -122,6 +123,8 @@ export default function Drivers() {
         onDelete={handleDelete}
         title="Gestión de Choferes"
         addButtonText="Agregar Chofer"
+        searchField="name"
+        searchPlaceholder="Buscar por nombre..."
       />
 
       <FormModal
@@ -156,12 +159,12 @@ export default function Drivers() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="license_number">Número de Licencia</Label>
+              <Label htmlFor="document_number">Número de Cédula</Label>
               <Input
-                id="license_number"
-                value={formData.license_number}
-                onChange={(e) => setFormData({...formData, license_number: e.target.value})}
-                placeholder="Ingrese el número de licencia"
+                id="document_number"
+                value={formData.document_number}
+                onChange={(e) => setFormData({...formData, document_number: e.target.value})}
+                placeholder="Ingrese el número de cédula"
                 required
               />
             </div>

@@ -10,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Eye, Plus } from "lucide-react";
+import { Eye, Edit, Trash2, Plus } from "lucide-react";
 import { Contract, Shift } from "@/types";
 
 const mockContracts: Contract[] = [
@@ -29,7 +28,7 @@ const mockContracts: Contract[] = [
       { id: "1", brand: "Toyota", model: "Hiace", year: 2020, plate_number: "ABC-123", status: "active", created_at: "", updated_at: "" }
     ],
     routes: [
-      { id: "1", contract_id: "1", description: "Ruta Norte", from_location: "Barrio Norte", to_location: "Colegio", status: "active", created_at: "", updated_at: "" }
+      { id: "1", contract_id: "1", description: "Ruta Norte", from_location: "Barrio Norte", to_location: "Colegio", status: "in_progress", created_at: "", updated_at: "" }
     ],
     shifts: [
       { id: "1", contract_id: "1", description: "Turno Mañana 6:00 AM - 12:00 PM", created_at: "", updated_at: "" }
@@ -55,6 +54,7 @@ export default function Contracts() {
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [formData, setFormData] = useState({
     contract_code: "",
     description: "",
@@ -82,26 +82,6 @@ export default function Contracts() {
       key: 'status' as keyof Contract,
       header: 'Estado',
       render: (value: any) => <StatusBadge status={value} />
-    },
-    {
-      key: 'vehicles' as keyof Contract,
-      header: 'Vehículos',
-      render: (vehicles: any) => (
-        <div className="flex flex-wrap gap-1">
-          {vehicles && vehicles.length > 0 ? (
-            vehicles.slice(0, 2).map((vehicle: any) => (
-              <Badge key={vehicle.id} variant="outline" className="text-xs">
-                {vehicle.plate_number}
-              </Badge>
-            ))
-          ) : (
-            <span className="text-gray-500">Sin vehículos</span>
-          )}
-          {vehicles && vehicles.length > 2 && (
-            <Badge variant="outline" className="text-xs">+{vehicles.length - 2}</Badge>
-          )}
-        </div>
-      )
     },
     { key: 'actions' as keyof Contract, header: 'Acciones' }
   ];
@@ -165,28 +145,70 @@ export default function Contracts() {
 
   const handleAddShift = (contract: Contract) => {
     setSelectedContract(contract);
+    setEditingShift(null);
     setIsShiftModalOpen(true);
   };
 
-  const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
-    if (selectedContract) {
-      const newShift: Shift = {
-        id: Date.now().toString(),
-        ...shiftData,
-        contract_id: selectedContract.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
+  const handleEditShift = (shift: Shift) => {
+    setEditingShift(shift);
+    setIsShiftModalOpen(true);
+  };
 
+  const handleDeleteShift = (shift: Shift) => {
+    if (selectedContract) {
       setContracts(contracts.map(c => 
         c.id === selectedContract.id 
           ? { 
               ...c, 
-              shifts: [...(c.shifts || []), newShift],
+              shifts: c.shifts?.filter(s => s.id !== shift.id) || [],
               updated_at: new Date().toISOString() 
             }
           : c
       ));
+      setSelectedContract({
+        ...selectedContract,
+        shifts: selectedContract.shifts?.filter(s => s.id !== shift.id) || []
+      });
+    }
+  };
+
+  const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
+    if (selectedContract) {
+      if (editingShift) {
+        const updatedShift: Shift = {
+          ...editingShift,
+          ...shiftData,
+          updated_at: new Date().toISOString()
+        };
+
+        setContracts(contracts.map(c => 
+          c.id === selectedContract.id 
+            ? { 
+                ...c, 
+                shifts: c.shifts?.map(s => s.id === editingShift.id ? updatedShift : s) || [],
+                updated_at: new Date().toISOString() 
+              }
+            : c
+        ));
+      } else {
+        const newShift: Shift = {
+          id: Date.now().toString(),
+          ...shiftData,
+          contract_id: selectedContract.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        setContracts(contracts.map(c => 
+          c.id === selectedContract.id 
+            ? { 
+                ...c, 
+                shifts: [...(c.shifts || []), newShift],
+                updated_at: new Date().toISOString() 
+              }
+            : c
+        ));
+      }
     }
     setIsShiftModalOpen(false);
   };
@@ -204,6 +226,7 @@ export default function Contracts() {
                 size="sm"
                 onClick={() => handleViewDetails(item)}
                 className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                title="Ver Detalles"
               >
                 <Eye className="w-4 h-4" />
               </Button>
@@ -212,6 +235,7 @@ export default function Contracts() {
                 size="sm"
                 onClick={() => handleEdit(item)}
                 className="border-primary-200 text-primary hover:bg-primary-50"
+                title="Editar"
               >
                 <Edit className="w-4 h-4" />
               </Button>
@@ -229,6 +253,7 @@ export default function Contracts() {
                 size="sm"
                 onClick={() => handleDelete(item)}
                 className="border-red-200 text-red-600 hover:bg-red-50"
+                title="Eliminar"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -344,16 +369,20 @@ export default function Contracts() {
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         contract={selectedContract}
+        onEditShift={handleEditShift}
+        onDeleteShift={handleDeleteShift}
+        onAddShift={handleAddShift}
       />
 
       <FormModal
         isOpen={isShiftModalOpen}
         onClose={() => setIsShiftModalOpen(false)}
-        title="Agregar Turno"
+        title={editingShift ? "Editar Turno" : "Agregar Turno"}
       >
         <ShiftForm
           onSubmit={handleShiftSubmit}
           onCancel={() => setIsShiftModalOpen(false)}
+          editingShift={editingShift}
         />
       </FormModal>
     </div>

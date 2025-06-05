@@ -2,16 +2,28 @@
 import { ReactNode } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Contract } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Contract, Shift } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Edit, Trash2, Plus } from "lucide-react";
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract | null;
+  onEditShift: (shift: Shift) => void;
+  onDeleteShift: (shift: Shift) => void;
+  onAddShift: (contract: Contract) => void;
 }
 
-export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDetailsModalProps) {
+export function ContractDetailsModal({ 
+  isOpen, 
+  onClose, 
+  contract, 
+  onEditShift, 
+  onDeleteShift, 
+  onAddShift 
+}: ContractDetailsModalProps) {
   if (!contract) return null;
 
   return (
@@ -77,7 +89,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                     <div key={route.id} className="border rounded p-2">
                       <p className="font-medium">{route.description}</p>
                       <p className="text-sm text-gray-600">{route.from_location} → {route.to_location}</p>
-                      <StatusBadge status={route.status || 'pending'} />
+                      <StatusBadge status={route.status} />
                     </div>
                   ))
                 ) : (
@@ -87,12 +99,40 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
             </div>
 
             <div>
-              <h3 className="font-semibold text-primary-900 mb-2">Turnos</h3>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold text-primary-900">Turnos</h3>
+                <Button
+                  size="sm"
+                  onClick={() => onAddShift(contract)}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  Agregar Turno
+                </Button>
+              </div>
               <div className="space-y-2">
                 {contract.shifts && contract.shifts.length > 0 ? (
                   contract.shifts.map((shift) => (
-                    <div key={shift.id} className="border rounded p-2">
+                    <div key={shift.id} className="border rounded p-2 flex items-center justify-between">
                       <p className="font-medium">{shift.description}</p>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onEditShift(shift)}
+                          className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onDeleteShift(shift)}
+                          className="border-red-200 text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </div>
                   ))
                 ) : (

@@ -40,7 +40,7 @@ export interface Route extends BaseEntity {
   description: string;
   from_location: string;
   to_location: string;
-  status?: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'completed';
   contract?: Contract;
 }
 
@@ -53,7 +53,7 @@ export interface Shift extends BaseEntity {
 export interface Driver extends BaseEntity {
   name: string;
   last_name: string;
-  license_number: string;
+  document_number: string;
   license_type: string;
   telephone: string;
   status: 'active' | 'inactive';
@@ -74,10 +74,11 @@ export interface SparePart extends BaseEntity {
   vehicle_id: string;
   description: string;
   quantity: number;
-  location: string;
+  company_location: string;
+  store_location: string;
   vehicle?: Vehicle;
   vehicle_plate?: string;
 }
 
 export type MaintenanceType = 'M1' | 'M2' | 'M3';
-export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed';
+export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress';
