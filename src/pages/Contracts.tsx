@@ -1,27 +1,43 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
+import { ContractDetailsModal } from "@/components/contracts/ContractDetailsModal";
+import { ShiftForm } from "@/components/contracts/ShiftForm";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Contract } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { Eye, Plus } from "lucide-react";
+import { Contract, Shift } from "@/types";
 
 const mockContracts: Contract[] = [
   {
     id: "1",
+    contract_code: "CONT-001",
     description: "Transporte escolar Colegio San José",
     start_date: "2024-01-15",
     end_date: "2024-12-15",
     location: "Bogotá, Colombia",
     status: "active",
     created_at: "2024-01-15",
-    updated_at: "2024-01-15"
+    updated_at: "2024-01-15",
+    vehicles: [
+      { id: "1", brand: "Toyota", model: "Hiace", year: 2020, plate_number: "ABC-123", status: "active", created_at: "", updated_at: "" }
+    ],
+    routes: [
+      { id: "1", contract_id: "1", description: "Ruta Norte", from_location: "Barrio Norte", to_location: "Colegio", status: "active", created_at: "", updated_at: "" }
+    ],
+    shifts: [
+      { id: "1", contract_id: "1", description: "Turno Mañana 6:00 AM - 12:00 PM", created_at: "", updated_at: "" }
+    ]
   },
   {
     id: "2",
+    contract_code: "CONT-002",
     description: "Servicio de transporte empresarial",
     start_date: "2024-02-01",
     end_date: "2024-07-31",
@@ -35,8 +51,12 @@ const mockContracts: Contract[] = [
 export default function Contracts() {
   const [contracts, setContracts] = useState<Contract[]>(mockContracts);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
+  const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [formData, setFormData] = useState({
+    contract_code: "",
     description: "",
     start_date: "",
     end_date: "",
@@ -45,6 +65,7 @@ export default function Contracts() {
   });
 
   const columns = [
+    { key: 'contract_code' as keyof Contract, header: 'Código' },
     { key: 'description' as keyof Contract, header: 'Descripción' },
     { 
       key: 'start_date' as keyof Contract, 
@@ -62,17 +83,38 @@ export default function Contracts() {
       header: 'Estado',
       render: (value: any) => <StatusBadge status={value} />
     },
+    {
+      key: 'vehicles' as keyof Contract,
+      header: 'Vehículos',
+      render: (vehicles: any) => (
+        <div className="flex flex-wrap gap-1">
+          {vehicles && vehicles.length > 0 ? (
+            vehicles.slice(0, 2).map((vehicle: any) => (
+              <Badge key={vehicle.id} variant="outline" className="text-xs">
+                {vehicle.plate_number}
+              </Badge>
+            ))
+          ) : (
+            <span className="text-gray-500">Sin vehículos</span>
+          )}
+          {vehicles && vehicles.length > 2 && (
+            <Badge variant="outline" className="text-xs">+{vehicles.length - 2}</Badge>
+          )}
+        </div>
+      )
+    },
     { key: 'actions' as keyof Contract, header: 'Acciones' }
   ];
 
   const handleAdd = () => {
     setEditingContract(null);
     setFormData({
+      contract_code: "",
       description: "",
       start_date: "",
       end_date: "",
       location: "",
-      status: "active" as 'active' | 'inactive' | 'completed'
+      status: "active"
     });
     setIsModalOpen(true);
   };
@@ -80,6 +122,7 @@ export default function Contracts() {
   const handleEdit = (contract: Contract) => {
     setEditingContract(contract);
     setFormData({
+      contract_code: contract.contract_code || "",
       description: contract.description,
       start_date: contract.start_date,
       end_date: contract.end_date,
@@ -91,6 +134,11 @@ export default function Contracts() {
 
   const handleDelete = (contract: Contract) => {
     setContracts(contracts.filter(c => c.id !== contract.id));
+  };
+
+  const handleViewDetails = (contract: Contract) => {
+    setSelectedContract(contract);
+    setIsDetailsModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -115,16 +163,85 @@ export default function Contracts() {
     setIsModalOpen(false);
   };
 
+  const handleAddShift = (contract: Contract) => {
+    setSelectedContract(contract);
+    setIsShiftModalOpen(true);
+  };
+
+  const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
+    if (selectedContract) {
+      const newShift: Shift = {
+        id: Date.now().toString(),
+        ...shiftData,
+        contract_id: selectedContract.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      setContracts(contracts.map(c => 
+        c.id === selectedContract.id 
+          ? { 
+              ...c, 
+              shifts: [...(c.shifts || []), newShift],
+              updated_at: new Date().toISOString() 
+            }
+          : c
+      ));
+    }
+    setIsShiftModalOpen(false);
+  };
+
   return (
     <div>
       <DataTable
         data={contracts}
-        columns={columns}
+        columns={columns.map(col => ({
+          ...col,
+          render: col.key === 'actions' ? (value: any, item: Contract) => (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleViewDetails(item)}
+                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEdit(item)}
+                className="border-primary-200 text-primary hover:bg-primary-50"
+              >
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleAddShift(item)}
+                className="border-green-200 text-green-600 hover:bg-green-50"
+                title="Agregar Turno"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDelete(item)}
+                className="border-red-200 text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : col.render
+        }))}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
         title="Gestión de Contratos"
         addButtonText="Agregar Contrato"
+        searchField="description"
+        searchPlaceholder="Buscar por descripción..."
       />
 
       <FormModal
@@ -133,6 +250,16 @@ export default function Contracts() {
         title={editingContract ? "Editar Contrato" : "Agregar Contrato"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="contract_code">Código del Contrato</Label>
+            <Input
+              id="contract_code"
+              value={formData.contract_code}
+              onChange={(e) => setFormData({...formData, contract_code: e.target.value})}
+              placeholder="Ej: CONT-001"
+            />
+          </div>
+
           <div>
             <Label htmlFor="description">Descripción</Label>
             <Textarea
@@ -211,6 +338,23 @@ export default function Contracts() {
             </Button>
           </div>
         </form>
+      </FormModal>
+
+      <ContractDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+        contract={selectedContract}
+      />
+
+      <FormModal
+        isOpen={isShiftModalOpen}
+        onClose={() => setIsShiftModalOpen(false)}
+        title="Agregar Turno"
+      >
+        <ShiftForm
+          onSubmit={handleShiftSubmit}
+          onCancel={() => setIsShiftModalOpen(false)}
+        />
       </FormModal>
     </div>
   );

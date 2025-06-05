@@ -116,6 +116,8 @@ export default function Routes() {
         onDelete={handleDelete}
         title="Gestión de Rutas"
         addButtonText="Agregar Ruta"
+        searchField="description"
+        searchPlaceholder="Buscar ruta..."
       />
 
       <FormModal

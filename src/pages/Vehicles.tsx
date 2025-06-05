@@ -135,6 +135,8 @@ export default function Vehicles() {
         onDelete={handleDelete}
         title="Gestión de Vehículos"
         addButtonText="Agregar Vehículo"
+        searchField="plate_number"
+        searchPlaceholder="Buscar por placa..."
       />
 
       <FormModal

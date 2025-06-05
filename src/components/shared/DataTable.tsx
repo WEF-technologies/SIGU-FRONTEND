@@ -1,7 +1,8 @@
 
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Plus } from "lucide-react";
+import { SearchFilter } from "./SearchFilter";
 import {
   Table,
   TableBody,
@@ -26,6 +27,8 @@ interface DataTableProps<T> {
   title: string;
   addButtonText?: string;
   isLoading?: boolean;
+  searchPlaceholder?: string;
+  searchField?: keyof T;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -37,17 +40,39 @@ export function DataTable<T extends { id: string }>({
   title,
   addButtonText = "Agregar",
   isLoading = false,
+  searchPlaceholder = "Buscar...",
+  searchField,
 }: DataTableProps<T>) {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filteredData = searchField && searchTerm 
+    ? data.filter(item => 
+        String(item[searchField]).toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : data;
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-primary-900">{title}</h2>
-        {onAdd && (
-          <Button onClick={onAdd} className="bg-primary hover:bg-primary-600">
-            <Plus className="w-4 h-4 mr-2" />
-            {addButtonText}
-          </Button>
-        )}
+        <div className="flex items-center gap-4">
+          {searchField && (
+            <SearchFilter
+              placeholder={searchPlaceholder}
+              value={searchTerm}
+              onChange={setSearchTerm}
+            />
+          )}
+          {onAdd && (
+            <Button 
+              onClick={onAdd} 
+              className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              <span className="text-white">{addButtonText}</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-secondary-medium shadow-sm">
@@ -74,17 +99,17 @@ export function DataTable<T extends { id: string }>({
                   Cargando...
                 </TableCell>
               </TableRow>
-            ) : data.length === 0 ? (
+            ) : filteredData.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
                   className="text-center py-8 text-secondary-dark"
                 >
-                  No hay datos disponibles
+                  {searchTerm ? "No se encontraron resultados" : "No hay datos disponibles"}
                 </TableCell>
               </TableRow>
             ) : (
-              data.map((item) => (
+              filteredData.map((item) => (
                 <TableRow
                   key={item.id}
                   className="hover:bg-secondary-light transition-colors"

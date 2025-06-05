@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SparePart } from "@/types";
 
 const mockSpareParts: SparePart[] = [
   {
     id: "1",
     vehicle_id: "1",
+    vehicle_plate: "ABC-123",
     description: "Filtro de aceite marca Fram",
     quantity: 5,
     location: "Bodega A - Estante 3",
@@ -20,7 +22,8 @@ const mockSpareParts: SparePart[] = [
   },
   {
     id: "2",
-    vehicle_id: "2",
+    vehicle_id: "2", 
+    vehicle_plate: "XYZ-789",
     description: "Pastillas de freno delanteras",
     quantity: 8,
     location: "Bodega B - Estante 1",
@@ -29,19 +32,25 @@ const mockSpareParts: SparePart[] = [
   }
 ];
 
+const mockVehicles = [
+  { plate_number: "ABC-123", brand: "Toyota", model: "Hiace" },
+  { plate_number: "XYZ-789", brand: "Mercedes", model: "Sprinter" },
+  { plate_number: "DEF-456", brand: "Chevrolet", model: "NPR" }
+];
+
 export default function SpareParts() {
   const [spareParts, setSpareParts] = useState<SparePart[]>(mockSpareParts);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSparePart, setEditingSparePart] = useState<SparePart | null>(null);
   const [formData, setFormData] = useState({
-    vehicle_id: "",
+    vehicle_plate: "",
     description: "",
     quantity: 0,
     location: ""
   });
 
   const columns = [
-    { key: 'vehicle_id' as keyof SparePart, header: 'ID Vehículo' },
+    { key: 'vehicle_plate' as keyof SparePart, header: 'Placa Vehículo' },
     { key: 'description' as keyof SparePart, header: 'Descripción' },
     { key: 'quantity' as keyof SparePart, header: 'Cantidad' },
     { key: 'location' as keyof SparePart, header: 'Ubicación' },
@@ -51,7 +60,7 @@ export default function SpareParts() {
   const handleAdd = () => {
     setEditingSparePart(null);
     setFormData({
-      vehicle_id: "",
+      vehicle_plate: "",
       description: "",
       quantity: 0,
       location: ""
@@ -62,7 +71,7 @@ export default function SpareParts() {
   const handleEdit = (sparePart: SparePart) => {
     setEditingSparePart(sparePart);
     setFormData({
-      vehicle_id: sparePart.vehicle_id,
+      vehicle_plate: sparePart.vehicle_plate || "",
       description: sparePart.description,
       quantity: sparePart.quantity,
       location: sparePart.location
@@ -86,6 +95,7 @@ export default function SpareParts() {
     } else {
       const newSparePart: SparePart = {
         id: Date.now().toString(),
+        vehicle_id: Date.now().toString(), // En producción se buscaría por placa
         ...formData,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -106,6 +116,8 @@ export default function SpareParts() {
         onDelete={handleDelete}
         title="Gestión de Repuestos"
         addButtonText="Agregar Repuesto"
+        searchField="description"
+        searchPlaceholder="Buscar repuesto..."
       />
 
       <FormModal
@@ -115,14 +127,22 @@ export default function SpareParts() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="vehicle_id">ID del Vehículo</Label>
-            <Input
-              id="vehicle_id"
-              value={formData.vehicle_id}
-              onChange={(e) => setFormData({...formData, vehicle_id: e.target.value})}
-              placeholder="Ingrese el ID del vehículo"
-              required
-            />
+            <Label htmlFor="vehicle_plate">Placa del Vehículo</Label>
+            <Select
+              value={formData.vehicle_plate}
+              onValueChange={(value) => setFormData({...formData, vehicle_plate: value})}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccione un vehículo" />
+              </SelectTrigger>
+              <SelectContent>
+                {mockVehicles.map((vehicle) => (
+                  <SelectItem key={vehicle.plate_number} value={vehicle.plate_number}>
+                    {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div>

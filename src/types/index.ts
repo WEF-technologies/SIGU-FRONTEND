@@ -28,8 +28,11 @@ export interface Contract extends BaseEntity {
   end_date: string;
   location: string;
   status: 'active' | 'inactive' | 'completed';
+  contract_code?: string;
   vehicles?: Vehicle[];
   users?: User[];
+  routes?: Route[];
+  shifts?: Shift[];
 }
 
 export interface Route extends BaseEntity {
@@ -38,6 +41,13 @@ export interface Route extends BaseEntity {
   from_location: string;
   to_location: string;
   status?: 'pending' | 'in_progress' | 'completed';
+  contract?: Contract;
+}
+
+export interface Shift extends BaseEntity {
+  contract_id: string;
+  description: string;
+  contract?: Contract;
 }
 
 export interface Driver extends BaseEntity {
@@ -57,6 +67,7 @@ export interface Maintenance extends BaseEntity {
   kilometers?: number;
   next_maintenance_km?: number;
   vehicle?: Vehicle;
+  vehicle_plate?: string;
 }
 
 export interface SparePart extends BaseEntity {
@@ -65,6 +76,7 @@ export interface SparePart extends BaseEntity {
   quantity: number;
   location: string;
   vehicle?: Vehicle;
+  vehicle_plate?: string;
 }
 
 export type MaintenanceType = 'M1' | 'M2' | 'M3';
