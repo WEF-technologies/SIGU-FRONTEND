@@ -9,7 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Vehicles from "./pages/Vehicles";
 import Users from "./pages/Users";
 import Contracts from "./pages/Contracts";
-import Routes from "./pages/Routes";
+import RoutesPage from "./pages/Routes";
 import Drivers from "./pages/Drivers";
 import SpareParts from "./pages/SpareParts";
 import Maintenance from "./pages/Maintenance";
@@ -29,7 +29,7 @@ const App = () => (
             <Route path="/vehiculos" element={<Vehicles />} />
             <Route path="/usuarios" element={<Users />} />
             <Route path="/contratos" element={<Contracts />} />
-            <Route path="/rutas" element={<Routes />} />
+            <Route path="/rutas" element={<RoutesPage />} />
             <Route path="/choferes" element={<Drivers />} />
             <Route path="/repuestos" element={<SpareParts />} />
             <Route path="/mantenimiento" element={<Maintenance />} />

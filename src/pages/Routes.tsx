@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -42,7 +41,7 @@ export default function Routes() {
     description: "",
     from_location: "",
     to_location: "",
-    status: "pending"
+    status: "pending" as 'pending' | 'in_progress' | 'completed'
   });
 
   const columns = [
@@ -64,7 +63,7 @@ export default function Routes() {
       description: "",
       from_location: "",
       to_location: "",
-      status: "pending"
+      status: "pending" as 'pending' | 'in_progress' | 'completed'
     });
     setIsModalOpen(true);
   };
@@ -98,7 +97,6 @@ export default function Routes() {
       const newRoute: Route = {
         id: Date.now().toString(),
         ...formData,
-        status: formData.status as 'pending' | 'in_progress' | 'completed',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -176,7 +174,7 @@ export default function Routes() {
             <Label htmlFor="status">Estado</Label>
             <Select
               value={formData.status}
-              onValueChange={(value) => setFormData({...formData, status: value})}
+              onValueChange={(value: 'pending' | 'in_progress' | 'completed') => setFormData({...formData, status: value})}
             >
               <SelectTrigger>
                 <SelectValue />

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -8,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Maintenance, MaintenanceType } from "@/types";
+import { type Maintenance, MaintenanceType } from "@/types";
 
 const mockMaintenances: Maintenance[] = [
   {
@@ -35,6 +34,17 @@ const mockMaintenances: Maintenance[] = [
   }
 ];
 
+const getMaintenanceTypeConfig = (type: MaintenanceType) => {
+  switch (type) {
+    case 'M1':
+      return { text: 'M1 - Revisión Diaria', className: 'bg-blue-100 text-blue-800' };
+    case 'M2':
+      return { text: 'M2 - Engrase/Lavado', className: 'bg-yellow-100 text-yellow-800' };
+    case 'M3':
+      return { text: 'M3 - Servicio Completo', className: 'bg-green-100 text-green-800' };
+  }
+};
+
 export default function Maintenance() {
   const [maintenances, setMaintenances] = useState<Maintenance[]>(mockMaintenances);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,17 +57,6 @@ export default function Maintenance() {
     kilometers: 0,
     next_maintenance_km: 0
   });
-
-  const getMaintenanceTypeConfig = (type: MaintenanceType) => {
-    switch (type) {
-      case 'M1':
-        return { text: 'M1 - Revisión Diaria', className: 'bg-blue-100 text-blue-800' };
-      case 'M2':
-        return { text: 'M2 - Engrase/Lavado', className: 'bg-yellow-100 text-yellow-800' };
-      case 'M3':
-        return { text: 'M3 - Servicio Completo', className: 'bg-green-100 text-green-800' };
-    }
-  };
 
   const columns = [
     { key: 'vehicle_id' as keyof Maintenance, header: 'ID Vehículo' },

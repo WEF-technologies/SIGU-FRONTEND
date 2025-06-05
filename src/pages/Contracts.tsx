@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -42,7 +41,7 @@ export default function Contracts() {
     start_date: "",
     end_date: "",
     location: "",
-    status: "active"
+    status: "active" as 'active' | 'inactive' | 'completed'
   });
 
   const columns = [
@@ -73,7 +72,7 @@ export default function Contracts() {
       start_date: "",
       end_date: "",
       location: "",
-      status: "active"
+      status: "active" as 'active' | 'inactive' | 'completed'
     });
     setIsModalOpen(true);
   };
@@ -107,7 +106,6 @@ export default function Contracts() {
       const newContract: Contract = {
         id: Date.now().toString(),
         ...formData,
-        status: formData.status as 'active' | 'inactive' | 'completed',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -186,7 +184,7 @@ export default function Contracts() {
               <Label htmlFor="status">Estado</Label>
               <Select
                 value={formData.status}
-                onValueChange={(value) => setFormData({...formData, status: value})}
+                onValueChange={(value: 'active' | 'inactive' | 'completed') => setFormData({...formData, status: value})}
               >
                 <SelectTrigger>
                   <SelectValue />
