@@ -3,11 +3,12 @@ import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ContractDetailsModal } from "@/components/contracts/ContractDetailsModal";
+import { ShiftForm } from "@/components/contracts/ShiftForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Contract } from "@/types";
+import { Contract, Shift } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, Edit, Trash2 } from "lucide-react";
 
@@ -42,6 +43,8 @@ export default function Contracts() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     description: "",
@@ -132,6 +135,82 @@ export default function Contracts() {
     
     setIsModalOpen(false);
     resetForm();
+  };
+
+  const handleAddShift = (contract: Contract) => {
+    setSelectedContract(contract);
+    setEditingShift(null);
+    setIsShiftModalOpen(true);
+  };
+
+  const handleEditShift = (shift: Shift) => {
+    setEditingShift(shift);
+    setIsShiftModalOpen(true);
+  };
+
+  const handleDeleteShift = (shift: Shift) => {
+    if (selectedContract) {
+      const updatedContract = {
+        ...selectedContract,
+        shifts: selectedContract.shifts?.filter(s => s.id !== shift.id) || []
+      };
+      setSelectedContract(updatedContract);
+      setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
+      
+      toast({
+        title: "Turno eliminado",
+        description: "El turno ha sido eliminado correctamente.",
+      });
+    }
+  };
+
+  const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
+    if (!selectedContract) return;
+
+    if (editingShift) {
+      const updatedShift = {
+        ...editingShift,
+        ...shiftData,
+        updated_at: new Date().toISOString()
+      };
+      
+      const updatedContract = {
+        ...selectedContract,
+        shifts: selectedContract.shifts?.map(s => s.id === editingShift.id ? updatedShift : s) || []
+      };
+      
+      setSelectedContract(updatedContract);
+      setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
+      
+      toast({
+        title: "Turno actualizado",
+        description: "El turno ha sido actualizado correctamente.",
+      });
+    } else {
+      const newShift: Shift = {
+        id: Date.now().toString(),
+        ...shiftData,
+        contract_id: selectedContract.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      const updatedContract = {
+        ...selectedContract,
+        shifts: [...(selectedContract.shifts || []), newShift]
+      };
+      
+      setSelectedContract(updatedContract);
+      setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
+      
+      toast({
+        title: "Turno creado",
+        description: "El turno ha sido creado correctamente.",
+      });
+    }
+    
+    setIsShiftModalOpen(false);
+    setEditingShift(null);
   };
 
   const columns = [
@@ -292,7 +371,22 @@ export default function Contracts() {
         contract={selectedContract}
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
+        onEditShift={handleEditShift}
+        onDeleteShift={handleDeleteShift}
+        onAddShift={handleAddShift}
       />
+
+      <FormModal
+        isOpen={isShiftModalOpen}
+        onClose={() => setIsShiftModalOpen(false)}
+        title={editingShift ? "Editar Turno" : "Crear Nuevo Turno"}
+      >
+        <ShiftForm
+          onSubmit={handleShiftSubmit}
+          onCancel={() => setIsShiftModalOpen(false)}
+          editingShift={editingShift}
+        />
+      </FormModal>
     </div>
   );
 }
