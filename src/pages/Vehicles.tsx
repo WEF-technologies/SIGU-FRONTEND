@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -190,6 +191,10 @@ export default function Vehicles() {
         ? { ...v, current_kilometers: kilometers, updated_at: new Date().toISOString() }
         : v
     ));
+    // Also update selectedVehicle if it's the same vehicle
+    if (selectedVehicle && selectedVehicle.id === vehicleId) {
+      setSelectedVehicle(prev => prev ? { ...prev, current_kilometers: kilometers } : null);
+    }
     toast({
       title: "Kilometraje actualizado",
       description: `El kilometraje ha sido actualizado correctamente.`,
@@ -239,73 +244,6 @@ export default function Vehicles() {
     });
   };
 
-  const columns = [
-    { key: 'plate_number' as keyof Vehicle, header: 'Placa' },
-    { key: 'brand' as keyof Vehicle, header: 'Marca' },
-    { key: 'model' as keyof Vehicle, header: 'Modelo' },
-    { key: 'year' as keyof Vehicle, header: 'Año' },
-    { 
-      key: 'status' as keyof Vehicle, 
-      header: 'Estado Actual',
-      render: (status: Vehicle['status']) => getStatusBadge(status)
-    },
-    { 
-      key: 'last_m3_date' as keyof Vehicle, 
-      header: 'Último M3',
-      render: (value: any, vehicle: Vehicle) => (
-        <div className="flex items-center gap-1">
-          <Calendar className="w-4 h-4 text-gray-400" />
-          {getMaintenanceInfo(vehicle)}
-        </div>
-      )
-    },
-    { 
-      key: 'next_m3_km' as keyof Vehicle, 
-      header: 'Próximo Mantenimiento',
-      render: (value: any, vehicle: Vehicle) => (
-        <div className="flex items-center gap-1">
-          <Gauge className="w-4 h-4 text-gray-400" />
-          {getNextMaintenanceInfo(vehicle)}
-        </div>
-      )
-    },
-    { 
-      key: 'actions' as const, 
-      header: 'Acciones',
-      render: (value: any, vehicle: Vehicle) => (
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleViewDetails(vehicle)}
-            className="border-blue-200 text-blue-600 hover:bg-blue-50"
-            title="Ver detalles"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleEdit(vehicle)}
-            className="border-primary-200 text-primary hover:bg-primary-50"
-            title="Editar"
-          >
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleDelete(vehicle)}
-            className="border-red-200 text-red-600 hover:bg-red-50"
-            title="Eliminar"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )
-    },
-  ];
-
   return (
     <div className="animate-fade-in space-y-4">
       {/* Filtros */}
@@ -315,14 +253,116 @@ export default function Vehicles() {
         onClearFilters={clearFilters}
       />
 
-      {/* Tabla */}
-      <DataTable
-        data={filteredVehicles}
-        columns={columns}
-        onAdd={handleAdd}
-        title="Gestión de Vehículos"
-        addButtonText="Registrar Nuevo Vehículo"
-      />
+      {/* Tabla con columnas personalizadas */}
+      <div className="bg-white rounded-lg border border-secondary-medium shadow-sm">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h2 className="text-2xl font-bold text-primary-900">Gestión de Vehículos</h2>
+          <Button 
+            onClick={handleAdd} 
+            className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Registrar Nuevo Vehículo
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-secondary-light">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Placa</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Marca</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Modelo</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Año</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Estado</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Último M3</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Próximo Mantenimiento</th>
+                <th className="px-4 py-3 text-left font-semibold text-primary-900">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredVehicles.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-8 text-secondary-dark">
+                    No hay vehículos disponibles
+                  </td>
+                </tr>
+              ) : (
+                filteredVehicles.map((vehicle) => (
+                  <tr key={vehicle.id} className="border-b hover:bg-secondary-light transition-colors">
+                    <td className="px-4 py-4">{vehicle.plate_number}</td>
+                    <td className="px-4 py-4">{vehicle.brand}</td>
+                    <td className="px-4 py-4">{vehicle.model}</td>
+                    <td className="px-4 py-4">{vehicle.year}</td>
+                    <td className="px-4 py-4">
+                      {vehicle.status === 'available' && (
+                        <Badge className="bg-green-100 text-green-800">Operativa</Badge>
+                      )}
+                      {vehicle.status === 'maintenance' && (
+                        <Badge className="bg-yellow-100 text-yellow-800">En Mantenimiento</Badge>
+                      )}
+                      {vehicle.status === 'out_of_service' && (
+                        <Badge className="bg-red-100 text-red-800">Inactiva</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        {vehicle.last_m3_date || "No registrado"}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1">
+                        <Gauge className="w-4 h-4 text-gray-400" />
+                        {vehicle.current_kilometers && vehicle.next_m3_km ? (
+                          vehicle.next_m3_km - vehicle.current_kilometers <= 0 ? (
+                            <span className="text-red-600 font-medium">Vencido</span>
+                          ) : (
+                            `${(vehicle.next_m3_km - vehicle.current_kilometers).toLocaleString()} km`
+                          )
+                        ) : (
+                          "No definido"
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(vehicle)}
+                          className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                          title="Ver detalles"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(vehicle)}
+                          className="border-primary-200 text-primary hover:bg-primary-50"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(vehicle)}
+                          className="border-red-200 text-red-600 hover:bg-red-50"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Modal de formulario */}
       <FormModal
