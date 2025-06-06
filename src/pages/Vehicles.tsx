@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -68,7 +67,7 @@ export default function Vehicles() {
     year: new Date().getFullYear(),
     plate_number: "",
     status: "available" as Vehicle['status'],
-    current_maintenance_type: "" as Vehicle['current_maintenance_type'],
+    current_maintenance_type: undefined as Vehicle['current_maintenance_type'],
     current_kilometers: 0,
     location: "",
   });
@@ -90,7 +89,7 @@ export default function Vehicles() {
       }
       
       // Filtro por estado
-      if (filters.status && vehicle.status !== filters.status) {
+      if (filters.status && filters.status !== "all" && vehicle.status !== filters.status) {
         return false;
       }
       
@@ -145,7 +144,7 @@ export default function Vehicles() {
       year: new Date().getFullYear(),
       plate_number: "",
       status: "available",
-      current_maintenance_type: "",
+      current_maintenance_type: undefined,
       current_kilometers: 0,
       location: "",
     });
@@ -164,7 +163,7 @@ export default function Vehicles() {
       year: vehicle.year,
       plate_number: vehicle.plate_number,
       status: vehicle.status,
-      current_maintenance_type: vehicle.current_maintenance_type || "",
+      current_maintenance_type: vehicle.current_maintenance_type,
       current_kilometers: vehicle.current_kilometers || 0,
       location: vehicle.location || "",
     });
@@ -421,7 +420,7 @@ export default function Vehicles() {
             <div>
               <Label htmlFor="current_maintenance_type">Tipo de Mantenimiento Actual</Label>
               <Select
-                value={formData.current_maintenance_type}
+                value={formData.current_maintenance_type || ""}
                 onValueChange={(value: Vehicle['current_maintenance_type']) => 
                   setFormData(prev => ({ ...prev, current_maintenance_type: value }))
                 }

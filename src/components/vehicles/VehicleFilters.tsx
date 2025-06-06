@@ -96,7 +96,7 @@ export function VehicleFiltersComponent({ filters, onFiltersChange, onClearFilte
               <SelectValue placeholder="Todos los estados" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todos los estados</SelectItem>
+              <SelectItem value="all">Todos los estados</SelectItem>
               <SelectItem value="available">Operativa</SelectItem>
               <SelectItem value="maintenance">En mantenimiento</SelectItem>
               <SelectItem value="out_of_service">Inactiva</SelectItem>
