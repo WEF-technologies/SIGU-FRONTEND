@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -12,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Edit, Trash2, History, Calendar, Gauge } from "lucide-react";
+import { Eye, Edit, Trash2, History, Calendar, Gauge, Plus } from "lucide-react";
 
 export default function Vehicles() {
   const { toast } = useToast();
