@@ -1,4 +1,3 @@
-
 export interface BaseEntity {
   id: string;
   created_at: string;
@@ -10,7 +9,13 @@ export interface Vehicle extends BaseEntity {
   model: string;
   year: number;
   plate_number: string;
-  status: 'active' | 'inactive' | 'maintenance';
+  status: 'available' | 'maintenance' | 'out_of_service';
+  current_maintenance_type?: 'M1' | 'M2' | 'M3';
+  current_kilometers?: number;
+  location?: string;
+  last_m3_date?: string;
+  last_m3_km?: number;
+  next_m3_km?: number;
 }
 
 export interface User extends BaseEntity {
