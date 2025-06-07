@@ -1,3 +1,4 @@
+
 export interface BaseEntity {
   id: string;
   created_at: string;
@@ -22,6 +23,7 @@ export interface User extends BaseEntity {
   document_type: string;
   name: string;
   last_name: string;
+  lastname?: string; // For backend compatibility
   status: 'active' | 'inactive';
   telephone: string;
   document_number: string;
@@ -32,12 +34,13 @@ export interface Contract extends BaseEntity {
   start_date: string;
   end_date: string;
   location: string;
-  status: 'active' | 'inactive' | 'completed';
+  status: 'active' | 'inactive' | 'terminated';
   contract_code?: string;
-  vehicles?: Vehicle[];
-  users?: User[];
+  vehicles: Vehicle[];
+  users: User[];
   routes?: Route[];
   shifts?: Shift[];
+  document_url?: string;
 }
 
 export interface Route extends BaseEntity {

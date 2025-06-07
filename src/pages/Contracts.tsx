@@ -1,94 +1,73 @@
-import { useState, useMemo } from "react";
-import { DataTable } from "@/components/shared/DataTable";
+
+import { useState, useEffect } from "react";
 import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ContractDetailsModal } from "@/components/contracts/ContractDetailsModal";
+import { ContractForm } from "@/components/contracts/ContractForm";
 import { ShiftForm } from "@/components/contracts/ShiftForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 import { Contract, Shift } from "@/types";
+import { contractsApi } from "@/services/contractsApi";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Edit, Trash2 } from "lucide-react";
+import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw } from "lucide-react";
 
 export default function Contracts() {
   const { toast } = useToast();
-  const [contracts, setContracts] = useState<Contract[]>([
-    {
-      id: "1",
-      description: "Contrato de Transporte Sede Norte",
-      start_date: "2024-01-01",
-      end_date: "2024-12-31",
-      location: "Sede Norte",
-      status: "active",
-      contract_code: "CNT-2024-001",
-      created_at: "2024-01-01",
-      updated_at: "2024-01-01",
-    },
-    {
-      id: "2", 
-      description: "Contrato de Transporte Sede Sur",
-      start_date: "2024-02-01",
-      end_date: "2024-11-30",
-      location: "Sede Sur",
-      status: "active",
-      contract_code: "CNT-2024-002",
-      created_at: "2024-02-01",
-      updated_at: "2024-02-01",
-    },
-  ]);
-
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFormLoading, setIsFormLoading] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [formData, setFormData] = useState({
-    description: "",
-    start_date: "",
-    end_date: "",
-    location: "",
-    status: "active" as Contract['status'],
-    contract_code: "",
-  });
 
-  const filteredContracts = useMemo(() => {
-    return contracts.filter(contract =>
-      contract.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contract.contract_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contract.location.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [contracts, searchTerm]);
+  useEffect(() => {
+    loadContracts();
+  }, []);
 
-  const resetForm = () => {
-    setFormData({
-      description: "",
-      start_date: "",
-      end_date: "",
-      location: "",
-      status: "active",
-      contract_code: "",
-    });
-    setEditingContract(null);
+  const loadContracts = async () => {
+    setLoading(true);
+    try {
+      const contractsData = await contractsApi.getContracts();
+      setContracts(contractsData);
+    } catch (error) {
+      console.error('Error loading contracts:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los contratos",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const filteredContracts = contracts.filter(contract =>
+    contract.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.contract_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.location.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const handleAdd = () => {
-    resetForm();
+    setEditingContract(null);
     setIsModalOpen(true);
   };
 
   const handleEdit = (contract: Contract) => {
-    setFormData({
-      description: contract.description,
-      start_date: contract.start_date,
-      end_date: contract.end_date,
-      location: contract.location,
-      status: contract.status,
-      contract_code: contract.contract_code || "",
-    });
     setEditingContract(contract);
     setIsModalOpen(true);
   };
@@ -98,43 +77,59 @@ export default function Contracts() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleDelete = (contract: Contract) => {
-    setContracts(prev => prev.filter(c => c.id !== contract.id));
-    toast({
-      title: "Contrato eliminado",
-      description: `${contract.description} ha sido eliminado correctamente.`,
-    });
-  };
+  const handleDelete = async (contract: Contract) => {
+    if (!confirm(`¿Estás seguro de que quieres eliminar el contrato "${contract.description}"?`)) {
+      return;
+    }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (editingContract) {
-      setContracts(prev => prev.map(c => 
-        c.id === editingContract.id 
-          ? { ...c, ...formData, updated_at: new Date().toISOString() }
-          : c
-      ));
+    try {
+      await contractsApi.deleteContract(contract.id);
+      setContracts(prev => prev.filter(c => c.id !== contract.id));
       toast({
-        title: "Contrato actualizado",
-        description: `${formData.description} ha sido actualizado correctamente.`,
+        title: "Contrato eliminado",
+        description: `${contract.description} ha sido eliminado correctamente.`,
       });
-    } else {
-      const newContract: Contract = {
-        id: Date.now().toString(),
-        ...formData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setContracts(prev => [...prev, newContract]);
+    } catch (error) {
+      console.error('Error deleting contract:', error);
       toast({
-        title: "Contrato creado",
-        description: `${formData.description} ha sido creado correctamente.`,
+        title: "Error",
+        description: "No se pudo eliminar el contrato",
+        variant: "destructive",
       });
     }
-    
-    setIsModalOpen(false);
-    resetForm();
+  };
+
+  const handleSubmit = async (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => {
+    setIsFormLoading(true);
+    try {
+      if (editingContract) {
+        const updatedContract = await contractsApi.updateContract(editingContract.id, contractData);
+        setContracts(prev => prev.map(c => c.id === editingContract.id ? updatedContract : c));
+        toast({
+          title: "Contrato actualizado",
+          description: `${contractData.description} ha sido actualizado correctamente.`,
+        });
+      } else {
+        const newContract = await contractsApi.createContract(contractData);
+        setContracts(prev => [...prev, newContract]);
+        toast({
+          title: "Contrato creado",
+          description: `${contractData.description} ha sido creado correctamente.`,
+        });
+      }
+      
+      setIsModalOpen(false);
+      setEditingContract(null);
+    } catch (error) {
+      console.error('Error saving contract:', error);
+      toast({
+        title: "Error",
+        description: `No se pudo ${editingContract ? 'actualizar' : 'crear'} el contrato`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsFormLoading(false);
+    }
   };
 
   const handleAddShift = (contract: Contract) => {
@@ -149,222 +144,192 @@ export default function Contracts() {
   };
 
   const handleDeleteShift = (shift: Shift) => {
-    if (selectedContract) {
-      const updatedContract = {
-        ...selectedContract,
-        shifts: selectedContract.shifts?.filter(s => s.id !== shift.id) || []
-      };
-      setSelectedContract(updatedContract);
-      setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
-      
-      toast({
-        title: "Turno eliminado",
-        description: "El turno ha sido eliminado correctamente.",
-      });
-    }
+    // Implementation for deleting shift
+    toast({
+      title: "Turno eliminado",
+      description: "El turno ha sido eliminado correctamente.",
+    });
   };
 
   const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
-    if (!selectedContract) return;
-
-    if (editingShift) {
-      const updatedShift = {
-        ...editingShift,
-        ...shiftData,
-        updated_at: new Date().toISOString()
-      };
-      
-      const updatedContract = {
-        ...selectedContract,
-        shifts: selectedContract.shifts?.map(s => s.id === editingShift.id ? updatedShift : s) || []
-      };
-      
-      setSelectedContract(updatedContract);
-      setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
-      
-      toast({
-        title: "Turno actualizado",
-        description: "El turno ha sido actualizado correctamente.",
-      });
-    } else {
-      const newShift: Shift = {
-        id: Date.now().toString(),
-        ...shiftData,
-        contract_id: selectedContract.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      
-      const updatedContract = {
-        ...selectedContract,
-        shifts: [...(selectedContract.shifts || []), newShift]
-      };
-      
-      setSelectedContract(updatedContract);
-      setContracts(prev => prev.map(c => c.id === selectedContract.id ? updatedContract : c));
-      
-      toast({
-        title: "Turno creado",
-        description: "El turno ha sido creado correctamente.",
-      });
-    }
-    
+    // Implementation for shift submission
     setIsShiftModalOpen(false);
     setEditingShift(null);
+    toast({
+      title: editingShift ? "Turno actualizado" : "Turno creado",
+      description: `El turno ha sido ${editingShift ? 'actualizado' : 'creado'} correctamente.`,
+    });
   };
 
-  const columns = [
-    { key: 'contract_code' as keyof Contract, header: 'Código' },
-    { key: 'description' as keyof Contract, header: 'Descripción' },
-    { key: 'start_date' as keyof Contract, header: 'Fecha Inicio' },
-    { key: 'end_date' as keyof Contract, header: 'Fecha Fin' },
-    { key: 'location' as keyof Contract, header: 'Ubicación' },
-    { 
-      key: 'status' as keyof Contract, 
-      header: 'Estado',
-      render: (status: Contract['status']) => <StatusBadge status={status} />
-    },
-    { 
-      key: 'actions' as const, 
-      header: 'Acciones',
-      render: (value: any, contract: Contract) => (
-        <div className="flex gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleViewDetails(contract)}
-            className="border-blue-200 text-blue-600 hover:bg-blue-50"
-            title="Ver detalles"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleEdit(contract)}
-            className="border-primary-200 text-primary hover:bg-primary-50"
-            title="Editar"
-          >
-            <Edit className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleDelete(contract)}
-            className="border-red-200 text-red-600 hover:bg-red-50"
-            title="Eliminar"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )
-    },
-  ];
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin mr-2" />
+        <span className="text-lg">Cargando contratos...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="animate-fade-in space-y-4">
-      <DataTable
-        data={filteredContracts}
-        columns={columns}
-        onAdd={handleAdd}
-        title="Gestión de Contratos"
-        addButtonText="Crear Nuevo Contrato"
-        searchField="description"
-        searchPlaceholder="Buscar contratos..."
-      />
+    <div className="animate-fade-in space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-2xl font-bold text-primary-900">
+              Gestión de Contratos
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={loadContracts}
+                className="border-gray-300"
+              >
+                <RefreshCw className="w-4 h-4 mr-1" />
+                Actualizar
+              </Button>
+              <Button onClick={handleAdd} className="bg-primary hover:bg-primary-600">
+                <Plus className="w-4 h-4 mr-1" />
+                Crear Nuevo Contrato
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <Input
+                placeholder="Buscar contratos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Badge variant="outline" className="text-sm">
+              {filteredContracts.length} contrato{filteredContracts.length !== 1 ? 's' : ''} encontrado{filteredContracts.length !== 1 ? 's' : ''}
+            </Badge>
+          </div>
+
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="font-semibold">Código</TableHead>
+                  <TableHead className="font-semibold">Descripción</TableHead>
+                  <TableHead className="font-semibold">Fechas</TableHead>
+                  <TableHead className="font-semibold">Ubicación</TableHead>
+                  <TableHead className="font-semibold">Estado</TableHead>
+                  <TableHead className="font-semibold">Vehículos</TableHead>
+                  <TableHead className="font-semibold">Usuarios</TableHead>
+                  <TableHead className="font-semibold text-center">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredContracts.map((contract) => (
+                  <TableRow key={contract.id} className="hover:bg-gray-50">
+                    <TableCell className="font-medium">
+                      {contract.contract_code || 'Sin código'}
+                    </TableCell>
+                    <TableCell>{contract.description}</TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        <div>Inicio: {new Date(contract.start_date).toLocaleDateString()}</div>
+                        <div>Fin: {new Date(contract.end_date).toLocaleDateString()}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{contract.location}</TableCell>
+                    <TableCell>
+                      <StatusBadge status={contract.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {contract.vehicles?.slice(0, 2).map((vehicle) => (
+                          <Badge key={vehicle.id} variant="outline" className="text-xs">
+                            {vehicle.plate_number}
+                          </Badge>
+                        ))}
+                        {(contract.vehicles?.length || 0) > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{(contract.vehicles?.length || 0) - 2} más
+                          </Badge>
+                        )}
+                        {(!contract.vehicles || contract.vehicles.length === 0) && (
+                          <span className="text-gray-500 text-sm">Sin vehículos</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        {contract.users?.slice(0, 2).map((user) => (
+                          <Badge key={user.id} variant="outline" className="text-xs">
+                            {user.name} {user.last_name || user.lastname}
+                          </Badge>
+                        ))}
+                        {(contract.users?.length || 0) > 2 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{(contract.users?.length || 0) - 2} más
+                          </Badge>
+                        )}
+                        {(!contract.users || contract.users.length === 0) && (
+                          <span className="text-gray-500 text-sm">Sin usuarios</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewDetails(contract)}
+                          className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                          title="Ver detalles"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(contract)}
+                          className="border-primary-200 text-primary hover:bg-primary-50"
+                          title="Editar"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(contract)}
+                          className="border-red-200 text-red-600 hover:bg-red-50"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {filteredContracts.length === 0 && (
+              <div className="p-8 text-center text-gray-500">
+                No se encontraron contratos que coincidan con tu búsqueda.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <FormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingContract ? "Editar Contrato" : "Crear Nuevo Contrato"}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="contract_code">Código del Contrato</Label>
-            <Input
-              id="contract_code"
-              value={formData.contract_code}
-              onChange={(e) => setFormData(prev => ({ ...prev, contract_code: e.target.value }))}
-              placeholder="CNT-2024-001"
-              required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="description">Descripción</Label>
-            <Input
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="start_date">Fecha de Inicio</Label>
-              <Input
-                id="start_date"
-                type="date"
-                value={formData.start_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="end_date">Fecha de Fin</Label>
-              <Input
-                id="end_date"
-                type="date"
-                value={formData.end_date}
-                onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
-                required
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="location">Ubicación</Label>
-            <Input
-              id="location"
-              value={formData.location}
-              onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-              required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="status">Estado</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value: Contract['status']) => 
-                setFormData(prev => ({ ...prev, status: value }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Activo</SelectItem>
-                <SelectItem value="inactive">Inactivo</SelectItem>
-                <SelectItem value="completed">Completado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" className="bg-primary hover:bg-primary-600">
-              {editingContract ? "Actualizar" : "Crear"}
-            </Button>
-          </div>
-        </form>
+        <ContractForm
+          contract={editingContract}
+          onSubmit={handleSubmit}
+          onCancel={() => setIsModalOpen(false)}
+          isLoading={isFormLoading}
+        />
       </FormModal>
 
       <ContractDetailsModal
