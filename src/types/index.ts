@@ -89,4 +89,4 @@ export interface SparePart extends BaseEntity {
 }
 
 export type MaintenanceType = 'M1' | 'M2' | 'M3';
-export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress';
+export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';

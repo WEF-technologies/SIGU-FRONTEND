@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Contract, Shift, Route } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { contractsApi } from "@/services/contractsApi";
 import { useToast } from "@/hooks/use-toast";
 import { Edit, Trash2, Plus, Download, FileText, Loader2 } from "lucide-react";
 
@@ -18,6 +17,54 @@ interface ContractDetailsModalProps {
   onDeleteShift: (shift: Shift) => void;
   onAddShift: (contract: Contract) => void;
 }
+
+// Datos mock para rutas y turnos
+const mockRoutes: Route[] = [
+  {
+    id: '1',
+    contract_id: '1',
+    description: 'Ruta Centro - Norte',
+    from_location: 'Centro de la Ciudad',
+    to_location: 'Zona Norte',
+    status: 'in_progress',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '2',
+    contract_id: '1',
+    description: 'Ruta Norte - Terminal',
+    from_location: 'Zona Norte',
+    to_location: 'Terminal de Buses',
+    status: 'pending',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  }
+];
+
+const mockShifts: Shift[] = [
+  {
+    id: '1',
+    contract_id: '1',
+    description: 'Turno Matutino 06:00 - 14:00',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '2',
+    contract_id: '1',
+    description: 'Turno Vespertino 14:00 - 22:00',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '3',
+    contract_id: '1',
+    description: 'Turno Nocturno 22:00 - 06:00',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  }
+];
 
 export function ContractDetailsModal({ 
   isOpen, 
@@ -43,14 +90,16 @@ export function ContractDetailsModal({
     if (!contract) return;
     
     setLoading(true);
+    
+    // Simular delay de carga
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     try {
-      const [routesData, shiftsData] = await Promise.all([
-        contractsApi.getContractRoutes(contract.id).catch(() => []),
-        contractsApi.getContractShifts(contract.id).catch(() => []),
-      ]);
+      const contractRoutes = mockRoutes.filter(route => route.contract_id === contract.id);
+      const contractShifts = mockShifts.filter(shift => shift.contract_id === contract.id);
       
-      setRoutes(routesData);
-      setShifts(shiftsData);
+      setRoutes(contractRoutes);
+      setShifts(contractShifts);
     } catch (error) {
       console.error('Error loading contract details:', error);
       toast({
@@ -67,21 +116,14 @@ export function ContractDetailsModal({
     if (!contract) return;
 
     setDownloadingDoc(true);
+    
+    // Simular descarga
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     try {
-      const blob = await contractsApi.downloadContractDocument(contract.id);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `contrato-${contract.contract_code || contract.id}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
       toast({
-        title: "Descarga exitosa",
-        description: "El documento se ha descargado correctamente",
+        title: "Descarga simulada",
+        description: "En un entorno real se descargaría el documento del contrato",
       });
     } catch (error) {
       console.error('Error downloading document:', error);

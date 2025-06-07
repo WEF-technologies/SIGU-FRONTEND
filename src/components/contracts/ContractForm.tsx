@@ -8,7 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Contract, Vehicle, User } from '@/types';
-import { contractsApi } from '@/services/contractsApi';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, FileText } from 'lucide-react';
 
@@ -17,9 +16,18 @@ interface ContractFormProps {
   onSubmit: (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => void;
   onCancel: () => void;
   isLoading?: boolean;
+  availableVehicles: Vehicle[];
+  availableUsers: User[];
 }
 
-export function ContractForm({ contract, onSubmit, onCancel, isLoading = false }: ContractFormProps) {
+export function ContractForm({ 
+  contract, 
+  onSubmit, 
+  onCancel, 
+  isLoading = false,
+  availableVehicles,
+  availableUsers 
+}: ContractFormProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     description: '',
@@ -32,48 +40,22 @@ export function ContractForm({ contract, onSubmit, onCancel, isLoading = false }
     user_ids: [] as string[],
   });
 
-  const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>([]);
-  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [vehicles, users] = await Promise.all([
-          contractsApi.getAvailableVehicles(),
-          contractsApi.getAvailableUsers(),
-        ]);
-        
-        setAvailableVehicles(vehicles);
-        setAvailableUsers(users);
-
-        if (contract) {
-          setFormData({
-            description: contract.description,
-            start_date: contract.start_date,
-            end_date: contract.end_date,
-            location: contract.location,
-            status: contract.status,
-            contract_code: contract.contract_code || '',
-            vehicle_ids: contract.vehicles?.map(v => v.id) || [],
-            user_ids: contract.users?.map(u => u.id) || [],
-          });
-        }
-      } catch (error) {
-        console.error('Error loading initial data:', error);
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar los datos iniciales",
-          variant: "destructive",
-        });
-      } finally {
-        setLoadingData(false);
-      }
-    };
-
-    loadInitialData();
-  }, [contract, toast]);
+    if (contract) {
+      setFormData({
+        description: contract.description,
+        start_date: contract.start_date,
+        end_date: contract.end_date,
+        location: contract.location,
+        status: contract.status,
+        contract_code: contract.contract_code || '',
+        vehicle_ids: contract.vehicles?.map(v => v.id) || [],
+        user_ids: contract.users?.map(u => u.id) || [],
+      });
+    }
+  }, [contract]);
 
   const handleVehicleToggle = (vehicleId: string) => {
     setFormData(prev => ({
@@ -108,6 +90,7 @@ export function ContractForm({ contract, onSubmit, onCancel, isLoading = false }
       contract_code: formData.contract_code,
       vehicles: selectedVehicles,
       users: selectedUsers,
+      document_url: selectedFile ? `mock://document/${selectedFile.name}` : undefined,
     };
 
     onSubmit(contractData);
@@ -128,15 +111,6 @@ export function ContractForm({ contract, onSubmit, onCancel, isLoading = false }
       }
     }
   };
-
-  if (loadingData) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="w-8 h-8 animate-spin" />
-        <span className="ml-2">Cargando datos...</span>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

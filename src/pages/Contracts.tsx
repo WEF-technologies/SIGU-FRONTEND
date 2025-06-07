@@ -17,15 +17,127 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Contract, Shift } from "@/types";
-import { contractsApi } from "@/services/contractsApi";
+import { Contract, Shift, Vehicle, User } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw } from "lucide-react";
 
+// Datos de ejemplo
+const mockVehicles: Vehicle[] = [
+  {
+    id: '1',
+    brand: 'Toyota',
+    model: 'Corolla',
+    year: 2020,
+    plate_number: 'ABC-123',
+    status: 'available',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '2',
+    brand: 'Honda',
+    model: 'Civic',
+    year: 2021,
+    plate_number: 'DEF-456',
+    status: 'available',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '3',
+    brand: 'Ford',
+    model: 'Focus',
+    year: 2019,
+    plate_number: 'GHI-789',
+    status: 'maintenance',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  }
+];
+
+const mockUsers: User[] = [
+  {
+    id: '1',
+    document_type: 'CC',
+    name: 'Juan',
+    last_name: 'Pérez',
+    status: 'active',
+    telephone: '123456789',
+    document_number: '12345678',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '2',
+    document_type: 'CC',
+    name: 'María',
+    last_name: 'García',
+    status: 'active',
+    telephone: '987654321',
+    document_number: '87654321',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '3',
+    document_type: 'CC',
+    name: 'Carlos',
+    last_name: 'López',
+    status: 'inactive',
+    telephone: '555666777',
+    document_number: '11223344',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  }
+];
+
+const mockContracts: Contract[] = [
+  {
+    id: '1',
+    description: 'Contrato de Transporte Urbano - Zona Norte',
+    start_date: '2024-01-01',
+    end_date: '2024-12-31',
+    location: 'Zona Norte de la Ciudad',
+    status: 'active',
+    contract_code: 'CNT-2024-001',
+    vehicles: [mockVehicles[0], mockVehicles[1]],
+    users: [mockUsers[0], mockUsers[1]],
+    document_url: 'https://example.com/contract1.pdf',
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '2',
+    description: 'Contrato de Servicios Especiales',
+    start_date: '2024-03-01',
+    end_date: '2024-09-30',
+    location: 'Centro Empresarial',
+    status: 'inactive',
+    contract_code: 'CNT-2024-002',
+    vehicles: [mockVehicles[2]],
+    users: [mockUsers[2]],
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  },
+  {
+    id: '3',
+    description: 'Contrato Temporal de Emergencia',
+    start_date: '2024-02-15',
+    end_date: '2024-03-15',
+    location: 'Zona Sur',
+    status: 'terminated',
+    contract_code: 'CNT-2024-003',
+    vehicles: [],
+    users: [],
+    created_at: '2024-01-01',
+    updated_at: '2024-01-01'
+  }
+];
+
 export default function Contracts() {
   const { toast } = useToast();
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [contracts, setContracts] = useState<Contract[]>(mockContracts);
+  const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormLoading, setIsFormLoading] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
@@ -34,27 +146,6 @@ export default function Contracts() {
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-
-  useEffect(() => {
-    loadContracts();
-  }, []);
-
-  const loadContracts = async () => {
-    setLoading(true);
-    try {
-      const contractsData = await contractsApi.getContracts();
-      setContracts(contractsData);
-    } catch (error) {
-      console.error('Error loading contracts:', error);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar los contratos",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filteredContracts = contracts.filter(contract =>
     contract.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -82,35 +173,38 @@ export default function Contracts() {
       return;
     }
 
-    try {
-      await contractsApi.deleteContract(contract.id);
-      setContracts(prev => prev.filter(c => c.id !== contract.id));
-      toast({
-        title: "Contrato eliminado",
-        description: `${contract.description} ha sido eliminado correctamente.`,
-      });
-    } catch (error) {
-      console.error('Error deleting contract:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo eliminar el contrato",
-        variant: "destructive",
-      });
-    }
+    setContracts(prev => prev.filter(c => c.id !== contract.id));
+    toast({
+      title: "Contrato eliminado",
+      description: `${contract.description} ha sido eliminado correctamente.`,
+    });
   };
 
   const handleSubmit = async (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => {
     setIsFormLoading(true);
+    
+    // Simular delay de API
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     try {
       if (editingContract) {
-        const updatedContract = await contractsApi.updateContract(editingContract.id, contractData);
+        const updatedContract = {
+          ...editingContract,
+          ...contractData,
+          updated_at: new Date().toISOString()
+        };
         setContracts(prev => prev.map(c => c.id === editingContract.id ? updatedContract : c));
         toast({
           title: "Contrato actualizado",
           description: `${contractData.description} ha sido actualizado correctamente.`,
         });
       } else {
-        const newContract = await contractsApi.createContract(contractData);
+        const newContract: Contract = {
+          ...contractData,
+          id: Date.now().toString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
         setContracts(prev => [...prev, newContract]);
         toast({
           title: "Contrato creado",
@@ -144,7 +238,6 @@ export default function Contracts() {
   };
 
   const handleDeleteShift = (shift: Shift) => {
-    // Implementation for deleting shift
     toast({
       title: "Turno eliminado",
       description: "El turno ha sido eliminado correctamente.",
@@ -152,7 +245,6 @@ export default function Contracts() {
   };
 
   const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
-    // Implementation for shift submission
     setIsShiftModalOpen(false);
     setEditingShift(null);
     toast({
@@ -160,15 +252,6 @@ export default function Contracts() {
       description: `El turno ha sido ${editingShift ? 'actualizado' : 'creado'} correctamente.`,
     });
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin mr-2" />
-        <span className="text-lg">Cargando contratos...</span>
-      </div>
-    );
-  }
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -181,7 +264,7 @@ export default function Contracts() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={loadContracts}
+                onClick={() => setContracts(mockContracts)}
                 className="border-gray-300"
               >
                 <RefreshCw className="w-4 h-4 mr-1" />
@@ -329,6 +412,8 @@ export default function Contracts() {
           onSubmit={handleSubmit}
           onCancel={() => setIsModalOpen(false)}
           isLoading={isFormLoading}
+          availableVehicles={mockVehicles}
+          availableUsers={mockUsers}
         />
       </FormModal>
 
