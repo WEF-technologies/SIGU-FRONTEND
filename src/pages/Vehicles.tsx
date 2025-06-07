@@ -12,42 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, Edit, Trash2, History, Calendar, Gauge, Plus } from "lucide-react";
+import { useEffect } from "react";
 
 export default function Vehicles() {
   const { toast } = useToast();
-  const [vehicles, setVehicles] = useState<Vehicle[]>([
-    {
-      id: "1",
-      brand: "Toyota",
-      model: "Hiace",
-      year: 2020,
-      plate_number: "ABC-123",
-      status: "available",
-      current_kilometers: 52000,
-      location: "Sede Principal",
-      last_m3_date: "2024-01-15",
-      last_m3_km: 45000,
-      next_m3_km: 55000,
-      created_at: "2024-01-01",
-      updated_at: "2024-01-01",
-    },
-    {
-      id: "2",
-      brand: "Mercedes",
-      model: "Sprinter",
-      year: 2019,
-      plate_number: "XYZ-789",
-      status: "maintenance",
-      current_maintenance_type: "M2",
-      current_kilometers: 78000,
-      location: "Sede Norte",
-      last_m3_date: "2023-12-10",
-      last_m3_km: 70000,
-      next_m3_km: 80000,
-      created_at: "2024-01-01",
-      updated_at: "2024-01-01",
-    },
-  ]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
+  useEffect(() => {
+  fetch("http://localhost:8000/api/v1/vehicles/")
+    .then(res => res.json())
+    .then(data => setVehicles(data))
+    .catch(() => setVehicles([]));
+}, []);
+  
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -177,11 +154,16 @@ export default function Vehicles() {
   };
 
   const handleDelete = (vehicle: Vehicle) => {
-    setVehicles(prev => prev.filter(v => v.id !== vehicle.id));
-    toast({
-      title: "Vehículo eliminado",
-      description: `${vehicle.plate_number} ha sido eliminado correctamente.`,
-    });
+    fetch(`http://localhost:8000/api/v1/vehicles/${vehicle.plate_number}`, {
+      method: "DELETE",
+    })
+      .then(() => {
+        setVehicles(prev => prev.filter(v => v.plate_number !== vehicle.plate_number));
+        toast({
+          title: "Vehículo eliminado",
+          description: `${vehicle.plate_number} ha sido eliminado correctamente.`,
+        });
+      });
   };
 
   const handleUpdateKilometers = (vehicleId: string, kilometers: number) => {
@@ -202,36 +184,42 @@ export default function Vehicles() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (editingVehicle) {
-      setVehicles(prev => prev.map(v => 
-        v.id === editingVehicle.id 
-          ? { ...v, ...formData, updated_at: new Date().toISOString() }
-          : v
-      ));
-      toast({
-        title: "Vehículo actualizado",
-        description: `${formData.plate_number} ha sido actualizado correctamente.`,
-      });
+      // Editar (PUT)
+      fetch(`http://localhost:8000/api/v1/vehicles/${formData.plate_number}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+        .then(res => res.json())
+        .then(vehicle => {
+          setVehicles(prev => prev.map(v => v.plate_number === vehicle.plate_number ? vehicle : v));
+          toast({
+            title: "Vehículo actualizado",
+            description: `${vehicle.plate_number} ha sido actualizado correctamente.`,
+          });
+        });
     } else {
-      const newVehicle: Vehicle = {
-        id: Date.now().toString(),
-        ...formData,
-        current_maintenance_type: formData.status === 'maintenance' ? formData.current_maintenance_type : undefined,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setVehicles(prev => [...prev, newVehicle]);
-      toast({
-        title: "Vehículo creado",
-        description: `${formData.plate_number} ha sido creado correctamente.`,
-      });
+      // Crear (POST)
+      fetch("http://localhost:8000/api/v1/vehicles/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+        .then(res => res.json())
+        .then(vehicle => {
+          setVehicles(prev => [...prev, vehicle]);
+          toast({
+            title: "Vehículo creado",
+            description: `${vehicle.plate_number} ha sido creado correctamente.`,
+          });
+        });
     }
-    
+
     setIsModalOpen(false);
     resetForm();
   };
-
   const clearFilters = () => {
     setFilters({
       plate: "",
