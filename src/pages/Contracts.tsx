@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -19,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Contract, Shift, Vehicle, User } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw } from "lucide-react";
+import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
 
 // Datos de ejemplo
 const mockVehicles: Vehicle[] = [
@@ -253,6 +252,23 @@ export default function Contracts() {
     });
   };
 
+  const handleDownloadDocument = async (contract: Contract) => {
+    if (!contract.document_url) {
+      toast({
+        title: "Sin documento",
+        description: "Este contrato no tiene un documento asociado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Simular descarga
+    toast({
+      title: "Descargando documento",
+      description: `Descargando documento del contrato ${contract.contract_code || contract.description}`,
+    });
+  };
+
   return (
     <div className="animate-fade-in space-y-6">
       <Card>
@@ -302,8 +318,6 @@ export default function Contracts() {
                   <TableHead className="font-semibold">Fechas</TableHead>
                   <TableHead className="font-semibold">Ubicación</TableHead>
                   <TableHead className="font-semibold">Estado</TableHead>
-                  <TableHead className="font-semibold">Vehículos</TableHead>
-                  <TableHead className="font-semibold">Usuarios</TableHead>
                   <TableHead className="font-semibold text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -325,40 +339,6 @@ export default function Contracts() {
                       <StatusBadge status={contract.status} />
                     </TableCell>
                     <TableCell>
-                      <div className="space-y-1">
-                        {contract.vehicles?.slice(0, 2).map((vehicle) => (
-                          <Badge key={vehicle.id} variant="outline" className="text-xs">
-                            {vehicle.plate_number}
-                          </Badge>
-                        ))}
-                        {(contract.vehicles?.length || 0) > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{(contract.vehicles?.length || 0) - 2} más
-                          </Badge>
-                        )}
-                        {(!contract.vehicles || contract.vehicles.length === 0) && (
-                          <span className="text-gray-500 text-sm">Sin vehículos</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {contract.users?.slice(0, 2).map((user) => (
-                          <Badge key={user.id} variant="outline" className="text-xs">
-                            {user.name} {user.last_name || user.lastname}
-                          </Badge>
-                        ))}
-                        {(contract.users?.length || 0) > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{(contract.users?.length || 0) - 2} más
-                          </Badge>
-                        )}
-                        {(!contract.users || contract.users.length === 0) && (
-                          <span className="text-gray-500 text-sm">Sin usuarios</span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
                       <div className="flex justify-center gap-1">
                         <Button
                           variant="outline"
@@ -378,6 +358,17 @@ export default function Contracts() {
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
+                        {contract.document_url && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadDocument(contract)}
+                            className="border-green-200 text-green-600 hover:bg-green-50"
+                            title="Descargar documento"
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"

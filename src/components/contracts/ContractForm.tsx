@@ -4,9 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { MultiSelect } from '@/components/contracts/MultiSelect';
 import { Contract, Vehicle, User } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, FileText } from 'lucide-react';
@@ -57,24 +55,6 @@ export function ContractForm({
     }
   }, [contract]);
 
-  const handleVehicleToggle = (vehicleId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      vehicle_ids: prev.vehicle_ids.includes(vehicleId)
-        ? prev.vehicle_ids.filter(id => id !== vehicleId)
-        : [...prev.vehicle_ids, vehicleId]
-    }));
-  };
-
-  const handleUserToggle = (userId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      user_ids: prev.user_ids.includes(userId)
-        ? prev.user_ids.filter(id => id !== userId)
-        : [...prev.user_ids, userId]
-    }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -111,6 +91,19 @@ export function ContractForm({
       }
     }
   };
+
+  // Preparar opciones para los MultiSelect
+  const vehicleOptions = availableVehicles.map(vehicle => ({
+    id: vehicle.id,
+    label: vehicle.plate_number,
+    sublabel: `${vehicle.brand} ${vehicle.model}`
+  }));
+
+  const userOptions = availableUsers.map(user => ({
+    id: user.id,
+    label: `${user.name} ${user.last_name || user.lastname}`,
+    sublabel: user.document_number
+  }));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -209,53 +202,27 @@ export function ContractForm({
         )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Vehículos Asignados</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-            {availableVehicles.map((vehicle) => (
-              <div key={vehicle.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`vehicle-${vehicle.id}`}
-                  checked={formData.vehicle_ids.includes(vehicle.id)}
-                  onCheckedChange={() => handleVehicleToggle(vehicle.id)}
-                />
-                <Label htmlFor={`vehicle-${vehicle.id}`} className="flex-1 cursor-pointer">
-                  <Badge variant="outline" className="w-full justify-start">
-                    {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
-                  </Badge>
-                </Label>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <MultiSelect
+          title="Vehículos Asignados"
+          options={vehicleOptions}
+          selectedIds={formData.vehicle_ids}
+          onSelectionChange={(selectedIds) => 
+            setFormData(prev => ({ ...prev, vehicle_ids: selectedIds }))
+          }
+          placeholder="Buscar vehículos por placa o modelo..."
+        />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Usuarios Asignados</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-            {availableUsers.map((user) => (
-              <div key={user.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`user-${user.id}`}
-                  checked={formData.user_ids.includes(user.id)}
-                  onCheckedChange={() => handleUserToggle(user.id)}
-                />
-                <Label htmlFor={`user-${user.id}`} className="flex-1 cursor-pointer">
-                  <Badge variant="outline" className="w-full justify-start">
-                    {user.name} {user.last_name || user.lastname}
-                  </Badge>
-                </Label>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+        <MultiSelect
+          title="Usuarios/Choferes Asignados"
+          options={userOptions}
+          selectedIds={formData.user_ids}
+          onSelectionChange={(selectedIds) => 
+            setFormData(prev => ({ ...prev, user_ids: selectedIds }))
+          }
+          placeholder="Buscar usuarios por nombre o documento..."
+        />
+      </div>
 
       <div className="flex justify-end gap-2 pt-4">
         <Button
