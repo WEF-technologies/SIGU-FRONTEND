@@ -208,8 +208,8 @@ export default function Maintenance() {
         onDelete={handleDelete}
         title="Gestión de Mantenimientos"
         addButtonText="Registrar Mantenimiento"
-        searchField="description"
-        searchPlaceholder="Buscar por descripción..."
+        searchField="vehicle_plate"
+        searchPlaceholder="Buscar por placa del vehículo..."
       />
 
       <FormModal
