@@ -11,7 +11,7 @@ export interface Vehicle extends BaseEntity {
   year: number;
   plate_number: string;
   status: 'available' | 'maintenance' | 'out_of_service';
-  current_maintenance_type?: 'M1' | 'M2' | 'M3';
+  current_maintenance_type?: 'M1' | 'M2' | 'M3' | 'M4';
   current_kilometers?: number;
   location?: string;
   last_m3_date?: string;
@@ -70,7 +70,7 @@ export interface Driver extends BaseEntity {
 export interface Maintenance extends BaseEntity {
   vehicle_id: string;
   description: string;
-  type: 'M1' | 'M2' | 'M3';
+  type: 'M1' | 'M2' | 'M3' | 'M4';
   date: string;
   kilometers?: number;
   next_maintenance_km?: number;
@@ -88,5 +88,5 @@ export interface SparePart extends BaseEntity {
   vehicle_plate?: string;
 }
 
-export type MaintenanceType = 'M1' | 'M2' | 'M3';
+export type MaintenanceType = 'M1' | 'M2' | 'M3' | 'M4';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';

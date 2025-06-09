@@ -246,13 +246,13 @@ export default function Vehicles() {
   return (
     <div className="animate-fade-in space-y-4">
       {/* Filtros */}
+      
       <VehicleFiltersComponent
         filters={filters}
         onFiltersChange={setFilters}
         onClearFilters={clearFilters}
       />
 
-      {/* Tabla con columnas personalizadas */}
       <div className="bg-white rounded-lg border border-secondary-medium shadow-sm">
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-2xl font-bold text-primary-900">Gestión de Vehículos</h2>
@@ -370,6 +370,8 @@ export default function Vehicles() {
         title={editingVehicle ? "Editar Vehículo" : "Registrar Nuevo Vehículo"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* ... keep existing code (form fields) the same until maintenance type select ... */}
+          
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="brand">Marca</Label>
@@ -468,9 +470,10 @@ export default function Vehicles() {
                   <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="M1">M1 - Mantenimiento Menor</SelectItem>
-                  <SelectItem value="M2">M2 - Mantenimiento Intermedio</SelectItem>
+                  <SelectItem value="M1">M1 - Mantenimiento Preventivo Básico</SelectItem>
+                  <SelectItem value="M2">M2 - Mantenimiento Correctivo</SelectItem>
                   <SelectItem value="M3">M3 - Mantenimiento Mayor</SelectItem>
+                  <SelectItem value="M4">M4 - Mantenimiento Especializado</SelectItem>
                 </SelectContent>
               </Select>
             </div>

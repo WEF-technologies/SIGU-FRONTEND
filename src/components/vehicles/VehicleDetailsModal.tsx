@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Vehicle, Maintenance, SparePart } from "@/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Edit, Plus, Calendar, Gauge, MapPin, Wrench, Package } from "lucide-react";
+import { MaintenanceForm } from "@/components/maintenance/MaintenanceForm";
 
 interface VehicleDetailsModalProps {
   vehicle: Vehicle | null;
@@ -22,14 +22,11 @@ interface VehicleDetailsModalProps {
 export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilometers }: VehicleDetailsModalProps) {
   const [editingKm, setEditingKm] = useState(false);
   const [kmValue, setKmValue] = useState("");
-
-  if (!vehicle) return null;
-
-  // Mock data - en producción vendría de la API
-  const maintenanceHistory: Maintenance[] = [
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [maintenanceHistory, setMaintenanceHistory] = useState<Maintenance[]>([
     {
       id: "1",
-      vehicle_id: vehicle.id,
+      vehicle_id: vehicle?.id || "",
       type: "M3",
       description: "Mantenimiento mayor completo",
       date: "2024-01-15",
@@ -39,7 +36,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     },
     {
       id: "2",
-      vehicle_id: vehicle.id,
+      vehicle_id: vehicle?.id || "",
       type: "M1",
       description: "Cambio de aceite y filtros",
       date: "2024-05-20",
@@ -47,7 +44,9 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
       created_at: "2024-05-20",
       updated_at: "2024-05-20"
     }
-  ];
+  ]);
+
+  if (!vehicle) return null;
 
   const spareParts: SparePart[] = [
     {
@@ -61,6 +60,13 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
       updated_at: "2024-01-15"
     }
   ];
+
+  const maintenanceTypeConfig = {
+    M1: { label: "M1 - Preventivo", color: "bg-blue-100 text-blue-800" },
+    M2: { label: "M2 - Correctivo", color: "bg-yellow-100 text-yellow-800" },
+    M3: { label: "M3 - Mayor", color: "bg-red-100 text-red-800" },
+    M4: { label: "M4 - Especializado", color: "bg-purple-100 text-purple-800" }
+  };
 
   const getStatusBadge = (status: Vehicle['status']) => {
     const statusConfig = {
@@ -89,6 +95,11 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
       setEditingKm(false);
       setKmValue("");
     }
+  };
+
+  const handleMaintenanceAdded = (newMaintenance: Maintenance) => {
+    setMaintenanceHistory(prev => [newMaintenance, ...prev]);
+    setShowMaintenanceForm(false);
   };
 
   return (
@@ -195,35 +206,56 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
             <TabsContent value="maintenance" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-medium">Historial de Mantenimientos</h3>
-                <Button size="sm" className="bg-primary">
+                <Button 
+                  size="sm" 
+                  className="bg-primary"
+                  onClick={() => setShowMaintenanceForm(true)}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Registrar Mantenimiento
                 </Button>
               </div>
-              <Card>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Kilometraje</TableHead>
-                      <TableHead>Descripción</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {maintenanceHistory.map((maintenance) => (
-                      <TableRow key={maintenance.id}>
-                        <TableCell>
-                          <Badge variant="outline">{maintenance.type}</Badge>
-                        </TableCell>
-                        <TableCell>{maintenance.date}</TableCell>
-                        <TableCell>{maintenance.kilometers?.toLocaleString()} km</TableCell>
-                        <TableCell>{maintenance.description}</TableCell>
+
+              {showMaintenanceForm ? (
+                <Card className="p-4">
+                  <MaintenanceForm
+                    vehicleId={vehicle.id}
+                    vehiclePlate={vehicle.plate_number}
+                    onMaintenanceAdded={handleMaintenanceAdded}
+                    onCancel={() => setShowMaintenanceForm(false)}
+                  />
+                </Card>
+              ) : (
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Kilometraje</TableHead>
+                        <TableHead>Descripción</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {maintenanceHistory.map((maintenance) => (
+                        <TableRow key={maintenance.id}>
+                          <TableCell>
+                            <Badge 
+                              className={maintenanceTypeConfig[maintenance.type]?.color}
+                              variant="outline"
+                            >
+                              {maintenance.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{maintenance.date}</TableCell>
+                          <TableCell>{maintenance.kilometers?.toLocaleString()} km</TableCell>
+                          <TableCell>{maintenance.description}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="parts" className="space-y-4">
