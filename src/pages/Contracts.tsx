@@ -18,124 +18,13 @@ import {
 } from "@/components/ui/table";
 import { Contract, Shift, Vehicle, User } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
-
-// Datos de ejemplo
-const mockVehicles: Vehicle[] = [
-  {
-    id: '1',
-    brand: 'Toyota',
-    model: 'Corolla',
-    year: 2020,
-    plate_number: 'ABC-123',
-    status: 'available',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    brand: 'Honda',
-    model: 'Civic',
-    year: 2021,
-    plate_number: 'DEF-456',
-    status: 'available',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '3',
-    brand: 'Ford',
-    model: 'Focus',
-    year: 2019,
-    plate_number: 'GHI-789',
-    status: 'maintenance',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  }
-];
-
-const mockUsers: User[] = [
-  {
-    id: '1',
-    document_type: 'CC',
-    name: 'Juan',
-    last_name: 'Pérez',
-    status: 'active',
-    telephone: '123456789',
-    document_number: '12345678',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    document_type: 'CC',
-    name: 'María',
-    last_name: 'García',
-    status: 'active',
-    telephone: '987654321',
-    document_number: '87654321',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '3',
-    document_type: 'CC',
-    name: 'Carlos',
-    last_name: 'López',
-    status: 'inactive',
-    telephone: '555666777',
-    document_number: '11223344',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  }
-];
-
-const mockContracts: Contract[] = [
-  {
-    id: '1',
-    description: 'Contrato de Transporte Urbano - Zona Norte',
-    start_date: '2024-01-01',
-    end_date: '2024-12-31',
-    location: 'Zona Norte de la Ciudad',
-    status: 'active',
-    contract_code: 'CNT-2024-001',
-    vehicles: [mockVehicles[0], mockVehicles[1]],
-    users: [mockUsers[0], mockUsers[1]],
-    document_url: 'https://example.com/contract1.pdf',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    description: 'Contrato de Servicios Especiales',
-    start_date: '2024-03-01',
-    end_date: '2024-09-30',
-    location: 'Centro Empresarial',
-    status: 'inactive',
-    contract_code: 'CNT-2024-002',
-    vehicles: [mockVehicles[2]],
-    users: [mockUsers[2]],
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '3',
-    description: 'Contrato Temporal de Emergencia',
-    start_date: '2024-02-15',
-    end_date: '2024-03-15',
-    location: 'Zona Sur',
-    status: 'terminated',
-    contract_code: 'CNT-2024-003',
-    vehicles: [],
-    users: [],
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  }
-];
+import { Eye, Edit, Trash2, Plus, Search, RefreshCw, Download } from "lucide-react";
 
 export default function Contracts() {
   const { toast } = useToast();
-  const [contracts, setContracts] = useState<Contract[]>(mockContracts);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [drivers, setDrivers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormLoading, setIsFormLoading] = useState(false);
@@ -145,6 +34,29 @@ export default function Contracts() {
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  const fetchContracts = () => {
+    setLoading(true);
+    fetch("http://localhost:8000/api/v1/contracts/")
+      .then(res => res.json())
+      .then(data => setContracts(data))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetch("http://localhost:8000/api/v1/contracts/").then(res => res.json()),
+      fetch("http://localhost:8000/api/v1/vehicles/").then(res => res.json()),
+      fetch("http://localhost:8000/api/v1/drivers/").then(res => res.json()),
+    ])
+      .then(([contractsData, vehiclesData, driversData]) => {
+        setContracts(contractsData);
+        setVehicles(vehiclesData);
+        setDrivers(driversData);
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredContracts = contracts.filter(contract =>
     contract.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -171,50 +83,53 @@ export default function Contracts() {
     if (!confirm(`¿Estás seguro de que quieres eliminar el contrato "${contract.description}"?`)) {
       return;
     }
-
-    setContracts(prev => prev.filter(c => c.id !== contract.id));
-    toast({
-      title: "Contrato eliminado",
-      description: `${contract.description} ha sido eliminado correctamente.`,
-    });
+    setLoading(true);
+    fetch(`http://localhost:8000/api/v1/contracts/${contract.id}`, {
+      method: "DELETE",
+    })
+      .then(() => {
+        setContracts(prev => prev.filter(c => c.id !== contract.id));
+        toast({
+          title: "Contrato eliminado",
+          description: `${contract.description} ha sido eliminado correctamente.`,
+        });
+      })
+      .finally(() => setLoading(false));
   };
 
   const handleSubmit = async (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => {
     setIsFormLoading(true);
-    
-    // Simular delay de API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
     try {
       if (editingContract) {
-        const updatedContract = {
-          ...editingContract,
-          ...contractData,
-          updated_at: new Date().toISOString()
-        };
+        // Actualizar contrato
+        const res = await fetch(`http://localhost:8000/api/v1/contracts/${editingContract.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(contractData),
+        });
+        const updatedContract = await res.json();
         setContracts(prev => prev.map(c => c.id === editingContract.id ? updatedContract : c));
         toast({
           title: "Contrato actualizado",
           description: `${contractData.description} ha sido actualizado correctamente.`,
         });
       } else {
-        const newContract: Contract = {
-          ...contractData,
-          id: Date.now().toString(),
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+        // Crear contrato
+        const res = await fetch("http://localhost:8000/api/v1/contracts/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(contractData),
+        });
+        const newContract = await res.json();
         setContracts(prev => [...prev, newContract]);
         toast({
           title: "Contrato creado",
           description: `${contractData.description} ha sido creado correctamente.`,
         });
       }
-      
       setIsModalOpen(false);
       setEditingContract(null);
     } catch (error) {
-      console.error('Error saving contract:', error);
       toast({
         title: "Error",
         description: `No se pudo ${editingContract ? 'actualizar' : 'crear'} el contrato`,
@@ -225,6 +140,7 @@ export default function Contracts() {
     }
   };
 
+  // Turnos (shifts)
   const handleAddShift = (contract: Contract) => {
     setSelectedContract(contract);
     setEditingShift(null);
@@ -236,20 +152,42 @@ export default function Contracts() {
     setIsShiftModalOpen(true);
   };
 
-  const handleDeleteShift = (shift: Shift) => {
+  const handleDeleteShift = async (shift: Shift) => {
+    await fetch(`http://localhost:8000/api/v1/shifts/${shift.id}`, {
+      method: "DELETE",
+    });
     toast({
       title: "Turno eliminado",
       description: "El turno ha sido eliminado correctamente.",
     });
   };
 
-  const handleShiftSubmit = (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleShiftSubmit = async (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
+    if (editingShift) {
+      // EDITAR turno (PUT)
+      await fetch(`http://localhost:8000/api/v1/shifts/${editingShift.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(shiftData),
+      });
+      toast({
+        title: "Turno actualizado",
+        description: "El turno ha sido actualizado correctamente.",
+      });
+    } else {
+      // CREAR turno (POST)
+      await fetch("http://localhost:8000/api/v1/shifts/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(shiftData),
+      });
+      toast({
+        title: "Turno creado",
+        description: "El turno ha sido creado correctamente.",
+      });
+    }
     setIsShiftModalOpen(false);
     setEditingShift(null);
-    toast({
-      title: editingShift ? "Turno actualizado" : "Turno creado",
-      description: `El turno ha sido ${editingShift ? 'actualizado' : 'creado'} correctamente.`,
-    });
   };
 
   const handleDownloadDocument = async (contract: Contract) => {
@@ -261,8 +199,7 @@ export default function Contracts() {
       });
       return;
     }
-
-    // Simular descarga
+    // Aquí deberías implementar la descarga real si lo necesitas
     toast({
       title: "Descargando documento",
       description: `Descargando documento del contrato ${contract.contract_code || contract.description}`,
@@ -280,7 +217,7 @@ export default function Contracts() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                onClick={() => setContracts(mockContracts)}
+                onClick={fetchContracts}
                 className="border-gray-300"
               >
                 <RefreshCw className="w-4 h-4 mr-1" />
@@ -403,8 +340,8 @@ export default function Contracts() {
           onSubmit={handleSubmit}
           onCancel={() => setIsModalOpen(false)}
           isLoading={isFormLoading}
-          availableVehicles={mockVehicles}
-          availableUsers={mockUsers}
+          availableVehicles={vehicles}
+          availableUsers={drivers}
         />
       </FormModal>
 
