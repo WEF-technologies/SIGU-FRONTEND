@@ -1,4 +1,3 @@
-
 export interface BaseEntity {
   id: string;
   created_at: string;
@@ -65,6 +64,11 @@ export interface Driver extends BaseEntity {
   license_type: string;
   telephone: string;
   status: 'active' | 'inactive';
+  blood_type?: string;
+  address?: string;
+  contract_id?: string;
+  document_url?: string;
+  contract?: Contract;
 }
 
 export interface Maintenance extends BaseEntity {
