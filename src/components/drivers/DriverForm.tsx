@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Driver, Contract } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download } from "lucide-react";
+import { Upload, Download, Eye } from "lucide-react";
 
 interface DriverFormProps {
   driver?: Driver;
@@ -68,6 +68,16 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
       toast({
         title: "Descarga iniciada",
         description: "El documento se está descargando.",
+      });
+    }
+  };
+
+  const handleViewDocument = () => {
+    if (formData.document_url) {
+      window.open(formData.document_url, '_blank');
+      toast({
+        title: "Documento abierto",
+        description: "El documento se ha abierto en una nueva pestaña.",
       });
     }
   };
@@ -135,32 +145,23 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="license_type">Tipo de Licencia</Label>
-          <Select
-            value={formData.license_type}
-            onValueChange={(value) => setFormData({...formData, license_type: value})}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="A1">A1 - Motocicletas</SelectItem>
-              <SelectItem value="A2">A2 - Motocicletas</SelectItem>
-              <SelectItem value="B1">B1 - Automóviles</SelectItem>
-              <SelectItem value="B2">B2 - Camionetas</SelectItem>
-              <SelectItem value="C1">C1 - Camiones</SelectItem>
-              <SelectItem value="C2">C2 - Buses</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div>
           <Label htmlFor="telephone">Teléfono</Label>
           <Input
             id="telephone"
             value={formData.telephone}
             onChange={(e) => setFormData({...formData, telephone: e.target.value})}
             placeholder="Ingrese el teléfono"
+            required
+          />
+        </div>
+        
+        <div>
+          <Label htmlFor="license_type">Tipo de Licencia</Label>
+          <Input
+            id="license_type"
+            value={formData.license_type}
+            onChange={(e) => setFormData({...formData, license_type: e.target.value})}
+            placeholder="Ej: B1, B2, C1, etc."
             required
           />
         </div>
@@ -211,9 +212,14 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
             <Upload className="w-4 h-4" />
           </Button>
           {formData.document_url && (
-            <Button type="button" variant="outline" size="sm" onClick={handleDownloadDocument}>
-              <Download className="w-4 h-4" />
-            </Button>
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={handleViewDocument}>
+                <Eye className="w-4 h-4" />
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadDocument}>
+                <Download className="w-4 h-4" />
+              </Button>
+            </>
           )}
         </div>
         {formData.document_url && (

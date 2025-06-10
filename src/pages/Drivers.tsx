@@ -82,6 +82,7 @@ export default function Drivers() {
     { key: 'license_type' as keyof Driver, header: 'Tipo Licencia' },
     { key: 'telephone' as keyof Driver, header: 'Teléfono' },
     { key: 'blood_type' as keyof Driver, header: 'Tipo Sangre' },
+    { key: 'address' as keyof Driver, header: 'Dirección' },
     {
       key: 'contract' as keyof Driver,
       header: 'Contrato',

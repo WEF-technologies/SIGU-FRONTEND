@@ -1,6 +1,6 @@
 
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Download } from "lucide-react";
+import { Edit, Trash2, Download, Eye } from "lucide-react";
 import { Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,6 +32,22 @@ export function DriverActions({ driver, onEdit, onDelete }: DriverActionsProps) 
     }
   };
 
+  const handleViewDocument = () => {
+    if (driver.document_url) {
+      window.open(driver.document_url, '_blank');
+      toast({
+        title: "Documento abierto",
+        description: "El documento se ha abierto en una nueva pestaña.",
+      });
+    } else {
+      toast({
+        title: "Sin documento",
+        description: "Este chofer no tiene documento cargado.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="flex gap-2">
       <Button
@@ -44,14 +60,24 @@ export function DriverActions({ driver, onEdit, onDelete }: DriverActionsProps) 
       </Button>
       
       {driver.document_url && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownloadDocument}
-          className="border-blue-200 text-blue-600 hover:bg-blue-50"
-        >
-          <Download className="w-4 h-4" />
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleViewDocument}
+            className="border-green-200 text-green-600 hover:bg-green-50"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadDocument}
+            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+          >
+            <Download className="w-4 h-4" />
+          </Button>
+        </>
       )}
       
       <Button
