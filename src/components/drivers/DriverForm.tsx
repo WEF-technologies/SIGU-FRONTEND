@@ -54,6 +54,11 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
     }
   };
 
+  const handleUploadButtonClick = () => {
+    const fileInput = document.getElementById('document') as HTMLInputElement;
+    fileInput?.click();
+  };
+
   const handleDownloadDocument = () => {
     if (formData.document_url) {
       const link = document.createElement('a');
@@ -219,8 +224,9 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
             onChange={handleFileUpload}
             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
             className="flex-1"
+            style={{ display: 'none' }}
           />
-          <Button type="button" variant="outline" size="sm" onClick={handleFileUpload}>
+          <Button type="button" variant="outline" size="sm" onClick={handleUploadButtonClick}>
             <Upload className="w-4 h-4" />
           </Button>
           {formData.document_url && (
