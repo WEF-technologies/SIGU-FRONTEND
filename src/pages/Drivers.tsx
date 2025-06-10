@@ -1,8 +1,6 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { DriverForm } from "@/components/drivers/DriverForm";
 import { DriverActions } from "@/components/drivers/DriverActions";
 import { Driver, Contract } from "@/types";
@@ -88,11 +86,6 @@ export default function Drivers() {
       key: 'contract' as keyof Driver,
       header: 'Contrato',
       render: (value: Contract) => value?.contract_code || 'Sin asignar'
-    },
-    {
-      key: 'status' as keyof Driver,
-      header: 'Estado',
-      render: (value: any) => <StatusBadge status={value} />
     },
     {
       key: 'actions' as keyof Driver,

@@ -177,42 +177,23 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="contract_id">Contrato</Label>
-          <Select
-            value={formData.contract_id}
-            onValueChange={(value) => setFormData({...formData, contract_id: value})}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar contrato" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">Sin asignar</SelectItem>
-              {contracts.map((contract) => (
-                <SelectItem key={contract.id} value={contract.id}>
-                  {contract.contract_code} - {contract.description}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div>
-          <Label htmlFor="status">Estado</Label>
-          <Select
-            value={formData.status}
-            onValueChange={(value: 'active' | 'inactive') => setFormData({...formData, status: value})}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Activo</SelectItem>
-              <SelectItem value="inactive">Inactivo</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <Label htmlFor="contract_id">Contrato</Label>
+        <Select
+          value={formData.contract_id}
+          onValueChange={(value) => setFormData({...formData, contract_id: value})}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Seleccionar contrato" />
+          </SelectTrigger>
+          <SelectContent>
+            {contracts.map((contract) => (
+              <SelectItem key={contract.id} value={contract.id}>
+                {contract.contract_code} - {contract.description}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
