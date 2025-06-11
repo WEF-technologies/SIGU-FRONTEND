@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Driver, Contract } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Download, Eye } from "lucide-react";
 
 interface DriverFormProps {
   driver?: Driver;
@@ -23,62 +21,18 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
     last_name: driver?.last_name || "",
     document_number: driver?.document_number || "",
     telephone: driver?.telephone || "",
-    blood_type: driver?.blood_type || "",
     address: driver?.address || "",
-    contract_id: driver?.contract_id || "",
-    document_url: driver?.document_url || ""
+    contract_id: driver?.contract_id || ""
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     const selectedContract = contracts.find(c => c.id === formData.contract_id);
-    
     onSubmit({
       ...formData,
       status: 'active' as 'active' | 'inactive',
       contract: selectedContract
     });
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const fileUrl = URL.createObjectURL(file);
-      setFormData({...formData, document_url: fileUrl});
-      toast({
-        title: "Documento cargado",
-        description: `${file.name} ha sido cargado correctamente.`,
-      });
-    }
-  };
-
-  const handleUploadButtonClick = () => {
-    const fileInput = document.getElementById('document') as HTMLInputElement;
-    fileInput?.click();
-  };
-
-  const handleDownloadDocument = () => {
-    if (formData.document_url) {
-      const link = document.createElement('a');
-      link.href = formData.document_url;
-      link.download = `documento_${formData.document_number}.pdf`;
-      link.click();
-      toast({
-        title: "Descarga iniciada",
-        description: "El documento se está descargando.",
-      });
-    }
-  };
-
-  const handleViewDocument = () => {
-    if (formData.document_url) {
-      window.open(formData.document_url, '_blank');
-      toast({
-        title: "Documento abierto",
-        description: "El documento se ha abierto en una nueva pestaña.",
-      });
-    }
   };
 
   return (
@@ -94,7 +48,6 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
             required
           />
         </div>
-        
         <div>
           <Label htmlFor="last_name">Apellido</Label>
           <Input
@@ -117,28 +70,6 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
             placeholder="Ingrese el número de cédula"
             required
           />
-        </div>
-        
-        <div>
-          <Label htmlFor="blood_type">Tipo de Sangre</Label>
-          <Select
-            value={formData.blood_type}
-            onValueChange={(value) => setFormData({...formData, blood_type: value})}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="A+">A+</SelectItem>
-              <SelectItem value="A-">A-</SelectItem>
-              <SelectItem value="B+">B+</SelectItem>
-              <SelectItem value="B-">B-</SelectItem>
-              <SelectItem value="AB+">AB+</SelectItem>
-              <SelectItem value="AB-">AB-</SelectItem>
-              <SelectItem value="O+">O+</SelectItem>
-              <SelectItem value="O-">O-</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
       </div>
 
@@ -181,36 +112,6 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
             ))}
           </SelectContent>
         </Select>
-      </div>
-
-      <div>
-        <Label htmlFor="document">Documento</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            id="document"
-            type="file"
-            onChange={handleFileUpload}
-            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-            className="flex-1"
-            style={{ display: 'none' }}
-          />
-          <Button type="button" variant="outline" size="sm" onClick={handleUploadButtonClick}>
-            <Upload className="w-4 h-4" />
-          </Button>
-          {formData.document_url && (
-            <>
-              <Button type="button" variant="outline" size="sm" onClick={handleViewDocument}>
-                <Eye className="w-4 h-4" />
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleDownloadDocument}>
-                <Download className="w-4 h-4" />
-              </Button>
-            </>
-          )}
-        </div>
-        {formData.document_url && (
-          <p className="text-sm text-green-600 mt-1">Documento cargado correctamente</p>
-        )}
       </div>
 
       <div className="flex justify-end space-x-2 pt-4">
