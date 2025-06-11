@@ -2,111 +2,139 @@
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SparePartForm } from "@/components/spareparts/SparePartForm";
+import { SparePartActions } from "@/components/spareparts/SparePartActions";
 import { SparePart } from "@/types";
+import { useToast } from "@/hooks/use-toast";
+
+const mockVehicles = [
+  { plate_number: "ABC-123", brand: "Toyota", model: "Hiace" },
+  { plate_number: "XYZ-789", brand: "Mercedes", model: "Sprinter" },
+  { plate_number: "DEF-456", brand: "Chevrolet", model: "NPR" },
+  { plate_number: "GHI-321", brand: "Ford", model: "Transit" },
+  { plate_number: "JKL-654", brand: "Iveco", model: "Daily" }
+];
 
 const mockSpareParts: SparePart[] = [
   {
     id: "1",
-    vehicle_id: "1",
-    vehicle_plate: "ABC-123",
-    description: "Filtro de aceite marca Fram",
-    quantity: 5,
+    code: "BRK-001",
+    description: "Pastillas de freno delanteras marca Ferodo",
+    quantity: 8,
     company_location: "Bodega A - Estante 3",
     store_location: "Repuestos García - Calle 26 #15-30",
+    compatible_vehicles: ["ABC-123", "XYZ-789"],
+    vehicle_plates: "ABC-123, XYZ-789",
+    min_stock: 5,
+    unit_price: 45000,
     created_at: "2024-01-15",
     updated_at: "2024-01-15"
   },
   {
     id: "2",
-    vehicle_id: "2", 
-    vehicle_plate: "XYZ-789",
-    description: "Pastillas de freno delanteras",
-    quantity: 8,
+    code: "OIL-002",
+    description: "Filtro de aceite marca Fram",
+    quantity: 12,
     company_location: "Bodega B - Estante 1",
     store_location: "AutoPartes Central - Av. Caracas #45-12",
+    compatible_vehicles: ["ABC-123", "DEF-456", "GHI-321"],
+    vehicle_plates: "ABC-123, DEF-456, GHI-321",
+    min_stock: 8,
+    unit_price: 25000,
     created_at: "2024-01-10",
     updated_at: "2024-01-20"
   }
 ];
 
-const mockVehicles = [
-  { plate_number: "ABC-123", brand: "Toyota", model: "Hiace" },
-  { plate_number: "XYZ-789", brand: "Mercedes", model: "Sprinter" },
-  { plate_number: "DEF-456", brand: "Chevrolet", model: "NPR" }
-];
-
 export default function SpareParts() {
+  const { toast } = useToast();
   const [spareParts, setSpareParts] = useState<SparePart[]>(mockSpareParts);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSparePart, setEditingSparePart] = useState<SparePart | null>(null);
-  const [formData, setFormData] = useState({
-    vehicle_plate: "",
-    description: "",
-    quantity: 0,
-    company_location: "",
-    store_location: ""
-  });
 
   const columns = [
-    { key: 'vehicle_plate' as keyof SparePart, header: 'Placa Vehículo' },
+    { key: 'code' as keyof SparePart, header: 'Código' },
     { key: 'description' as keyof SparePart, header: 'Descripción' },
     { key: 'quantity' as keyof SparePart, header: 'Cantidad' },
     { key: 'company_location' as keyof SparePart, header: 'Ubicación Empresa' },
     { key: 'store_location' as keyof SparePart, header: 'Tienda' },
-    { key: 'actions' as keyof SparePart, header: 'Acciones' }
+    { 
+      key: 'vehicle_plates' as keyof SparePart, 
+      header: 'Vehículos Compatibles',
+      render: (value: string) => (
+        <span className="text-sm">{value || 'Ninguno'}</span>
+      )
+    },
+    {
+      key: 'unit_price' as keyof SparePart,
+      header: 'Precio Unit.',
+      render: (value: number) => (
+        <span className="text-sm">
+          {value ? `$${value.toLocaleString()}` : '-'}
+        </span>
+      )
+    },
+    {
+      key: 'actions' as keyof SparePart,
+      header: 'Acciones',
+      render: (_: any, sparePart: SparePart) => (
+        <SparePartActions
+          sparePart={sparePart}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      )
+    }
   ];
 
   const handleAdd = () => {
     setEditingSparePart(null);
-    setFormData({
-      vehicle_plate: "",
-      description: "",
-      quantity: 0,
-      company_location: "",
-      store_location: ""
-    });
     setIsModalOpen(true);
   };
 
   const handleEdit = (sparePart: SparePart) => {
     setEditingSparePart(sparePart);
-    setFormData({
-      vehicle_plate: sparePart.vehicle_plate || "",
-      description: sparePart.description,
-      quantity: sparePart.quantity,
-      company_location: sparePart.company_location,
-      store_location: sparePart.store_location
-    });
     setIsModalOpen(true);
   };
 
   const handleDelete = (sparePart: SparePart) => {
     setSpareParts(spareParts.filter(sp => sp.id !== sparePart.id));
+    toast({
+      title: "Repuesto eliminado",
+      description: `${sparePart.code} - ${sparePart.description} ha sido eliminado correctamente.`,
+    });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
+    const vehiclePlates = formData.compatible_vehicles.join(", ");
     
     if (editingSparePart) {
+      const updatedSparePart = {
+        ...editingSparePart,
+        ...formData,
+        vehicle_plates: vehiclePlates,
+        updated_at: new Date().toISOString()
+      };
       setSpareParts(spareParts.map(sp => 
-        sp.id === editingSparePart.id 
-          ? { ...sp, ...formData, updated_at: new Date().toISOString() }
-          : sp
+        sp.id === editingSparePart.id ? updatedSparePart : sp
       ));
+      toast({
+        title: "Repuesto actualizado",
+        description: `${formData.code} - ${formData.description} ha sido actualizado correctamente.`,
+      });
     } else {
       const newSparePart: SparePart = {
         id: Date.now().toString(),
-        vehicle_id: Date.now().toString(),
         ...formData,
+        vehicle_plates: vehiclePlates,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
       setSpareParts([...spareParts, newSparePart]);
+      toast({
+        title: "Repuesto creado",
+        description: `${formData.code} - ${formData.description} ha sido creado correctamente.`,
+      });
     }
     
     setIsModalOpen(false);
@@ -122,8 +150,8 @@ export default function SpareParts() {
         onDelete={handleDelete}
         title="Gestión de Repuestos"
         addButtonText="Agregar Repuesto"
-        searchField="description"
-        searchPlaceholder="Buscar repuesto..."
+        searchField="code"
+        searchPlaceholder="Buscar por código..."
       />
 
       <FormModal
@@ -131,85 +159,12 @@ export default function SpareParts() {
         onClose={() => setIsModalOpen(false)}
         title={editingSparePart ? "Editar Repuesto" : "Agregar Repuesto"}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="vehicle_plate">Placa del Vehículo</Label>
-            <Select
-              value={formData.vehicle_plate}
-              onValueChange={(value) => setFormData({...formData, vehicle_plate: value})}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccione un vehículo" />
-              </SelectTrigger>
-              <SelectContent>
-                {mockVehicles.map((vehicle) => (
-                  <SelectItem key={vehicle.plate_number} value={vehicle.plate_number}>
-                    {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label htmlFor="description">Descripción del Repuesto</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({...formData, description: e.target.value})}
-              placeholder="Describa el repuesto (marca, modelo, especificaciones)"
-              required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="quantity">Cantidad</Label>
-            <Input
-              id="quantity"
-              type="number"
-              min="0"
-              value={formData.quantity}
-              onChange={(e) => setFormData({...formData, quantity: parseInt(e.target.value) || 0})}
-              placeholder="Cantidad disponible"
-              required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="company_location">Ubicación en la Empresa</Label>
-            <Input
-              id="company_location"
-              value={formData.company_location}
-              onChange={(e) => setFormData({...formData, company_location: e.target.value})}
-              placeholder="Ej: Bodega A - Estante 3"
-              required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="store_location">Tienda de Compra</Label>
-            <Input
-              id="store_location"
-              value={formData.store_location}
-              onChange={(e) => setFormData({...formData, store_location: e.target.value})}
-              placeholder="Ej: Repuestos García - Calle 26 #15-30"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end space-x-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit">
-              {editingSparePart ? "Actualizar Repuesto" : "Crear Repuesto"}
-            </Button>
-          </div>
-        </form>
+        <SparePartForm
+          sparePart={editingSparePart}
+          vehicles={mockVehicles}
+          onSubmit={handleSubmit}
+          onCancel={() => setIsModalOpen(false)}
+        />
       </FormModal>
     </div>
   );

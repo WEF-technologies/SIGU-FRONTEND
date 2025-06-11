@@ -1,0 +1,36 @@
+
+import { Button } from "@/components/ui/button";
+import { Edit, Trash2 } from "lucide-react";
+import { SparePart } from "@/types";
+
+interface SparePartActionsProps {
+  sparePart: SparePart;
+  onEdit: (sparePart: SparePart) => void;
+  onDelete: (sparePart: SparePart) => void;
+}
+
+export function SparePartActions({ sparePart, onEdit, onDelete }: SparePartActionsProps) {
+  return (
+    <div className="flex gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onEdit(sparePart)}
+        className="border-primary-200 text-primary hover:bg-primary-50"
+        title="Editar"
+      >
+        <Edit className="w-4 h-4" />
+      </Button>
+      
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onDelete(sparePart)}
+        className="border-red-200 text-red-600 hover:bg-red-50"
+        title="Eliminar"
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+    </div>
+  );
+}

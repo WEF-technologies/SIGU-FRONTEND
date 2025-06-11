@@ -83,13 +83,15 @@ export interface Maintenance extends BaseEntity {
 }
 
 export interface SparePart extends BaseEntity {
-  vehicle_id: string;
+  code: string;
   description: string;
   quantity: number;
   company_location: string;
   store_location: string;
-  vehicle?: Vehicle;
-  vehicle_plate?: string;
+  compatible_vehicles: string[]; // Array of vehicle IDs or plate numbers
+  vehicle_plates?: string; // Comma-separated string for display
+  min_stock?: number;
+  unit_price?: number;
 }
 
 export type MaintenanceType = 'M1' | 'M2' | 'M3' | 'M4';
