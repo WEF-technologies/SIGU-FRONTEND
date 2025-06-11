@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -154,6 +155,8 @@ export default function Drivers() {
         data={drivers}
         columns={columns}
         onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
         title="Gestión de Choferes"
         addButtonText="Agregar Chofer"
         searchField="document_number"
