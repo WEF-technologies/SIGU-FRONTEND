@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MultiSelect } from '@/components/contracts/MultiSelect';
-import { Contract, Vehicle, User } from '@/types';
+import { Contract, Vehicle, Driver } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Upload, FileText } from 'lucide-react';
 
@@ -15,7 +14,7 @@ interface ContractFormProps {
   onCancel: () => void;
   isLoading?: boolean;
   availableVehicles: Vehicle[];
-  availableUsers: User[];
+  availableDrivers: Driver[];
 }
 
 export function ContractForm({ 
@@ -24,7 +23,7 @@ export function ContractForm({
   onCancel, 
   isLoading = false,
   availableVehicles,
-  availableUsers 
+  availableDrivers 
 }: ContractFormProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
@@ -35,7 +34,7 @@ export function ContractForm({
     status: 'active' as Contract['status'],
     contract_code: '',
     vehicle_ids: [] as string[],
-    user_ids: [] as string[],
+    driver_ids: [] as string[],
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -50,7 +49,7 @@ export function ContractForm({
         status: contract.status,
         contract_code: contract.contract_code || '',
         vehicle_ids: contract.vehicles?.map(v => v.id) || [],
-        user_ids: contract.users?.map(u => u.id) || [],
+        driver_ids: contract.drivers?.map(d => d.id) || [],
       });
     }
   }, [contract]);
@@ -59,7 +58,7 @@ export function ContractForm({
     e.preventDefault();
     
     const selectedVehicles = availableVehicles.filter(v => formData.vehicle_ids.includes(v.id));
-    const selectedUsers = availableUsers.filter(u => formData.user_ids.includes(u.id));
+    const selectedDrivers = availableDrivers.filter(d => formData.driver_ids.includes(d.id));
 
     const contractData = {
       description: formData.description,
@@ -69,7 +68,7 @@ export function ContractForm({
       status: formData.status,
       contract_code: formData.contract_code,
       vehicles: selectedVehicles,
-      users: selectedUsers,
+      drivers: selectedDrivers,
       document_url: selectedFile ? `mock://document/${selectedFile.name}` : undefined,
     };
 
@@ -99,10 +98,10 @@ export function ContractForm({
     sublabel: `${vehicle.brand} ${vehicle.model}`
   }));
 
-  const userOptions = availableUsers.map(user => ({
-    id: user.id,
-    label: `${user.name} ${user.last_name || user.lastname}`,
-    sublabel: user.document_number
+  const driverOptions = availableDrivers.map(driver => ({
+    id: driver.id,
+    label: `${driver.name} ${driver.last_name}`,
+    sublabel: driver.document_number
   }));
 
   return (
@@ -214,13 +213,13 @@ export function ContractForm({
         />
 
         <MultiSelect
-          title="Usuarios/Choferes Asignados"
-          options={userOptions}
-          selectedIds={formData.user_ids}
+          title="Choferes Asignados"
+          options={driverOptions}
+          selectedIds={formData.driver_ids}
           onSelectionChange={(selectedIds) => 
-            setFormData(prev => ({ ...prev, user_ids: selectedIds }))
+            setFormData(prev => ({ ...prev, driver_ids: selectedIds }))
           }
-          placeholder="Buscar usuarios por nombre o documento..."
+          placeholder="Buscar choferes por nombre o documento..."
         />
       </div>
 

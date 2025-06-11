@@ -55,36 +55,37 @@ export function DriverActions({ driver, onEdit, onDelete }: DriverActionsProps) 
         size="sm"
         onClick={() => onEdit(driver)}
         className="border-primary-200 text-primary hover:bg-primary-50"
+        title="Editar"
       >
         <Edit className="w-4 h-4" />
       </Button>
       
-      {driver.document_url && (
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleViewDocument}
-            className="border-green-200 text-green-600 hover:bg-green-50"
-          >
-            <Eye className="w-4 h-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadDocument}
-            className="border-blue-200 text-blue-600 hover:bg-blue-50"
-          >
-            <Download className="w-4 h-4" />
-          </Button>
-        </>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleViewDocument}
+        className="border-green-200 text-green-600 hover:bg-green-50"
+        title="Ver documento"
+      >
+        <Eye className="w-4 h-4" />
+      </Button>
+      
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleDownloadDocument}
+        className="border-blue-200 text-blue-600 hover:bg-blue-50"
+        title="Descargar documento"
+      >
+        <Download className="w-4 h-4" />
+      </Button>
       
       <Button
         variant="outline"
         size="sm"
         onClick={() => onDelete(driver)}
         className="border-red-200 text-red-600 hover:bg-red-50"
+        title="Eliminar"
       >
         <Trash2 className="w-4 h-4" />
       </Button>
