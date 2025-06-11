@@ -22,12 +22,10 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
     name: driver?.name || "",
     last_name: driver?.last_name || "",
     document_number: driver?.document_number || "",
-    license_type: driver?.license_type || "",
     telephone: driver?.telephone || "",
     blood_type: driver?.blood_type || "",
     address: driver?.address || "",
     contract_id: driver?.contract_id || "",
-    status: driver?.status || "active" as 'active' | 'inactive',
     document_url: driver?.document_url || ""
   });
 
@@ -38,6 +36,7 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
     
     onSubmit({
       ...formData,
+      status: 'active' as 'active' | 'inactive',
       contract: selectedContract
     });
   };
@@ -143,28 +142,15 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="telephone">Teléfono</Label>
-          <Input
-            id="telephone"
-            value={formData.telephone}
-            onChange={(e) => setFormData({...formData, telephone: e.target.value})}
-            placeholder="Ingrese el teléfono"
-            required
-          />
-        </div>
-        
-        <div>
-          <Label htmlFor="license_type">Tipo de Licencia</Label>
-          <Input
-            id="license_type"
-            value={formData.license_type}
-            onChange={(e) => setFormData({...formData, license_type: e.target.value})}
-            placeholder="Ej: B1, B2, C1, etc."
-            required
-          />
-        </div>
+      <div>
+        <Label htmlFor="telephone">Teléfono</Label>
+        <Input
+          id="telephone"
+          value={formData.telephone}
+          onChange={(e) => setFormData({...formData, telephone: e.target.value})}
+          placeholder="Ingrese el teléfono"
+          required
+        />
       </div>
 
       <div>

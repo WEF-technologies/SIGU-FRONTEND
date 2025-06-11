@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -16,7 +17,7 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Contract, Shift, Vehicle, User } from "@/types";
+import { Contract, Shift, Vehicle, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
 
@@ -54,10 +55,9 @@ const mockVehicles: Vehicle[] = [
   }
 ];
 
-const mockUsers: User[] = [
+const mockDrivers: Driver[] = [
   {
     id: '1',
-    document_type: 'CC',
     name: 'Juan',
     last_name: 'Pérez',
     status: 'active',
@@ -68,7 +68,6 @@ const mockUsers: User[] = [
   },
   {
     id: '2',
-    document_type: 'CC',
     name: 'María',
     last_name: 'García',
     status: 'active',
@@ -79,7 +78,6 @@ const mockUsers: User[] = [
   },
   {
     id: '3',
-    document_type: 'CC',
     name: 'Carlos',
     last_name: 'López',
     status: 'inactive',
@@ -100,7 +98,7 @@ const mockContracts: Contract[] = [
     status: 'active',
     contract_code: 'CNT-2024-001',
     vehicles: [mockVehicles[0], mockVehicles[1]],
-    users: [mockUsers[0], mockUsers[1]],
+    drivers: [mockDrivers[0], mockDrivers[1]],
     document_url: 'https://example.com/contract1.pdf',
     created_at: '2024-01-01',
     updated_at: '2024-01-01'
@@ -114,7 +112,7 @@ const mockContracts: Contract[] = [
     status: 'inactive',
     contract_code: 'CNT-2024-002',
     vehicles: [mockVehicles[2]],
-    users: [mockUsers[2]],
+    drivers: [mockDrivers[2]],
     created_at: '2024-01-01',
     updated_at: '2024-01-01'
   },
@@ -127,7 +125,7 @@ const mockContracts: Contract[] = [
     status: 'terminated',
     contract_code: 'CNT-2024-003',
     vehicles: [],
-    users: [],
+    drivers: [],
     created_at: '2024-01-01',
     updated_at: '2024-01-01'
   }
@@ -404,7 +402,7 @@ export default function Contracts() {
           onCancel={() => setIsModalOpen(false)}
           isLoading={isFormLoading}
           availableVehicles={mockVehicles}
-          availableUsers={mockUsers}
+          availableDrivers={mockDrivers}
         />
       </FormModal>
 

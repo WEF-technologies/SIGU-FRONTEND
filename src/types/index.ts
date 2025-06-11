@@ -1,3 +1,4 @@
+
 export interface BaseEntity {
   id: string;
   created_at: string;
@@ -36,7 +37,7 @@ export interface Contract extends BaseEntity {
   status: 'active' | 'inactive' | 'terminated';
   contract_code?: string;
   vehicles: Vehicle[];
-  users: User[];
+  drivers: Driver[];
   routes?: Route[];
   shifts?: Shift[];
   document_url?: string;
@@ -61,7 +62,6 @@ export interface Driver extends BaseEntity {
   name: string;
   last_name: string;
   document_number: string;
-  license_type: string;
   telephone: string;
   status: 'active' | 'inactive';
   blood_type?: string;

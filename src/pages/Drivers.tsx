@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -17,7 +18,7 @@ const mockContracts: Contract[] = [
     status: "active",
     contract_code: "CNT-2024-001",
     vehicles: [],
-    users: [],
+    drivers: [],
     created_at: "2024-01-01",
     updated_at: "2024-01-01"
   },
@@ -30,7 +31,7 @@ const mockContracts: Contract[] = [
     status: "active",
     contract_code: "CNT-2024-002",
     vehicles: [],
-    users: [],
+    drivers: [],
     created_at: "2024-01-01",
     updated_at: "2024-01-01"
   }
@@ -42,13 +43,13 @@ const mockDrivers: Driver[] = [
     name: "Carlos Alberto",
     last_name: "Mendoza Silva",
     document_number: "12345678",
-    license_type: "B1",
     telephone: "3001234567",
     status: "active",
     blood_type: "O+",
     address: "Calle 123 #45-67, Bogotá",
     contract_id: "1",
     contract: mockContracts[0],
+    document_url: "https://example.com/doc1.pdf",
     created_at: "2024-01-15",
     updated_at: "2024-01-15"
   },
@@ -57,7 +58,6 @@ const mockDrivers: Driver[] = [
     name: "Ana María",
     last_name: "Rodríguez Castro",
     document_number: "87654321",
-    license_type: "B2",
     telephone: "3109876543",
     status: "inactive",
     blood_type: "A-",
@@ -79,7 +79,6 @@ export default function Drivers() {
     { key: 'name' as keyof Driver, header: 'Nombre' },
     { key: 'last_name' as keyof Driver, header: 'Apellido' },
     { key: 'document_number' as keyof Driver, header: 'Núm. Cédula' },
-    { key: 'license_type' as keyof Driver, header: 'Tipo Licencia' },
     { key: 'telephone' as keyof Driver, header: 'Teléfono' },
     { key: 'blood_type' as keyof Driver, header: 'Tipo Sangre' },
     { key: 'address' as keyof Driver, header: 'Dirección' },
