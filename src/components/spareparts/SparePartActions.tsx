@@ -12,12 +12,12 @@ interface SparePartActionsProps {
 
 export function SparePartActions({ sparePart, onEdit, onDelete, onViewDetails }: SparePartActionsProps) {
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-1">
       <Button
         variant="outline"
         size="sm"
         onClick={() => onViewDetails(sparePart)}
-        className="border-blue-200 text-blue-600 hover:bg-blue-50"
+        className="h-8 w-8 p-0 border-blue-200 text-blue-600 hover:bg-blue-50"
         title="Ver detalles"
       >
         <Eye className="w-4 h-4" />
@@ -27,7 +27,7 @@ export function SparePartActions({ sparePart, onEdit, onDelete, onViewDetails }:
         variant="outline"
         size="sm"
         onClick={() => onEdit(sparePart)}
-        className="border-primary-200 text-primary hover:bg-primary-50"
+        className="h-8 w-8 p-0 border-amber-200 text-amber-600 hover:bg-amber-50"
         title="Editar"
       >
         <Edit className="w-4 h-4" />
@@ -37,7 +37,7 @@ export function SparePartActions({ sparePart, onEdit, onDelete, onViewDetails }:
         variant="outline"
         size="sm"
         onClick={() => onDelete(sparePart)}
-        className="border-red-200 text-red-600 hover:bg-red-50"
+        className="h-8 w-8 p-0 border-red-200 text-red-600 hover:bg-red-50"
         title="Eliminar"
       >
         <Trash2 className="w-4 h-4" />

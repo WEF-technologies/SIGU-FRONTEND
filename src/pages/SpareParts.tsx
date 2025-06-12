@@ -64,7 +64,7 @@ export default function SpareParts() {
       key: 'compatible_vehicles' as keyof SparePart, 
       header: 'Vehículos',
       render: (vehicles: string[]) => (
-        <span className="text-sm">
+        <span className="text-sm text-gray-600">
           {vehicles && vehicles.length > 0 ? `${vehicles.length} vehículo(s)` : 'Ninguno'}
         </span>
       )
@@ -73,7 +73,7 @@ export default function SpareParts() {
       key: 'unit_price' as keyof SparePart,
       header: 'Precio Unit.',
       render: (value: number) => (
-        <span className="text-sm">
+        <span className="text-sm font-medium">
           {value ? `$${value.toLocaleString()}` : '-'}
         </span>
       )
@@ -151,13 +151,11 @@ export default function SpareParts() {
   };
 
   return (
-    <div>
+    <div className="p-6">
       <DataTable
         data={spareParts}
         columns={columns}
         onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
         title="Gestión de Repuestos"
         addButtonText="Agregar Repuesto"
         searchField="code"
