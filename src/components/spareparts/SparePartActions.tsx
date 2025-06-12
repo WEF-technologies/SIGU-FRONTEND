@@ -1,17 +1,28 @@
 
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Trash2, Eye } from "lucide-react";
 import { SparePart } from "@/types";
 
 interface SparePartActionsProps {
   sparePart: SparePart;
   onEdit: (sparePart: SparePart) => void;
   onDelete: (sparePart: SparePart) => void;
+  onViewDetails: (sparePart: SparePart) => void;
 }
 
-export function SparePartActions({ sparePart, onEdit, onDelete }: SparePartActionsProps) {
+export function SparePartActions({ sparePart, onEdit, onDelete, onViewDetails }: SparePartActionsProps) {
   return (
     <div className="flex gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onViewDetails(sparePart)}
+        className="border-blue-200 text-blue-600 hover:bg-blue-50"
+        title="Ver detalles"
+      >
+        <Eye className="w-4 h-4" />
+      </Button>
+      
       <Button
         variant="outline"
         size="sm"

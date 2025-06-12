@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { SparePart } from "@/types";
+import { VehicleSelector } from "./VehicleSelector";
 
 interface Vehicle {
   plate_number: string;
@@ -46,20 +46,6 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
       });
     }
   }, [sparePart]);
-
-  const handleVehicleChange = (plateNumber: string, checked: boolean) => {
-    if (checked) {
-      setFormData(prev => ({
-        ...prev,
-        compatible_vehicles: [...prev.compatible_vehicles, plateNumber]
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        compatible_vehicles: prev.compatible_vehicles.filter(p => p !== plateNumber)
-      }));
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,23 +142,11 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
         </div>
       </div>
 
-      <div>
-        <Label>Vehículos Compatibles</Label>
-        <div className="grid grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto border rounded-md p-2">
-          {vehicles.map((vehicle) => (
-            <div key={vehicle.plate_number} className="flex items-center space-x-2">
-              <Checkbox
-                id={vehicle.plate_number}
-                checked={formData.compatible_vehicles.includes(vehicle.plate_number)}
-                onCheckedChange={(checked) => handleVehicleChange(vehicle.plate_number, !!checked)}
-              />
-              <Label htmlFor={vehicle.plate_number} className="text-sm">
-                {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
-              </Label>
-            </div>
-          ))}
-        </div>
-      </div>
+      <VehicleSelector
+        vehicles={vehicles}
+        selectedVehicles={formData.compatible_vehicles}
+        onSelectionChange={(selected) => setFormData({...formData, compatible_vehicles: selected})}
+      />
 
       <div className="flex justify-end space-x-2 pt-4">
         <Button

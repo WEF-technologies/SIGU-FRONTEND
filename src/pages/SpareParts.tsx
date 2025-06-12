@@ -4,6 +4,7 @@ import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { SparePartForm } from "@/components/spareparts/SparePartForm";
 import { SparePartActions } from "@/components/spareparts/SparePartActions";
+import { SparePartDetailsModal } from "@/components/spareparts/SparePartDetailsModal";
 import { SparePart } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -50,19 +51,22 @@ export default function SpareParts() {
   const { toast } = useToast();
   const [spareParts, setSpareParts] = useState<SparePart[]>(mockSpareParts);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingSparePart, setEditingSparePart] = useState<SparePart | null>(null);
+  const [viewingSparePart, setViewingSparePart] = useState<SparePart | null>(null);
 
   const columns = [
     { key: 'code' as keyof SparePart, header: 'Código' },
     { key: 'description' as keyof SparePart, header: 'Descripción' },
     { key: 'quantity' as keyof SparePart, header: 'Cantidad' },
     { key: 'company_location' as keyof SparePart, header: 'Ubicación Empresa' },
-    { key: 'store_location' as keyof SparePart, header: 'Tienda' },
     { 
-      key: 'vehicle_plates' as keyof SparePart, 
-      header: 'Vehículos Compatibles',
-      render: (value: string) => (
-        <span className="text-sm">{value || 'Ninguno'}</span>
+      key: 'compatible_vehicles' as keyof SparePart, 
+      header: 'Vehículos',
+      render: (vehicles: string[]) => (
+        <span className="text-sm">
+          {vehicles && vehicles.length > 0 ? `${vehicles.length} vehículo(s)` : 'Ninguno'}
+        </span>
       )
     },
     {
@@ -82,6 +86,7 @@ export default function SpareParts() {
           sparePart={sparePart}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onViewDetails={handleViewDetails}
         />
       )
     }
@@ -103,6 +108,11 @@ export default function SpareParts() {
       title: "Repuesto eliminado",
       description: `${sparePart.code} - ${sparePart.description} ha sido eliminado correctamente.`,
     });
+  };
+
+  const handleViewDetails = (sparePart: SparePart) => {
+    setViewingSparePart(sparePart);
+    setIsDetailsModalOpen(true);
   };
 
   const handleSubmit = (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
@@ -146,8 +156,6 @@ export default function SpareParts() {
         data={spareParts}
         columns={columns}
         onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
         title="Gestión de Repuestos"
         addButtonText="Agregar Repuesto"
         searchField="code"
@@ -166,6 +174,12 @@ export default function SpareParts() {
           onCancel={() => setIsModalOpen(false)}
         />
       </FormModal>
+
+      <SparePartDetailsModal
+        sparePart={viewingSparePart}
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+      />
     </div>
   );
 }

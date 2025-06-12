@@ -51,11 +51,12 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const spareParts: SparePart[] = [
     {
       id: "1",
-      vehicle_id: vehicle.id,
+      code: "BRK-001",
       description: "Filtro de aceite",
       quantity: 2,
       company_location: "Almacén Central",
       store_location: "AutoPartes Express",
+      compatible_vehicles: [vehicle.plate_number],
       created_at: "2024-01-15",
       updated_at: "2024-01-15"
     }
@@ -270,6 +271,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Código</TableHead>
                       <TableHead>Descripción</TableHead>
                       <TableHead>Cantidad</TableHead>
                       <TableHead>Ubicación Empresa</TableHead>
@@ -279,6 +281,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                   <TableBody>
                     {spareParts.map((part) => (
                       <TableRow key={part.id}>
+                        <TableCell>{part.code}</TableCell>
                         <TableCell>{part.description}</TableCell>
                         <TableCell>{part.quantity}</TableCell>
                         <TableCell>{part.company_location}</TableCell>
