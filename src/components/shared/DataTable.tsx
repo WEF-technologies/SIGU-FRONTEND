@@ -116,7 +116,9 @@ export function DataTable<T extends { id: string }>({
                 >
                   {columns.map((column) => (
                     <TableCell key={String(column.key)} className="py-4">
-                      {column.key === 'actions' ? (
+                      {column.render ? (
+                        column.render(item[column.key as keyof T], item)
+                      ) : column.key === 'actions' ? (
                         <div className="flex gap-2">
                           {onEdit && (
                             <Button
@@ -139,8 +141,6 @@ export function DataTable<T extends { id: string }>({
                             </Button>
                           )}
                         </div>
-                      ) : column.render ? (
-                        column.render(item[column.key as keyof T], item)
                       ) : (
                         String(item[column.key as keyof T] || '-')
                       )}
