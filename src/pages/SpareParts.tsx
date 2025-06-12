@@ -156,6 +156,8 @@ export default function SpareParts() {
         data={spareParts}
         columns={columns}
         onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
         title="Gestión de Repuestos"
         addButtonText="Agregar Repuesto"
         searchField="code"
