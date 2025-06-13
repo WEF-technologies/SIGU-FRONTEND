@@ -37,7 +37,7 @@ export interface Contract extends BaseEntity {
   status: 'active' | 'inactive' | 'terminated';
   contract_code?: string;
   vehicles: Vehicle[];
-  users: User[];
+  drivers: Driver[];
   routes?: Route[];
   shifts?: Shift[];
   document_url?: string;
@@ -88,5 +88,5 @@ export interface SparePart extends BaseEntity {
   vehicle_plate?: string;
 }
 
-export type MaintenanceType = 'M1' | 'M2' | 'M3';
+export type MaintenanceType = 'M1' | 'M2' | 'M3' | 'M4';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';

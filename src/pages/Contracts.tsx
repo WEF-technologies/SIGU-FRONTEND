@@ -16,15 +16,15 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Contract, Shift, Vehicle, User } from "@/types";
+import { Contract, Shift, Vehicle, User, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Edit, Trash2, Plus, Search, RefreshCw, Download } from "lucide-react";
+import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
 
 export default function Contracts() {
   const { toast } = useToast();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [drivers, setDrivers] = useState<User[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormLoading, setIsFormLoading] = useState(false);
@@ -341,7 +341,7 @@ export default function Contracts() {
           onCancel={() => setIsModalOpen(false)}
           isLoading={isFormLoading}
           availableVehicles={vehicles}
-          availableUsers={drivers}
+          availableDrivers={drivers}
         />
       </FormModal>
 

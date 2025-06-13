@@ -1,4 +1,3 @@
-
 import { ReactNode, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -227,21 +226,21 @@ export function ContractDetailsModal({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Usuarios Asignados</CardTitle>
+                <CardTitle className="text-lg">Choferes Asignados</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {contract.users && contract.users.length > 0 ? (
-                    contract.users.map((user) => (
-                      <Badge key={user.id} variant="outline" className="mr-2 mb-2 p-2">
+                  {contract.drivers && contract.drivers.length > 0 ? (
+                    contract.drivers.map((driver) => (
+                      <Badge key={driver.id} variant="outline" className="mr-2 mb-2 p-2">
                         <div className="flex flex-col">
-                          <span className="font-medium">{user.name} {user.last_name || user.lastname}</span>
-                          <span className="text-xs text-gray-500">{user.document_number}</span>
+                          <span className="font-medium">{driver.name} {driver.last_name}</span>
+                          <span className="text-xs text-gray-500">{driver.document_number}</span>
                         </div>
                       </Badge>
                     ))
                   ) : (
-                    <p className="text-gray-500">No hay usuarios asignados</p>
+                    <p className="text-gray-500">No hay choferes asignados</p>
                   )}
                 </div>
               </CardContent>
