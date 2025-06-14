@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -89,12 +90,12 @@ export default function SparePartRequests() {
       key: 'actions' as keyof SparePartRequest,
       header: 'Acciones',
       render: (_: any, request: SparePartRequest) => (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="sm"
             onClick={() => handleViewDetails(request)}
-            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+            className="h-8 w-8 p-0 border-blue-200 text-blue-600 hover:bg-blue-50"
           >
             <Eye className="w-4 h-4" />
           </Button>
@@ -104,7 +105,7 @@ export default function SparePartRequests() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleStatusChange(request, 'approved')}
-                className="border-green-200 text-green-600 hover:bg-green-50"
+                className="h-8 w-8 p-0 border-green-200 text-green-600 hover:bg-green-50"
               >
                 <CheckCircle className="w-4 h-4" />
               </Button>
@@ -112,7 +113,7 @@ export default function SparePartRequests() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleStatusChange(request, 'rejected')}
-                className="border-red-200 text-red-600 hover:bg-red-50"
+                className="h-8 w-8 p-0 border-red-200 text-red-600 hover:bg-red-50"
               >
                 <XCircle className="w-4 h-4" />
               </Button>
@@ -181,7 +182,7 @@ export default function SparePartRequests() {
                   <div className="flex gap-3 pt-4 border-t">
                     <Button 
                       onClick={() => handleStatusChange(selectedRequest, 'approved')}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     >
                       <CheckCircle className="w-4 h-4 mr-2" />
                       Aprobar
