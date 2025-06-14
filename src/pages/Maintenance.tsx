@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Maintenance as MaintenanceType } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
+import { Eye, Edit, Trash2 } from "lucide-react";
 
 const mockMaintenance: MaintenanceType[] = [
   {
@@ -21,6 +23,8 @@ const mockMaintenance: MaintenanceType[] = [
     date: "2024-01-15",
     kilometers: 50000,
     next_maintenance_km: 55000,
+    location: "Taller Central",
+    performed_by: "Juan Pérez",
     created_at: "2024-01-15",
     updated_at: "2024-01-15"
   },
@@ -33,6 +37,8 @@ const mockMaintenance: MaintenanceType[] = [
     date: "2024-01-10",
     kilometers: 75000,
     next_maintenance_km: 85000,
+    location: "AutoServicio Express",
+    performed_by: "Carlos Rodríguez",
     created_at: "2024-01-10",
     updated_at: "2024-01-20"
   },
@@ -45,6 +51,8 @@ const mockMaintenance: MaintenanceType[] = [
     date: "2024-02-01",
     kilometers: 52000,
     next_maintenance_km: 62000,
+    location: "Concesionario Toyota",
+    performed_by: "María González",
     created_at: "2024-02-01",
     updated_at: "2024-02-01"
   }
@@ -67,7 +75,9 @@ export default function Maintenance() {
   const { toast } = useToast();
   const [maintenance, setMaintenance] = useState<MaintenanceType[]>(mockMaintenance);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<MaintenanceType | null>(null);
+  const [selectedMaintenance, setSelectedMaintenance] = useState<MaintenanceType | null>(null);
   const [formData, setFormData] = useState({
     vehicle_id: "",
     vehicle_plate: "",
@@ -75,7 +85,9 @@ export default function Maintenance() {
     type: "M1" as 'M1' | 'M2' | 'M3' | 'M4',
     date: "",
     kilometers: 0,
-    next_maintenance_km: 0
+    next_maintenance_km: 0,
+    location: "",
+    performed_by: ""
   });
 
   const columns = [
@@ -104,7 +116,38 @@ export default function Maintenance() {
       header: 'Próximo Mant. (km)',
       render: (value: any) => value ? value.toLocaleString() + ' km' : 'N/A'
     },
-    { key: 'actions' as keyof MaintenanceType, header: 'Acciones' }
+    { 
+      key: 'actions' as keyof MaintenanceType, 
+      header: 'Acciones',
+      render: (value: any, row: MaintenanceType) => (
+        <div className="flex space-x-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleViewDetails(row)}
+            className="h-8 w-8 p-0"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleEdit(row)}
+            className="h-8 w-8 p-0"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleDelete(row)}
+            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      )
+    }
   ];
 
   const resetForm = () => {
@@ -115,7 +158,9 @@ export default function Maintenance() {
       type: "M1",
       date: "",
       kilometers: 0,
-      next_maintenance_km: 0
+      next_maintenance_km: 0,
+      location: "",
+      performed_by: ""
     });
     setEditingMaintenance(null);
   };
@@ -134,9 +179,16 @@ export default function Maintenance() {
       type: maintenance.type,
       date: maintenance.date,
       kilometers: maintenance.kilometers || 0,
-      next_maintenance_km: maintenance.next_maintenance_km || 0
+      next_maintenance_km: maintenance.next_maintenance_km || 0,
+      location: maintenance.location || "",
+      performed_by: maintenance.performed_by || ""
     });
     setIsModalOpen(true);
+  };
+
+  const handleViewDetails = (maintenance: MaintenanceType) => {
+    setSelectedMaintenance(maintenance);
+    setIsDetailsModalOpen(true);
   };
 
   const handleDelete = (maintenance: MaintenanceType) => {
@@ -204,8 +256,6 @@ export default function Maintenance() {
         data={maintenance}
         columns={columns}
         onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
         title="Gestión de Mantenimientos"
         addButtonText="Registrar Mantenimiento"
         searchField="vehicle_plate"
@@ -308,6 +358,28 @@ export default function Maintenance() {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="location">Lugar de Realización</Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => setFormData({...formData, location: e.target.value})}
+                placeholder="Taller, concesionario, etc."
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="performed_by">Realizado por</Label>
+              <Input
+                id="performed_by"
+                value={formData.performed_by}
+                onChange={(e) => setFormData({...formData, performed_by: e.target.value})}
+                placeholder="Nombre del técnico o responsable"
+              />
+            </div>
+          </div>
+
           <div className="flex justify-end space-x-2 pt-4">
             <Button
               type="button"
@@ -322,6 +394,12 @@ export default function Maintenance() {
           </div>
         </form>
       </FormModal>
+
+      <MaintenanceDetailsModal
+        maintenance={selectedMaintenance}
+        isOpen={isDetailsModalOpen}
+        onClose={() => setIsDetailsModalOpen(false)}
+      />
     </div>
   );
 }

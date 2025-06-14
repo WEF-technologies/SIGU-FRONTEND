@@ -79,6 +79,8 @@ export interface Maintenance extends BaseEntity {
   date: string;
   kilometers?: number;
   next_maintenance_km?: number;
+  location?: string;
+  performed_by?: string;
   vehicle?: Vehicle;
   vehicle_plate?: string;
 }
