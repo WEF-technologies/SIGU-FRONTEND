@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -57,24 +56,6 @@ export default function SparePartRequests() {
   const [selectedRequest, setSelectedRequest] = useState<SparePartRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'approved': return 'success';
-      case 'rejected': return 'destructive';
-      default: return 'secondary';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Pendiente';
-      case 'approved': return 'Aprobado';
-      case 'rejected': return 'Rechazado';
-      default: return status;
-    }
-  };
-
   const handleViewDetails = (request: SparePartRequest) => {
     setSelectedRequest(request);
     setIsDetailModalOpen(true);
@@ -101,11 +82,7 @@ export default function SparePartRequests() {
       key: 'status' as keyof SparePartRequest,
       header: 'Estado',
       render: (status: string) => (
-        <StatusBadge 
-          status={status}
-          variant={getStatusVariant(status)}
-          text={getStatusText(status)}
-        />
+        <StatusBadge status={status} />
       )
     },
     {
@@ -174,11 +151,7 @@ export default function SparePartRequests() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center justify-between">
                   {selectedRequest.code}
-                  <StatusBadge 
-                    status={selectedRequest.status}
-                    variant={getStatusVariant(selectedRequest.status)}
-                    text={getStatusText(selectedRequest.status)}
-                  />
+                  <StatusBadge status={selectedRequest.status} />
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
