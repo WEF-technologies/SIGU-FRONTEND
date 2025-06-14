@@ -120,7 +120,7 @@ export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFor
             <Button 
               type="submit" 
               disabled={!code.trim() || !description.trim() || !requestedBy.trim()}
-              className="flex-1 bg-primary hover:bg-primary/90"
+              className="flex-1 bg-primary text-white hover:bg-primary/90"
             >
               Enviar Solicitud
             </Button>
@@ -128,7 +128,7 @@ export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFor
               type="button" 
               variant="outline" 
               onClick={onCancel}
-              className="flex-1"
+              className="flex-1 text-gray-700 border-gray-300 hover:bg-gray-50"
             >
               Cancelar
             </Button>

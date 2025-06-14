@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -115,10 +116,18 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
       </div>
 
       <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={onCancel}
+          className="text-gray-700 border-gray-300 hover:bg-gray-50"
+        >
           Cancelar
         </Button>
-        <Button type="submit">
+        <Button 
+          type="submit"
+          className="bg-primary text-white hover:bg-primary/90"
+        >
           {driver ? "Actualizar Chofer" : "Crear Chofer"}
         </Button>
       </div>

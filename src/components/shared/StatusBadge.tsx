@@ -4,7 +4,7 @@ import { EntityStatus } from "@/types";
 
 interface StatusBadgeProps {
   status: EntityStatus | string;
-  variant?: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline';
   text?: string;
   type?: 'default' | 'maintenance';
 }
