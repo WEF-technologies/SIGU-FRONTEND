@@ -45,21 +45,27 @@ const mockShifts: Shift[] = [
   {
     id: '1',
     contract_id: '1',
-    description: 'Turno Matutino 06:00 - 14:00',
+    description: 'Turno Matutino',
+    start_time: '06:00',
+    end_time: '14:00',
     created_at: '2024-01-01',
     updated_at: '2024-01-01'
   },
   {
     id: '2',
     contract_id: '1',
-    description: 'Turno Vespertino 14:00 - 22:00',
+    description: 'Turno Vespertino',
+    start_time: '14:00',
+    end_time: '22:00',
     created_at: '2024-01-01',
     updated_at: '2024-01-01'
   },
   {
     id: '3',
     contract_id: '1',
-    description: 'Turno Nocturno 22:00 - 06:00',
+    description: 'Turno Nocturno',
+    start_time: '22:00',
+    end_time: '06:00',
     created_at: '2024-01-01',
     updated_at: '2024-01-01'
   }
@@ -283,7 +289,7 @@ export function ContractDetailsModal({
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Turnos del Contrato</CardTitle>
+                  <CardTitle className="text-lg">Turnos de Trabajo</CardTitle>
                   <Button
                     size="sm"
                     onClick={() => onAddShift(contract)}
@@ -307,6 +313,9 @@ export function ContractDetailsModal({
                         <div key={shift.id} className="border rounded-lg p-3 flex items-center justify-between">
                           <div>
                             <h4 className="font-medium text-gray-900">{shift.description}</h4>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {shift.start_time} - {shift.end_time}
+                            </p>
                             <p className="text-xs text-gray-500 mt-1">
                               Creado: {new Date(shift.created_at).toLocaleDateString()}
                             </p>

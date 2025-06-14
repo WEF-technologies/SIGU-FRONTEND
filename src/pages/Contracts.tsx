@@ -162,34 +162,6 @@ export default function Contracts() {
     });
   };
 
-  const handleShiftSubmit = async (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
-    if (editingShift) {
-      // EDITAR turno (PUT)
-      await fetch(`http://localhost:8000/api/v1/shifts/${editingShift.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(shiftData),
-      });
-      toast({
-        title: "Turno actualizado",
-        description: "El turno ha sido actualizado correctamente.",
-      });
-    } else {
-      // CREAR turno (POST)
-      await fetch("http://localhost:8000/api/v1/shifts/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(shiftData),
-      });
-      toast({
-        title: "Turno creado",
-        description: "El turno ha sido creado correctamente.",
-      });
-    }
-    setIsShiftModalOpen(false);
-    setEditingShift(null);
-  };
-
   const handleDownloadDocument = async (contract: Contract) => {
     if (!contract.document_url) {
       toast({
@@ -204,6 +176,39 @@ export default function Contracts() {
       title: "Descargando documento",
       description: `Descargando documento del contrato ${contract.contract_code || contract.description}`,
     });
+  };
+
+  const handleShiftSubmit = async (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
+    const completeShiftData = {
+      ...shiftData,
+      contract_id: selectedContract?.id || shiftData.contract_id
+    };
+
+    if (editingShift) {
+      // EDITAR turno (PUT)
+      await fetch(`http://localhost:8000/api/v1/shifts/${editingShift.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(completeShiftData),
+      });
+      toast({
+        title: "Turno actualizado",
+        description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido actualizado correctamente.`,
+      });
+    } else {
+      // CREAR turno (POST)
+      await fetch("http://localhost:8000/api/v1/shifts/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(completeShiftData),
+      });
+      toast({
+        title: "Turno creado",
+        description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido creado correctamente.`,
+      });
+    }
+    setIsShiftModalOpen(false);
+    setEditingShift(null);
   };
 
   return (
@@ -357,7 +362,7 @@ export default function Contracts() {
       <FormModal
         isOpen={isShiftModalOpen}
         onClose={() => setIsShiftModalOpen(false)}
-        title={editingShift ? "Editar Turno" : "Crear Nuevo Turno"}
+        title={editingShift ? "Editar Turno de Trabajo" : "Crear Nuevo Turno de Trabajo"}
       >
         <ShiftForm
           onSubmit={handleShiftSubmit}

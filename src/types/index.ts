@@ -57,6 +57,8 @@ export interface Route extends BaseEntity {
 export interface Shift extends BaseEntity {
   contract_id: string;
   description: string;
+  start_time: string; // Format: "HH:MM"
+  end_time: string;   // Format: "HH:MM"
   contract?: Contract;
 }
 
