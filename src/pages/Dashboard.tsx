@@ -1,14 +1,15 @@
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Car, Users, FileText, AlertTriangle, MapPin, Wrench } from "lucide-react";
+import { Car, UserCheck, FileText, AlertTriangle, MapPin, Wrench } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface DashboardStats {
   totalVehicles: number;
   activeVehicles: number;
-  totalUsers: number;
+  totalDrivers: number;
   activeContracts: number;
   pendingMaintenances: number;
   urgentMaintenances: number;
@@ -23,10 +24,11 @@ interface MaintenanceAlert {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 24,
     activeVehicles: 18,
-    totalUsers: 45,
+    totalDrivers: 15,
     activeContracts: 8,
     pendingMaintenances: 5,
     urgentMaintenances: 2,
@@ -57,14 +59,16 @@ export default function Dashboard() {
       icon: Car,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
+      route: "/vehiculos",
     },
     {
-      title: "Usuarios",
-      value: stats.totalUsers,
-      subtitle: "Personal registrado",
-      icon: Users,
+      title: "Choferes",
+      value: stats.totalDrivers,
+      subtitle: "Personal conductor",
+      icon: UserCheck,
       color: "text-green-600",
       bgColor: "bg-green-50",
+      route: "/choferes",
     },
     {
       title: "Contratos Activos",
@@ -73,6 +77,7 @@ export default function Dashboard() {
       icon: FileText,
       color: "text-primary",
       bgColor: "bg-primary-50",
+      route: "/contratos",
     },
     {
       title: "Mantenimientos",
@@ -81,8 +86,14 @@ export default function Dashboard() {
       icon: Wrench,
       color: "text-orange-600",
       bgColor: "bg-orange-50",
+      route: "/mantenimiento",
+      alert: stats.urgentMaintenances > 0,
     },
   ];
+
+  const handleCardClick = (route: string) => {
+    navigate(route);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -115,7 +126,16 @@ export default function Dashboard() {
       {/* Tarjetas de estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card, index) => (
-          <Card key={index} className="border-secondary-medium hover:shadow-lg transition-shadow">
+          <Card 
+            key={index} 
+            className="border-secondary-medium hover:shadow-lg transition-all duration-200 cursor-pointer hover:scale-105 relative"
+            onClick={() => handleCardClick(card.route)}
+          >
+            {card.alert && (
+              <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse">
+                <span className="sr-only">Alerta</span>
+              </div>
+            )}
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-secondary-dark">
                 {card.title}
@@ -127,6 +147,14 @@ export default function Dashboard() {
             <CardContent>
               <div className="text-2xl font-bold text-primary-900">{card.value}</div>
               <p className="text-xs text-secondary-dark mt-1">{card.subtitle}</p>
+              {card.alert && (
+                <div className="flex items-center gap-1 mt-2">
+                  <AlertTriangle className="w-3 h-3 text-orange-500" />
+                  <span className="text-xs text-orange-600 font-medium">
+                    Requiere atención
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -134,24 +162,28 @@ export default function Dashboard() {
 
       {/* Resumen de actividad reciente */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border-secondary-medium">
+        <Card 
+          className="border-secondary-medium cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate("/rutas")}
+        >
           <CardHeader>
             <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
               <MapPin className="w-5 h-5" />
               Rutas Activas
+              <span className="text-xs text-secondary-dark ml-auto">Ver todas →</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {[
-                { route: "Centro - Aeropuerto", vehicle: "ABC-123", status: "En curso" },
-                { route: "Puerto - Terminal", vehicle: "XYZ-789", status: "Completada" },
-                { route: "Norte - Sur", vehicle: "DEF-456", status: "Pendiente" },
+                { route: "Centro - Aeropuerto", vehicle: "ABC-123", status: "En curso", km: "45 km" },
+                { route: "Puerto - Terminal", vehicle: "XYZ-789", status: "Completada", km: "32 km" },
+                { route: "Norte - Sur", vehicle: "DEF-456", status: "Pendiente", km: "28 km" },
               ].map((item, index) => (
                 <div key={index} className="flex justify-between items-center py-2 border-b border-secondary-medium last:border-b-0">
                   <div>
                     <p className="font-medium text-primary-900">{item.route}</p>
-                    <p className="text-sm text-secondary-dark">Vehículo: {item.vehicle}</p>
+                    <p className="text-sm text-secondary-dark">Vehículo: {item.vehicle} • {item.km}</p>
                   </div>
                   <Badge 
                     className={
@@ -168,24 +200,28 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="border-secondary-medium">
+        <Card 
+          className="border-secondary-medium cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate("/mantenimiento")}
+        >
           <CardHeader>
             <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
               <Wrench className="w-5 h-5" />
               Mantenimientos Recientes
+              <span className="text-xs text-secondary-dark ml-auto">Ver todos →</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {[
-                { vehicle: "ABC-123", type: "M1", date: "2024-01-10", status: "Completado" },
-                { vehicle: "XYZ-789", type: "M2", date: "2024-01-12", status: "En proceso" },
-                { vehicle: "DEF-456", type: "M3", date: "2024-01-15", status: "Programado" },
+                { vehicle: "ABC-123", type: "M1", date: "2024-01-10", status: "Completado", location: "Taller Central" },
+                { vehicle: "XYZ-789", type: "M2", date: "2024-01-12", status: "En proceso", location: "Servicios Norte" },
+                { vehicle: "DEF-456", type: "M3", date: "2024-01-15", status: "Programado", location: "Por asignar" },
               ].map((item, index) => (
                 <div key={index} className="flex justify-between items-center py-2 border-b border-secondary-medium last:border-b-0">
                   <div>
                     <p className="font-medium text-primary-900">{item.vehicle} - {item.type}</p>
-                    <p className="text-sm text-secondary-dark">{item.date}</p>
+                    <p className="text-sm text-secondary-dark">{item.date} • {item.location}</p>
                   </div>
                   <Badge 
                     className={
