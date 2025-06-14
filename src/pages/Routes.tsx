@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -17,6 +18,7 @@ const mockRoutes: Route[] = [
     from_location: "Barrio Los Alamos",
     to_location: "Colegio San José",
     status: "in_progress",
+    kilometers: 15.5,
     created_at: "2024-01-15",
     updated_at: "2024-01-15"
   },
@@ -27,6 +29,7 @@ const mockRoutes: Route[] = [
     from_location: "Colegio San José",
     to_location: "Barrio Las Flores",
     status: "completed",
+    kilometers: 22.3,
     created_at: "2024-01-15",
     updated_at: "2024-01-20"
   }
@@ -41,6 +44,7 @@ export default function Routes() {
     description: "",
     from_location: "",
     to_location: "",
+    kilometers: "",
     status: "pending" as 'pending' | 'in_progress' | 'completed'
   });
 
@@ -48,6 +52,11 @@ export default function Routes() {
     { key: 'description' as keyof Route, header: 'Descripción' },
     { key: 'from_location' as keyof Route, header: 'Origen' },
     { key: 'to_location' as keyof Route, header: 'Destino' },
+    { 
+      key: 'kilometers' as keyof Route, 
+      header: 'Kilometraje (km)',
+      render: (value: any) => value ? `${value} km` : '-'
+    },
     {
       key: 'status' as keyof Route,
       header: 'Estado',
@@ -63,6 +72,7 @@ export default function Routes() {
       description: "",
       from_location: "",
       to_location: "",
+      kilometers: "",
       status: "pending" as 'pending' | 'in_progress' | 'completed'
     });
     setIsModalOpen(true);
@@ -75,6 +85,7 @@ export default function Routes() {
       description: route.description,
       from_location: route.from_location,
       to_location: route.to_location,
+      kilometers: route.kilometers?.toString() || "",
       status: route.status || "pending"
     });
     setIsModalOpen(true);
@@ -90,13 +101,23 @@ export default function Routes() {
     if (editingRoute) {
       setRoutes(routes.map(r => 
         r.id === editingRoute.id 
-          ? { ...r, ...formData, updated_at: new Date().toISOString() }
+          ? { 
+              ...r, 
+              ...formData, 
+              kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined,
+              updated_at: new Date().toISOString() 
+            }
           : r
       ));
     } else {
       const newRoute: Route = {
         id: Date.now().toString(),
-        ...formData,
+        contract_id: formData.contract_id,
+        description: formData.description,
+        from_location: formData.from_location,
+        to_location: formData.to_location,
+        kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined,
+        status: formData.status,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -170,6 +191,18 @@ export default function Routes() {
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="kilometers">Kilometraje Aproximado (km)</Label>
+            <Input
+              id="kilometers"
+              type="number"
+              step="0.1"
+              value={formData.kilometers}
+              onChange={(e) => setFormData({...formData, kilometers: e.target.value})}
+              placeholder="Ingrese el kilometraje aproximado"
+            />
           </div>
 
           <div>
