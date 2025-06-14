@@ -24,7 +24,8 @@ export interface User extends BaseEntity {
   name: string;
   last_name: string;
   lastname?: string; // For backend compatibility
-  status: 'active' | 'inactive';
+  cargo: string;
+  sucursal: string;
   telephone: string;
   document_number: string;
 }

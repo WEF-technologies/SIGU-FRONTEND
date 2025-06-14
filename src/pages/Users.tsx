@@ -1,7 +1,7 @@
+
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,10 +11,11 @@ import { User } from "@/types";
 const mockUsers: User[] = [
   {
     id: "1",
-    document_type: "CC",
+    document_type: "V",
     name: "Juan Carlos",
     last_name: "Pérez García",
-    status: "active",
+    cargo: "Conductor",
+    sucursal: "Caracas Centro",
     telephone: "3001234567",
     document_number: "12345678",
     created_at: "2024-01-15",
@@ -22,10 +23,11 @@ const mockUsers: User[] = [
   },
   {
     id: "2",
-    document_type: "CE",
+    document_type: "E",
     name: "María Elena",
     last_name: "González López",
-    status: "inactive",
+    cargo: "Supervisora",
+    sucursal: "Maracaibo",
     telephone: "3109876543",
     document_number: "87654321",
     created_at: "2024-01-10",
@@ -41,7 +43,8 @@ export default function Users() {
     document_type: "",
     name: "",
     last_name: "",
-    status: "active" as 'active' | 'inactive',
+    cargo: "",
+    sucursal: "",
     telephone: "",
     document_number: ""
   });
@@ -52,11 +55,8 @@ export default function Users() {
     { key: 'name' as keyof User, header: 'Nombre' },
     { key: 'last_name' as keyof User, header: 'Apellido' },
     { key: 'telephone' as keyof User, header: 'Teléfono' },
-    {
-      key: 'status' as keyof User,
-      header: 'Estado',
-      render: (value: any) => <StatusBadge status={value} />
-    },
+    { key: 'cargo' as keyof User, header: 'Cargo' },
+    { key: 'sucursal' as keyof User, header: 'Sucursal' },
     { key: 'actions' as keyof User, header: 'Acciones' }
   ];
 
@@ -66,7 +66,8 @@ export default function Users() {
       document_type: "",
       name: "",
       last_name: "",
-      status: "active" as 'active' | 'inactive',
+      cargo: "",
+      sucursal: "",
       telephone: "",
       document_number: ""
     });
@@ -79,7 +80,8 @@ export default function Users() {
       document_type: user.document_type,
       name: user.name,
       last_name: user.last_name,
-      status: user.status,
+      cargo: user.cargo,
+      sucursal: user.sucursal,
       telephone: user.telephone,
       document_number: user.document_number
     });
@@ -122,6 +124,8 @@ export default function Users() {
         onDelete={handleDelete}
         title="Gestión de Usuarios"
         addButtonText="Agregar Usuario"
+        searchField="document_number"
+        searchPlaceholder="Buscar por número de documento..."
       />
 
       <FormModal
@@ -141,9 +145,10 @@ export default function Users() {
                   <SelectValue placeholder="Seleccionar tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="CC">Cédula de Ciudadanía</SelectItem>
-                  <SelectItem value="CE">Cédula de Extranjería</SelectItem>
-                  <SelectItem value="PA">Pasaporte</SelectItem>
+                  <SelectItem value="V">V - Cédula de Identidad Venezolana</SelectItem>
+                  <SelectItem value="E">E - Cédula de Extranjero</SelectItem>
+                  <SelectItem value="P">P - Pasaporte</SelectItem>
+                  <SelectItem value="J">J - RIF Jurídico</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -197,20 +202,26 @@ export default function Users() {
             </div>
             
             <div>
-              <Label htmlFor="status">Estado</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value: 'active' | 'inactive') => setFormData({...formData, status: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Activo</SelectItem>
-                  <SelectItem value="inactive">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="cargo">Cargo</Label>
+              <Input
+                id="cargo"
+                value={formData.cargo}
+                onChange={(e) => setFormData({...formData, cargo: e.target.value})}
+                placeholder="Ingrese el cargo"
+                required
+              />
             </div>
+          </div>
+
+          <div>
+            <Label htmlFor="sucursal">Sucursal</Label>
+            <Input
+              id="sucursal"
+              value={formData.sucursal}
+              onChange={(e) => setFormData({...formData, sucursal: e.target.value})}
+              placeholder="Ingrese la sucursal"
+              required
+            />
           </div>
 
           <div className="flex justify-end space-x-2 pt-4">
