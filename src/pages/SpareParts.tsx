@@ -1,12 +1,14 @@
-
 import { useState } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { SparePartForm } from "@/components/spareparts/SparePartForm";
 import { SparePartActions } from "@/components/spareparts/SparePartActions";
 import { SparePartDetailsModal } from "@/components/spareparts/SparePartDetailsModal";
+import { SparePartRequestForm } from "@/components/spareparts/SparePartRequestForm";
 import { SparePart } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Plus, ShoppingCart } from "lucide-react";
 
 const mockVehicles = [
   { plate_number: "ABC-123", brand: "Toyota", model: "Hiace" },
@@ -52,6 +54,7 @@ export default function SpareParts() {
   const [spareParts, setSpareParts] = useState<SparePart[]>(mockSpareParts);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [editingSparePart, setEditingSparePart] = useState<SparePart | null>(null);
   const [viewingSparePart, setViewingSparePart] = useState<SparePart | null>(null);
 
@@ -95,6 +98,10 @@ export default function SpareParts() {
   const handleAdd = () => {
     setEditingSparePart(null);
     setIsModalOpen(true);
+  };
+
+  const handleRequestSparePart = () => {
+    setIsRequestModalOpen(true);
   };
 
   const handleEdit = (sparePart: SparePart) => {
@@ -150,16 +157,48 @@ export default function SpareParts() {
     setIsModalOpen(false);
   };
 
+  const handleSparePartRequest = (requestData: {
+    sparePartId: string;
+    code: string;
+    description: string;
+    requestedBy: string;
+    date: string;
+    notes?: string;
+  }) => {
+    toast({
+      title: "Solicitud enviada",
+      description: `Solicitud de ${requestData.code} - ${requestData.description} enviada correctamente.`,
+    });
+    setIsRequestModalOpen(false);
+  };
+
   return (
     <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-primary-900">Gestión de Repuestos</h1>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleRequestSparePart} variant="outline" className="flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4" />
+            Solicitar Repuesto
+          </Button>
+          <Button onClick={handleAdd} className="flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            Agregar Repuesto
+          </Button>
+        </div>
+      </div>
+
       <DataTable
         data={spareParts}
         columns={columns}
         onAdd={handleAdd}
-        title="Gestión de Repuestos"
-        addButtonText="Agregar Repuesto"
+        title=""
+        addButtonText=""
         searchField="code"
         searchPlaceholder="Buscar por código..."
+        hideAddButton={true}
       />
 
       <FormModal
@@ -172,6 +211,18 @@ export default function SpareParts() {
           vehicles={mockVehicles}
           onSubmit={handleSubmit}
           onCancel={() => setIsModalOpen(false)}
+        />
+      </FormModal>
+
+      <FormModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        title="Solicitar Repuesto"
+      >
+        <SparePartRequestForm
+          spareParts={spareParts}
+          onSubmit={handleSparePartRequest}
+          onCancel={() => setIsRequestModalOpen(false)}
         />
       </FormModal>
 
