@@ -158,7 +158,6 @@ export default function SpareParts() {
   };
 
   const handleSparePartRequest = (requestData: {
-    sparePartId: string;
     code: string;
     description: string;
     requestedBy: string;
@@ -173,19 +172,27 @@ export default function SpareParts() {
   };
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-6 space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-primary-900">Gestión de Repuestos</h1>
+          <h1 className="text-3xl font-bold text-primary-900">Gestión de Repuestos</h1>
+          <p className="text-gray-600 mt-1">Administra el inventario de repuestos y solicitudes</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleRequestSparePart} variant="outline" className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <Button 
+            onClick={handleRequestSparePart} 
+            variant="outline" 
+            className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 border-blue-200 text-blue-700 hover:text-blue-800 px-6 py-2.5 font-medium"
+          >
             <ShoppingCart className="w-4 h-4" />
-            Solicitar Repuesto
+            <span>Solicitar Repuesto</span>
           </Button>
-          <Button onClick={handleAdd} className="flex items-center gap-2">
+          <Button 
+            onClick={handleAdd} 
+            className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white px-6 py-2.5 font-medium shadow-sm"
+          >
             <Plus className="w-4 h-4" />
-            Agregar Repuesto
+            <span>Agregar Repuesto</span>
           </Button>
         </div>
       </div>
@@ -220,7 +227,6 @@ export default function SpareParts() {
         title="Solicitar Repuesto"
       >
         <SparePartRequestForm
-          spareParts={spareParts}
           onSubmit={handleSparePartRequest}
           onCancel={() => setIsRequestModalOpen(false)}
         />

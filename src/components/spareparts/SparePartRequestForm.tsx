@@ -5,12 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SparePart } from "@/types";
 
 interface SparePartRequestFormProps {
-  spareParts: SparePart[];
   onSubmit: (request: {
-    sparePartId: string;
     code: string;
     description: string;
     requestedBy: string;
@@ -20,24 +17,22 @@ interface SparePartRequestFormProps {
   onCancel: () => void;
 }
 
-export function SparePartRequestForm({ spareParts, onSubmit, onCancel }: SparePartRequestFormProps) {
-  const [selectedSparePartId, setSelectedSparePartId] = useState("");
+export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFormProps) {
+  const [code, setCode] = useState("");
+  const [description, setDescription] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
   const [notes, setNotes] = useState("");
-
-  const selectedSparePart = spareParts.find(sp => sp.id === selectedSparePartId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedSparePart || !requestedBy.trim()) {
+    if (!code.trim() || !description.trim() || !requestedBy.trim()) {
       return;
     }
 
     onSubmit({
-      sparePartId: selectedSparePart.id,
-      code: selectedSparePart.code,
-      description: selectedSparePart.description,
+      code: code.trim(),
+      description: description.trim(),
       requestedBy: requestedBy.trim(),
       date: new Date().toISOString().split('T')[0],
       notes: notes.trim() || undefined,
@@ -47,74 +42,94 @@ export function SparePartRequestForm({ spareParts, onSubmit, onCancel }: SparePa
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Solicitar Repuesto</CardTitle>
+        <CardTitle className="text-xl text-primary-900">Solicitar Repuesto</CardTitle>
+        <p className="text-sm text-gray-600">Ingresa los datos del repuesto que necesitas solicitar</p>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="sparePart">Repuesto</Label>
-            <select
-              id="sparePart"
-              value={selectedSparePartId}
-              onChange={(e) => setSelectedSparePartId(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md"
+            <Label htmlFor="code" className="text-sm font-medium text-gray-700">
+              Código del repuesto <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Ej: BRK-001, OIL-002..."
+              className="mt-1"
               required
-            >
-              <option value="">Seleccionar repuesto...</option>
-              {spareParts.map((sparePart) => (
-                <option key={sparePart.id} value={sparePart.id}>
-                  {sparePart.code} - {sparePart.description}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
-          {selectedSparePart && (
-            <div className="p-3 bg-gray-50 rounded-md">
-              <p><strong>Código:</strong> {selectedSparePart.code}</p>
-              <p><strong>Descripción:</strong> {selectedSparePart.description}</p>
-              <p><strong>Stock actual:</strong> {selectedSparePart.quantity} unidades</p>
-            </div>
-          )}
+          <div>
+            <Label htmlFor="description" className="text-sm font-medium text-gray-700">
+              Descripción del repuesto <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Descripción detallada del repuesto..."
+              className="mt-1"
+              required
+            />
+          </div>
 
           <div>
-            <Label htmlFor="requestedBy">Solicitado por</Label>
+            <Label htmlFor="requestedBy" className="text-sm font-medium text-gray-700">
+              Solicitado por <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="requestedBy"
               value={requestedBy}
               onChange={(e) => setRequestedBy(e.target.value)}
               placeholder="Nombre de quien solicita"
+              className="mt-1"
               required
             />
           </div>
 
           <div>
-            <Label htmlFor="date">Fecha de solicitud</Label>
+            <Label htmlFor="date" className="text-sm font-medium text-gray-700">
+              Fecha de solicitud
+            </Label>
             <Input
               id="date"
               type="date"
               value={new Date().toISOString().split('T')[0]}
               readOnly
-              className="bg-gray-100"
+              className="bg-gray-50 mt-1"
             />
           </div>
 
           <div>
-            <Label htmlFor="notes">Notas adicionales (opcional)</Label>
+            <Label htmlFor="notes" className="text-sm font-medium text-gray-700">
+              Notas adicionales (opcional)
+            </Label>
             <Textarea
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Información adicional sobre la solicitud..."
+              placeholder="Información adicional sobre la solicitud, urgencia, etc..."
               rows={3}
+              className="mt-1"
             />
           </div>
 
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={!selectedSparePart || !requestedBy.trim()}>
+          <div className="flex gap-3 pt-4 border-t">
+            <Button 
+              type="submit" 
+              disabled={!code.trim() || !description.trim() || !requestedBy.trim()}
+              className="flex-1 bg-primary hover:bg-primary/90"
+            >
               Enviar Solicitud
             </Button>
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onCancel}
+              className="flex-1"
+            >
               Cancelar
             </Button>
           </div>
