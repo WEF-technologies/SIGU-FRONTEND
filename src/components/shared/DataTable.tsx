@@ -1,4 +1,3 @@
-
 import { ReactNode, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Plus } from "lucide-react";
@@ -29,6 +28,7 @@ interface DataTableProps<T> {
   isLoading?: boolean;
   searchPlaceholder?: string;
   searchField?: keyof T;
+  hideAddButton?: boolean;
 }
 
 export function DataTable<T extends { id: string }>({
@@ -42,6 +42,7 @@ export function DataTable<T extends { id: string }>({
   isLoading = false,
   searchPlaceholder = "Buscar...",
   searchField,
+  hideAddButton = false,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -63,7 +64,7 @@ export function DataTable<T extends { id: string }>({
               onChange={setSearchTerm}
             />
           )}
-          {onAdd && (
+          {onAdd && !hideAddButton && (
             <Button 
               onClick={onAdd} 
               className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm"
