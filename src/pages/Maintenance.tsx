@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { Button } from "@/components/ui/button";
@@ -8,61 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Maintenance as MaintenanceType } from "@/types";
+import { Maintenance as MaintenanceType, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
 import { Eye, Edit, Trash2 } from "lucide-react";
 
-const mockMaintenance: MaintenanceType[] = [
-  {
-    id: "1",
-    vehicle_id: "1",
-    vehicle_plate: "ABC-123",
-    description: "Cambio de aceite y filtros",
-    type: "M1",
-    date: "2024-01-15",
-    kilometers: 50000,
-    next_maintenance_km: 55000,
-    location: "Taller Central",
-    performed_by: "Juan Pérez",
-    created_at: "2024-01-15",
-    updated_at: "2024-01-15"
-  },
-  {
-    id: "2",
-    vehicle_id: "2",
-    vehicle_plate: "XYZ-789",
-    description: "Revisión de frenos y suspensión",
-    type: "M2",
-    date: "2024-01-10",
-    kilometers: 75000,
-    next_maintenance_km: 85000,
-    location: "AutoServicio Express",
-    performed_by: "Carlos Rodríguez",
-    created_at: "2024-01-10",
-    updated_at: "2024-01-20"
-  },
-  {
-    id: "3",
-    vehicle_id: "1",
-    vehicle_plate: "ABC-123",
-    description: "Mantenimiento mayor completo - revisión integral",
-    type: "M3",
-    date: "2024-02-01",
-    kilometers: 52000,
-    next_maintenance_km: 62000,
-    location: "Concesionario Toyota",
-    performed_by: "María González",
-    created_at: "2024-02-01",
-    updated_at: "2024-02-01"
-  }
-];
-
-const mockVehicles = [
-  { id: "1", plate_number: "ABC-123", brand: "Toyota", model: "Hiace" },
-  { id: "2", plate_number: "XYZ-789", brand: "Mercedes", model: "Sprinter" },
-  { id: "3", plate_number: "DEF-456", brand: "Chevrolet", model: "NPR" }
-];
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const maintenanceTypeConfig = {
   M1: { label: "M1 - Preventivo Básico", color: "bg-blue-100 text-blue-800", priority: "low" },
@@ -73,7 +23,8 @@ const maintenanceTypeConfig = {
 
 export default function Maintenance() {
   const { toast } = useToast();
-  const [maintenance, setMaintenance] = useState<MaintenanceType[]>(mockMaintenance);
+  const [maintenance, setMaintenance] = useState<MaintenanceType[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<MaintenanceType | null>(null);
@@ -89,6 +40,16 @@ export default function Maintenance() {
     location: "",
     performed_by: ""
   });
+
+  // Cargar mantenimientos y vehículos desde el backend
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/maintenance/`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setMaintenance(Array.isArray(data) ? data : []));
+    fetch(`${API_URL}/api/v1/vehicles/`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setVehicles(Array.isArray(data) ? data : []));
+  }, []);
 
   const columns = [
     { key: 'vehicle_plate' as keyof MaintenanceType, header: 'Placa Vehículo' },
@@ -192,15 +153,19 @@ export default function Maintenance() {
   };
 
   const handleDelete = (maintenance: MaintenanceType) => {
-    setMaintenance(prev => prev.filter(m => m.id !== maintenance.id));
-    toast({
-      title: "Mantenimiento eliminado",
-      description: "El registro de mantenimiento ha sido eliminado correctamente.",
+    fetch(`${API_URL}/api/v1/maintenance/${maintenance.id}`, {
+      method: "DELETE",
+    }).then(() => {
+      setMaintenance(prev => prev.filter(m => m.id !== maintenance.id));
+      toast({
+        title: "Mantenimiento eliminado",
+        description: "El registro de mantenimiento ha sido eliminado correctamente.",
+      });
     });
   };
 
   const handleVehicleSelect = (vehicleId: string) => {
-    const selectedVehicle = mockVehicles.find(v => v.id === vehicleId);
+    const selectedVehicle = vehicles.find(v => v.id === vehicleId);
     if (selectedVehicle) {
       setFormData(prev => ({
         ...prev,
@@ -212,7 +177,7 @@ export default function Maintenance() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.vehicle_id) {
       toast({
         title: "Error",
@@ -223,29 +188,37 @@ export default function Maintenance() {
     }
 
     if (editingMaintenance) {
-      setMaintenance(prev => prev.map(m => 
-        m.id === editingMaintenance.id 
-          ? { ...m, ...formData, updated_at: new Date().toISOString() }
-          : m
-      ));
-      toast({
-        title: "Mantenimiento actualizado",
-        description: `El mantenimiento ${formData.type} ha sido actualizado correctamente.`,
-      });
+      // PUT
+      fetch(`${API_URL}/api/v1/maintenance/${editingMaintenance.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+        .then(res => res.json())
+        .then(updated => {
+          setMaintenance(prev => prev.map(m => m.id === editingMaintenance.id ? updated : m));
+          toast({
+            title: "Mantenimiento actualizado",
+            description: `El mantenimiento ${formData.type} ha sido actualizado correctamente.`,
+          });
+        });
     } else {
-      const newMaintenance: MaintenanceType = {
-        id: Date.now().toString(),
-        ...formData,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      setMaintenance(prev => [...prev, newMaintenance]);
-      toast({
-        title: "Mantenimiento registrado",
-        description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
-      });
+      // POST
+      fetch(`${API_URL}/api/v1/maintenance/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+        .then(res => res.json())
+        .then(newMaintenance => {
+          setMaintenance(prev => [...prev, newMaintenance]);
+          toast({
+            title: "Mantenimiento registrado",
+            description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
+          });
+        });
     }
-    
+
     setIsModalOpen(false);
     resetForm();
   };
@@ -278,7 +251,7 @@ export default function Maintenance() {
                 <SelectValue placeholder="Seleccione un vehículo" />
               </SelectTrigger>
               <SelectContent>
-                {mockVehicles.map((vehicle) => (
+                {vehicles.map((vehicle) => (
                   <SelectItem key={vehicle.id} value={vehicle.id}>
                     {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
                   </SelectItem>
