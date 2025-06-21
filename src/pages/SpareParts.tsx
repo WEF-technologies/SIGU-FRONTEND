@@ -1,62 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { SparePartForm } from "@/components/spareparts/SparePartForm";
 import { SparePartActions } from "@/components/spareparts/SparePartActions";
 import { SparePartDetailsModal } from "@/components/spareparts/SparePartDetailsModal";
 import { SparePartRequestForm } from "@/components/spareparts/SparePartRequestForm";
-import { SparePart } from "@/types";
+import { SparePart, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Plus, ShoppingCart } from "lucide-react";
 
-const mockVehicles = [
-  { plate_number: "ABC-123", brand: "Toyota", model: "Hiace" },
-  { plate_number: "XYZ-789", brand: "Mercedes", model: "Sprinter" },
-  { plate_number: "DEF-456", brand: "Chevrolet", model: "NPR" },
-  { plate_number: "GHI-321", brand: "Ford", model: "Transit" },
-  { plate_number: "JKL-654", brand: "Iveco", model: "Daily" }
-];
-
-const mockSpareParts: SparePart[] = [
-  {
-    id: "1",
-    code: "BRK-001",
-    description: "Pastillas de freno delanteras marca Ferodo",
-    quantity: 8,
-    company_location: "Bodega A - Estante 3",
-    store_location: "Repuestos García - Calle 26 #15-30",
-    compatible_vehicles: ["ABC-123", "XYZ-789"],
-    vehicle_plates: "ABC-123, XYZ-789",
-    min_stock: 5,
-    unit_price: 45000,
-    created_at: "2024-01-15",
-    updated_at: "2024-01-15"
-  },
-  {
-    id: "2",
-    code: "OIL-002",
-    description: "Filtro de aceite marca Fram",
-    quantity: 12,
-    company_location: "Bodega B - Estante 1",
-    store_location: "AutoPartes Central - Av. Caracas #45-12",
-    compatible_vehicles: ["ABC-123", "DEF-456", "GHI-321"],
-    vehicle_plates: "ABC-123, DEF-456, GHI-321",
-    min_stock: 8,
-    unit_price: 25000,
-    created_at: "2024-01-10",
-    updated_at: "2024-01-20"
-  }
-];
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function SpareParts() {
   const { toast } = useToast();
-  const [spareParts, setSpareParts] = useState<SparePart[]>(mockSpareParts);
+  const [spareParts, setSpareParts] = useState<SparePart[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [editingSparePart, setEditingSparePart] = useState<SparePart | null>(null);
   const [viewingSparePart, setViewingSparePart] = useState<SparePart | null>(null);
+
+  // Cargar repuestos y vehículos desde el backend
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/spare_parts/`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setSpareParts(Array.isArray(data) ? data : []));
+    fetch(`${API_URL}/api/v1/vehicles/`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setVehicles(Array.isArray(data) ? data : []));
+  }, []);
 
   const columns = [
     { key: 'code' as keyof SparePart, header: 'Código' },
@@ -110,10 +84,14 @@ export default function SpareParts() {
   };
 
   const handleDelete = (sparePart: SparePart) => {
-    setSpareParts(spareParts.filter(sp => sp.id !== sparePart.id));
-    toast({
-      title: "Repuesto eliminado",
-      description: `${sparePart.code} - ${sparePart.description} ha sido eliminado correctamente.`,
+    fetch(`${API_URL}/api/v1/spare_parts/${sparePart.id}`, {
+      method: "DELETE",
+    }).then(() => {
+      setSpareParts(spareParts.filter(sp => sp.id !== sparePart.id));
+      toast({
+        title: "Repuesto eliminado",
+        description: `${sparePart.code} - ${sparePart.description} ha sido eliminado correctamente.`,
+      });
     });
   };
 
@@ -123,40 +101,43 @@ export default function SpareParts() {
   };
 
   const handleSubmit = (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
-    const vehiclePlates = formData.compatible_vehicles.join(", ");
-    
     if (editingSparePart) {
-      const updatedSparePart = {
-        ...editingSparePart,
-        ...formData,
-        vehicle_plates: vehiclePlates,
-        updated_at: new Date().toISOString()
-      };
-      setSpareParts(spareParts.map(sp => 
-        sp.id === editingSparePart.id ? updatedSparePart : sp
-      ));
-      toast({
-        title: "Repuesto actualizado",
-        description: `${formData.code} - ${formData.description} ha sido actualizado correctamente.`,
-      });
+      // PUT
+      fetch(`${API_URL}/api/v1/spare_parts/${editingSparePart.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+        .then(res => res.json())
+        .then(updatedSparePart => {
+          setSpareParts(spareParts.map(sp => 
+            sp.id === editingSparePart.id ? updatedSparePart : sp
+          ));
+          toast({
+            title: "Repuesto actualizado",
+            description: `${formData.code} - ${formData.description} ha sido actualizado correctamente.`,
+          });
+        });
     } else {
-      const newSparePart: SparePart = {
-        id: Date.now().toString(),
-        ...formData,
-        vehicle_plates: vehiclePlates,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      setSpareParts([...spareParts, newSparePart]);
-      toast({
-        title: "Repuesto creado",
-        description: `${formData.code} - ${formData.description} ha sido creado correctamente.`,
-      });
+      // POST
+      fetch(`${API_URL}/api/v1/spare_parts/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+        .then(res => res.json())
+        .then(newSparePart => {
+          setSpareParts([...spareParts, newSparePart]);
+          toast({
+            title: "Repuesto creado",
+            description: `${formData.code} - ${formData.description} ha sido creado correctamente.`,
+          });
+        });
     }
-    
     setIsModalOpen(false);
   };
 
+  // Solicitud de repuesto (nuevo endpoint)
   const handleSparePartRequest = (requestData: {
     code: string;
     description: string;
@@ -164,11 +145,26 @@ export default function SpareParts() {
     date: string;
     notes?: string;
   }) => {
-    toast({
-      title: "Solicitud enviada",
-      description: `Solicitud de ${requestData.code} - ${requestData.description} enviada correctamente.`,
-    });
-    setIsRequestModalOpen(false);
+    // Map requestedBy (camelCase) to requested_by (snake_case) for the API
+    const apiRequestData = {
+      ...requestData,
+      requested_by: requestData.requestedBy,
+    };
+    delete (apiRequestData as any).requestedBy;
+
+    fetch(`${API_URL}/api/v1/spare_part_requests/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(apiRequestData),
+    })
+      .then(res => res.ok)
+      .then(() => {
+        toast({
+          title: "Solicitud enviada",
+          description: `Solicitud de ${requestData.code} - ${requestData.description} enviada correctamente.`,
+        });
+        setIsRequestModalOpen(false);
+      });
   };
 
   return (
@@ -215,7 +211,7 @@ export default function SpareParts() {
       >
         <SparePartForm
           sparePart={editingSparePart}
-          vehicles={mockVehicles}
+          vehicles={vehicles}
           onSubmit={handleSubmit}
           onCancel={() => setIsModalOpen(false)}
         />
