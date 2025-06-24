@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -8,54 +7,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Eye, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 interface SparePartRequest {
   id: string;
+  spare_part_id: string;
   code: string;
   description: string;
-  requestedBy: string;
+  requested_by: string;
   date: string;
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
+  created_at: string;
 }
-
-const mockRequests: SparePartRequest[] = [
-  {
-    id: "1",
-    code: "BRK-001",
-    description: "Pastillas de freno delanteras",
-    requestedBy: "Juan Pérez",
-    date: "2024-01-20",
-    notes: "Urgente - Vehículo ABC-123 requiere cambio inmediato",
-    status: "pending",
-    createdAt: "2024-01-20T10:30:00Z"
-  },
-  {
-    id: "2",
-    code: "OIL-003",
-    description: "Filtro de aceite marca premium",
-    requestedBy: "María González",
-    date: "2024-01-18",
-    status: "approved",
-    createdAt: "2024-01-18T14:15:00Z"
-  },
-  {
-    id: "3",
-    code: "TIR-005",
-    description: "Llanta 215/75R16 para vehículo de carga",
-    requestedBy: "Carlos López",
-    date: "2024-01-15",
-    notes: "Solicitud para reposición por desgaste normal",
-    status: "rejected",
-    createdAt: "2024-01-15T09:45:00Z"
-  }
-];
 
 export default function SparePartRequests() {
   const { toast } = useToast();
-  const [requests, setRequests] = useState<SparePartRequest[]>(mockRequests);
+  const [requests, setRequests] = useState<SparePartRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<SparePartRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  // Cargar solicitudes desde el backend
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/spare_part_requests/`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setRequests(Array.isArray(data) ? data : []));
+  }, []);
 
   const handleViewDetails = (request: SparePartRequest) => {
     setSelectedRequest(request);
@@ -63,21 +40,28 @@ export default function SparePartRequests() {
   };
 
   const handleStatusChange = (request: SparePartRequest, newStatus: 'approved' | 'rejected') => {
-    setRequests(requests.map(req => 
-      req.id === request.id ? { ...req, status: newStatus } : req
-    ));
-    
-    const statusText = newStatus === 'approved' ? 'aprobada' : 'rechazada';
-    toast({
-      title: `Solicitud ${statusText}`,
-      description: `La solicitud ${request.code} ha sido ${statusText} correctamente.`,
-    });
+    fetch(`${API_URL}/api/v1/spare_part_requests/${request.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(updated => {
+        if (updated) {
+          setRequests(requests.map(req => req.id === request.id ? { ...req, status: newStatus } : req));
+          const statusText = newStatus === 'approved' ? 'aprobada' : 'rechazada';
+          toast({
+            title: `Solicitud ${statusText}`,
+            description: `La solicitud ${request.code} ha sido ${statusText} correctamente.`,
+          });
+        }
+      });
   };
 
   const columns = [
     { key: 'code' as keyof SparePartRequest, header: 'Código' },
     { key: 'description' as keyof SparePartRequest, header: 'Descripción' },
-    { key: 'requestedBy' as keyof SparePartRequest, header: 'Solicitado por' },
+    { key: 'requested_by' as keyof SparePartRequest, header: 'Solicitado por' },
     { key: 'date' as keyof SparePartRequest, header: 'Fecha' },
     {
       key: 'status' as keyof SparePartRequest,
@@ -160,24 +144,20 @@ export default function SparePartRequests() {
                   <h4 className="font-medium text-gray-700">Descripción:</h4>
                   <p className="text-gray-600">{selectedRequest.description}</p>
                 </div>
-                
                 <div>
                   <h4 className="font-medium text-gray-700">Solicitado por:</h4>
-                  <p className="text-gray-600">{selectedRequest.requestedBy}</p>
+                  <p className="text-gray-600">{selectedRequest.requested_by}</p>
                 </div>
-                
                 <div>
                   <h4 className="font-medium text-gray-700">Fecha de solicitud:</h4>
                   <p className="text-gray-600">{selectedRequest.date}</p>
                 </div>
-                
                 {selectedRequest.notes && (
                   <div>
                     <h4 className="font-medium text-gray-700">Notas adicionales:</h4>
                     <p className="text-gray-600 bg-gray-50 p-3 rounded-lg">{selectedRequest.notes}</p>
                   </div>
                 )}
-                
                 {selectedRequest.status === 'pending' && (
                   <div className="flex gap-3 pt-4 border-t">
                     <Button 
