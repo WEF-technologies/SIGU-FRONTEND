@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -9,34 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Route } from "@/types";
+import { Plus } from "lucide-react";
 
-const mockRoutes: Route[] = [
-  {
-    id: "1",
-    contract_id: "1",
-    description: "Ruta Norte - Colegio San José",
-    from_location: "Barrio Los Alamos",
-    to_location: "Colegio San José",
-    status: "in_progress",
-    kilometers: 15.5,
-    created_at: "2024-01-15",
-    updated_at: "2024-01-15"
-  },
-  {
-    id: "2",
-    contract_id: "1",
-    description: "Ruta Sur - Regreso",
-    from_location: "Colegio San José",
-    to_location: "Barrio Las Flores",
-    status: "completed",
-    kilometers: 22.3,
-    created_at: "2024-01-15",
-    updated_at: "2024-01-20"
-  }
-];
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function Routes() {
-  const [routes, setRoutes] = useState<Route[]>(mockRoutes);
+  const [routes, setRoutes] = useState<Route[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [formData, setFormData] = useState({
@@ -47,6 +24,13 @@ export default function Routes() {
     kilometers: "",
     status: "pending" as 'pending' | 'in_progress' | 'completed'
   });
+
+  // Cargar rutas desde el backend
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/routes/`)
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setRoutes(Array.isArray(data) ? data : []));
+  }, []);
 
   const columns = [
     { key: 'description' as keyof Route, header: 'Descripción' },
@@ -62,7 +46,19 @@ export default function Routes() {
       header: 'Estado',
       render: (value: any) => <StatusBadge status={value} />
     },
-    { key: 'actions' as keyof Route, header: 'Acciones' }
+    {
+      key: 'actions' as keyof Route,
+      header: 'Acciones',
+      render: (_: any, route: Route) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handleEdit(route)}
+        >
+          Editar
+        </Button>
+      )
+    }
   ];
 
   const handleAdd = () => {
@@ -73,7 +69,7 @@ export default function Routes() {
       from_location: "",
       to_location: "",
       kilometers: "",
-      status: "pending" as 'pending' | 'in_progress' | 'completed'
+      status: "pending"
     });
     setIsModalOpen(true);
   };
@@ -92,53 +88,74 @@ export default function Routes() {
   };
 
   const handleDelete = (route: Route) => {
-    setRoutes(routes.filter(r => r.id !== route.id));
+    fetch(`${API_URL}/api/v1/routes/${route.id}`, {
+      method: "DELETE",
+    }).then(() => {
+      setRoutes(routes.filter(r => r.id !== route.id));
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const payload = {
+      contract_id: formData.contract_id,
+      description: formData.description,
+      from_location: formData.from_location,
+      to_location: formData.to_location,
+      kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined,
+      status: formData.status
+    };
+
     if (editingRoute) {
-      setRoutes(routes.map(r => 
-        r.id === editingRoute.id 
-          ? { 
-              ...r, 
-              ...formData, 
-              kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined,
-              updated_at: new Date().toISOString() 
-            }
-          : r
-      ));
+      // PUT
+      fetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then(res => res.json())
+        .then(updatedRoute => {
+          setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
+        });
     } else {
-      const newRoute: Route = {
-        id: Date.now().toString(),
-        contract_id: formData.contract_id,
-        description: formData.description,
-        from_location: formData.from_location,
-        to_location: formData.to_location,
-        kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined,
-        status: formData.status,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      setRoutes([...routes, newRoute]);
+      // POST
+      fetch(`${API_URL}/api/v1/routes/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+        .then(res => res.json())
+        .then(newRoute => {
+          setRoutes([...routes, newRoute]);
+        });
     }
-    
+
     setIsModalOpen(false);
   };
 
   return (
     <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold text-primary-900">Gestión de Rutas</h2>
+        <Button 
+          onClick={handleAdd} 
+          className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Agregar Ruta
+        </Button>
+      </div>
       <DataTable
         data={routes}
         columns={columns}
-        onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        title="Gestión de Rutas"
-        addButtonText="Agregar Ruta"
+        title=""
+        addButtonText=""
         searchField="description"
         searchPlaceholder="Buscar ruta..."
+        hideAddButton={true}
       />
 
       <FormModal
