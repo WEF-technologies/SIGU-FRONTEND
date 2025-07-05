@@ -49,53 +49,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    try {
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+    const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-      if (!response.ok) {
-        throw new Error('Credenciales inválidas');
-      }
-
-      const data = await response.json();
-      const { access_token: receivedToken, user_id } = data;
-
-      const userData = {
-        id: user_id,
-        email: email,
-        name: 'Usuario de Prueba'
-      };
-
-      setToken(receivedToken);
-      setUser(userData);
-      localStorage.setItem('authToken', receivedToken);
-      localStorage.setItem('authUser', JSON.stringify(userData));
-    } catch (error) {
-      // Modo desarrollo: si el backend no está disponible, simular login exitoso
-      console.warn('Backend no disponible, usando modo desarrollo');
-      
-      // Solo permitir las credenciales de prueba en modo desarrollo
-      if (email === 'admin@servimont.com' && password === '123456') {
-        const mockToken = 'dev-token-' + Date.now();
-        const userData = {
-          id: '1',
-          email: email,
-          name: 'Admin Servi-Mont.M2D'
-        };
-
-        setToken(mockToken);
-        setUser(userData);
-        localStorage.setItem('authToken', mockToken);
-        localStorage.setItem('authUser', JSON.stringify(userData));
-      } else {
-        throw new Error('Credenciales inválidas');
-      }
+    if (!response.ok) {
+      throw new Error('Credenciales inválidas');
     }
+
+    const data = await response.json();
+    const { access_token: receivedToken, user_id } = data;
+
+    const userData = {
+      id: user_id,
+      email: email,
+      name: 'Usuario'
+    };
+
+    setToken(receivedToken);
+    setUser(userData);
+    localStorage.setItem('authToken', receivedToken);
+    localStorage.setItem('authUser', JSON.stringify(userData));
   };
 
   const logout = () => {

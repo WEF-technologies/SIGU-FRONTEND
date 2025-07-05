@@ -11,8 +11,8 @@ import { Car } from 'lucide-react';
 export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState('admin@servimont.com');
-  const [password, setPassword] = useState('123456');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,12 +82,6 @@ export default function Login() {
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </form>
-          
-          <div className="mt-4 p-3 bg-blue-50 rounded-md">
-            <p className="text-xs text-blue-700 font-medium mb-1">Credenciales de prueba:</p>
-            <p className="text-xs text-blue-600">Email: admin@servimont.com</p>
-            <p className="text-xs text-blue-600">Contraseña: 123456</p>
-          </div>
         </CardContent>
       </Card>
     </div>
