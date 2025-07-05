@@ -11,8 +11,8 @@ import { Car } from 'lucide-react';
 export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@servimont.com');
+  const [password, setPassword] = useState('123456');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,7 +23,7 @@ export default function Login() {
       await login(email, password);
       toast({
         title: "Inicio de sesión exitoso",
-        description: "Bienvenido al sistema de gestión Servimont",
+        description: "Bienvenido al sistema de gestión Servi-Mont.M2D",
       });
     } catch (error) {
       toast({
@@ -44,9 +44,9 @@ export default function Login() {
             <Car className="w-6 h-6 text-white" />
           </div>
           <CardTitle className="text-2xl font-bold text-primary-900">
-            Servimont
+            Servi-Mont.M2D
           </CardTitle>
-          <p className="text-gray-600">Sistema de Gestión</p>
+          <p className="text-gray-600">Sistema de Gestión de las Unidades</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -82,6 +82,12 @@ export default function Login() {
               {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </form>
+          
+          <div className="mt-4 p-3 bg-blue-50 rounded-md">
+            <p className="text-xs text-blue-700 font-medium mb-1">Credenciales de prueba:</p>
+            <p className="text-xs text-blue-600">Email: admin@servimont.com</p>
+            <p className="text-xs text-blue-600">Contraseña: 123456</p>
+          </div>
         </CardContent>
       </Card>
     </div>
