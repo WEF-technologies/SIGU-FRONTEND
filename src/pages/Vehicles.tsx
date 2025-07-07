@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -418,12 +419,19 @@ export default function Vehicles() {
             </div>
             <div>
               <Label htmlFor="location">Ubicación/Sede</Label>
-              <Input
-                id="location"
+              <Select
                 value={formData.location}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                placeholder="Sede Principal"
-              />
+                onValueChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar ubicación" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Puerto Ordaz">Puerto Ordaz</SelectItem>
+                  <SelectItem value="Barcelona">Barcelona</SelectItem>
+                  <SelectItem value="Ciudad Piar">Ciudad Piar</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -442,6 +450,9 @@ export default function Vehicles() {
                 <SelectItem value="available">Disponible</SelectItem>
                 <SelectItem value="maintenance">En mantenimiento</SelectItem>
                 <SelectItem value="out_of_service">Fuera de servicio</SelectItem>
+                <SelectItem value="Puerto Ordaz">Puerto Ordaz</SelectItem>
+                <SelectItem value="Barcelona">Barcelona</SelectItem>
+                <SelectItem value="Ciudad Piar">Ciudad Piar</SelectItem>
               </SelectContent>
             </Select>
           </div>

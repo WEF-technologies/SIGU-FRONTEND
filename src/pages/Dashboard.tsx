@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Car, UserCheck, FileText, AlertTriangle, MapPin, Wrench } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 interface DashboardStats {
   totalVehicles: number;
@@ -25,14 +28,16 @@ interface MaintenanceAlert {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [stats, setStats] = useState<DashboardStats>({
-    totalVehicles: 24,
-    activeVehicles: 18,
-    totalDrivers: 15,
-    activeContracts: 8,
-    pendingMaintenances: 5,
-    urgentMaintenances: 2,
+    totalVehicles: 0,
+    activeVehicles: 0,
+    totalDrivers: 0,
+    activeContracts: 0,
+    pendingMaintenances: 0,
+    urgentMaintenances: 0,
   });
+  const [isLoading, setIsLoading] = useState(true);
 
   const [maintenanceAlerts] = useState<MaintenanceAlert[]>([
     {
@@ -50,6 +55,69 @@ export default function Dashboard() {
       kilometersLeft: 100,
     },
   ]);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch vehicles
+        const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        let vehicles = [];
+        if (vehiclesResponse.ok) {
+          vehicles = await vehiclesResponse.json();
+        }
+
+        // Fetch users
+        const usersResponse = await authenticatedFetch(`${API_URL}/api/v1/users/`);
+        let users = [];
+        if (usersResponse.ok) {
+          users = await usersResponse.json();
+        }
+
+        // Fetch contracts (con manejo de errores)
+        let contracts = [];
+        try {
+          const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+          if (contractsResponse.ok) {
+            contracts = await contractsResponse.json();
+          }
+        } catch (error) {
+          console.log('Contratos no disponibles:', error);
+        }
+
+        // Calculate stats
+        const totalVehicles = vehicles.length;
+        const activeVehicles = vehicles.filter((v: any) => 
+          v.status === 'available' || v.status === 'Puerto Ordaz' || 
+          v.status === 'Barcelona' || v.status === 'Ciudad Piar'
+        ).length;
+        
+        const totalDrivers = users.length;
+        const activeContracts = contracts.length;
+
+        // Calculate maintenance stats (mockup for now)
+        const pendingMaintenances = 5;
+        const urgentMaintenances = 2;
+
+        setStats({
+          totalVehicles,
+          activeVehicles,
+          totalDrivers,
+          activeContracts,
+          pendingMaintenances,
+          urgentMaintenances,
+        });
+
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [authenticatedFetch]);
 
   const statCards = [
     {
@@ -94,6 +162,17 @@ export default function Dashboard() {
   const handleCardClick = (route: string) => {
     navigate(route);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-gray-600">Cargando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
