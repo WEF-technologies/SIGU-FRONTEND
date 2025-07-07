@@ -11,20 +11,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Eye, Edit, Trash2, History, Calendar, Gauge, Plus } from "lucide-react";
 import { useEffect } from "react";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 export default function Vehicles() {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
   useEffect(() => {
-  fetch("http://localhost:8000/api/v1/vehicles/")
-    .then(res => res.json())
-    .then(data => setVehicles(data))
-    .catch(() => setVehicles([]));
-}, []);
-  
+    const fetchVehicles = async () => {
+      try {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        if (response.ok) {
+          const data = await response.json();
+          setVehicles(Array.isArray(data) ? data : []);
+        } else {
+          console.error('Error fetching vehicles:', response.status);
+          setVehicles([]);
+        }
+      } catch (error) {
+        console.error('Error fetching vehicles:', error);
+        setVehicles([]);
+      }
+    };
+
+    fetchVehicles();
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -51,12 +67,10 @@ export default function Vehicles() {
 
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(vehicle => {
-      // Filtro por placa
       if (filters.plate && !vehicle.plate_number.toLowerCase().includes(filters.plate.toLowerCase())) {
         return false;
       }
       
-      // Filtro por marca/modelo
       if (filters.brandModel) {
         const searchTerm = filters.brandModel.toLowerCase();
         const brandModel = `${vehicle.brand} ${vehicle.model}`.toLowerCase();
@@ -65,12 +79,10 @@ export default function Vehicles() {
         }
       }
       
-      // Filtro por estado
       if (filters.status && filters.status !== "all" && vehicle.status !== filters.status) {
         return false;
       }
       
-      // Filtro por año
       if (filters.yearFrom && vehicle.year < parseInt(filters.yearFrom)) {
         return false;
       }
@@ -78,7 +90,6 @@ export default function Vehicles() {
         return false;
       }
       
-      // Filtro por mantenimiento pendiente
       if (filters.maintenancePending) {
         const needsMaintenance = vehicle.current_kilometers && vehicle.next_m3_km && 
           vehicle.current_kilometers >= vehicle.next_m3_km;
@@ -153,17 +164,21 @@ export default function Vehicles() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleDelete = (vehicle: Vehicle) => {
-    fetch(`http://localhost:8000/api/v1/vehicles/${vehicle.plate_number}`, {
-      method: "DELETE",
-    })
-      .then(() => {
+  const handleDelete = async (vehicle: Vehicle) => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${vehicle.plate_number}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
         setVehicles(prev => prev.filter(v => v.plate_number !== vehicle.plate_number));
         toast({
           title: "Vehículo eliminado",
           description: `${vehicle.plate_number} ha sido eliminado correctamente.`,
         });
-      });
+      }
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+    }
   };
 
   const handleUpdateKilometers = (vehicleId: string, kilometers: number) => {
@@ -182,44 +197,47 @@ export default function Vehicles() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (editingVehicle) {
-      // Editar (PUT)
-      fetch(`http://localhost:8000/api/v1/vehicles/${formData.plate_number}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-        .then(res => res.json())
-        .then(vehicle => {
+    try {
+      if (editingVehicle) {
+        // Editar (PUT)
+        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${formData.plate_number}`, {
+          method: "PUT",
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          const vehicle = await response.json();
           setVehicles(prev => prev.map(v => v.plate_number === vehicle.plate_number ? vehicle : v));
           toast({
             title: "Vehículo actualizado",
             description: `${vehicle.plate_number} ha sido actualizado correctamente.`,
           });
+        }
+      } else {
+        // Crear (POST)
+        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`, {
+          method: "POST",
+          body: JSON.stringify(formData),
         });
-    } else {
-      // Crear (POST)
-      fetch("http://localhost:8000/api/v1/vehicles/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-        .then(res => res.json())
-        .then(vehicle => {
+        if (response.ok) {
+          const vehicle = await response.json();
           setVehicles(prev => [...prev, vehicle]);
           toast({
             title: "Vehículo creado",
             description: `${vehicle.plate_number} ha sido creado correctamente.`,
           });
-        });
+        }
+      }
+    } catch (error) {
+      console.error('Error with vehicle operation:', error);
     }
 
     setIsModalOpen(false);
     resetForm();
   };
+
   const clearFilters = () => {
     setFilters({
       plate: "",
@@ -358,7 +376,7 @@ export default function Vehicles() {
         title={editingVehicle ? "Editar Vehículo" : "Registrar Nuevo Vehículo"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... keep existing code (form fields) the same until maintenance type select ... */}
+          
           
           <div className="grid grid-cols-2 gap-4">
             <div>

@@ -18,10 +18,14 @@ import {
 } from "@/components/ui/table";
 import { Contract, Shift, Vehicle, User, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function Contracts() {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -35,33 +39,75 @@ export default function Contracts() {
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchContracts = () => {
+  const fetchContracts = async () => {
     setLoading(true);
-    fetch("http://localhost:8000/api/v1/contracts/")
-      .then(res => res.json())
-      .then(data => setContracts(data))
-      .finally(() => setLoading(false));
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+      if (response.ok) {
+        const data = await response.json();
+        setContracts(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Error fetching contracts:', response.status);
+        setContracts([]);
+      }
+    } catch (error) {
+      console.error('Error fetching contracts:', error);
+      setContracts([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetch("http://localhost:8000/api/v1/contracts/").then(res => res.json()),
-      fetch("http://localhost:8000/api/v1/vehicles/").then(res => res.json()),
-      fetch("http://localhost:8000/api/v1/drivers/").then(res => res.json()),
-    ])
-      .then(([contractsData, vehiclesData, driversData]) => {
-        setContracts(contractsData);
-        setVehicles(vehiclesData);
-        setDrivers(driversData);
-      })
-      .finally(() => setLoading(false));
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [contractsResponse, vehiclesResponse, driversResponse] = await Promise.allSettled([
+          authenticatedFetch(`${API_URL}/api/v1/contracts/`),
+          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
+          authenticatedFetch(`${API_URL}/api/v1/drivers/`)
+        ]);
+
+        // Handle contracts
+        if (contractsResponse.status === 'fulfilled' && contractsResponse.value.ok) {
+          const contractsData = await contractsResponse.value.json();
+          setContracts(Array.isArray(contractsData) ? contractsData : []);
+        } else {
+          setContracts([]);
+        }
+
+        // Handle vehicles
+        if (vehiclesResponse.status === 'fulfilled' && vehiclesResponse.value.ok) {
+          const vehiclesData = await vehiclesResponse.value.json();
+          setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+        } else {
+          setVehicles([]);
+        }
+
+        // Handle drivers
+        if (driversResponse.status === 'fulfilled' && driversResponse.value.ok) {
+          const driversData = await driversResponse.value.json();
+          setDrivers(Array.isArray(driversData) ? driversData : []);
+        } else {
+          setDrivers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setContracts([]);
+        setVehicles([]);
+        setDrivers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
   const filteredContracts = contracts.filter(contract =>
-    contract.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    contract.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     contract.contract_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.location.toLowerCase().includes(searchTerm.toLowerCase())
+    contract.location?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAdd = () => {
@@ -84,17 +130,22 @@ export default function Contracts() {
       return;
     }
     setLoading(true);
-    fetch(`http://localhost:8000/api/v1/contracts/${contract.id}`, {
-      method: "DELETE",
-    })
-      .then(() => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/${contract.id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
         setContracts(prev => prev.filter(c => c.id !== contract.id));
         toast({
           title: "Contrato eliminado",
           description: `${contract.description} ha sido eliminado correctamente.`,
         });
-      })
-      .finally(() => setLoading(false));
+      }
+    } catch (error) {
+      console.error('Error deleting contract:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => {
@@ -102,30 +153,32 @@ export default function Contracts() {
     try {
       if (editingContract) {
         // Actualizar contrato
-        const res = await fetch(`http://localhost:8000/api/v1/contracts/${editingContract.id}`, {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/${editingContract.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(contractData),
         });
-        const updatedContract = await res.json();
-        setContracts(prev => prev.map(c => c.id === editingContract.id ? updatedContract : c));
-        toast({
-          title: "Contrato actualizado",
-          description: `${contractData.description} ha sido actualizado correctamente.`,
-        });
+        if (response.ok) {
+          const updatedContract = await response.json();
+          setContracts(prev => prev.map(c => c.id === editingContract.id ? updatedContract : c));
+          toast({
+            title: "Contrato actualizado",
+            description: `${contractData.description} ha sido actualizado correctamente.`,
+          });
+        }
       } else {
         // Crear contrato
-        const res = await fetch("http://localhost:8000/api/v1/contracts/", {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(contractData),
         });
-        const newContract = await res.json();
-        setContracts(prev => [...prev, newContract]);
-        toast({
-          title: "Contrato creado",
-          description: `${contractData.description} ha sido creado correctamente.`,
-        });
+        if (response.ok) {
+          const newContract = await response.json();
+          setContracts(prev => [...prev, newContract]);
+          toast({
+            title: "Contrato creado",
+            description: `${contractData.description} ha sido creado correctamente.`,
+          });
+        }
       }
       setIsModalOpen(false);
       setEditingContract(null);
@@ -153,13 +206,19 @@ export default function Contracts() {
   };
 
   const handleDeleteShift = async (shift: Shift) => {
-    await fetch(`http://localhost:8000/api/v1/shifts/${shift.id}`, {
-      method: "DELETE",
-    });
-    toast({
-      title: "Turno eliminado",
-      description: "El turno ha sido eliminado correctamente.",
-    });
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${shift.id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        toast({
+          title: "Turno eliminado",
+          description: "El turno ha sido eliminado correctamente.",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting shift:', error);
+    }
   };
 
   const handleDownloadDocument = async (contract: Contract) => {
@@ -184,31 +243,37 @@ export default function Contracts() {
       contract_id: selectedContract?.id || shiftData.contract_id
     };
 
-    if (editingShift) {
-      // EDITAR turno (PUT)
-      await fetch(`http://localhost:8000/api/v1/shifts/${editingShift.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(completeShiftData),
-      });
-      toast({
-        title: "Turno actualizado",
-        description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido actualizado correctamente.`,
-      });
-    } else {
-      // CREAR turno (POST)
-      await fetch("http://localhost:8000/api/v1/shifts/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(completeShiftData),
-      });
-      toast({
-        title: "Turno creado",
-        description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido creado correctamente.`,
-      });
+    try {
+      if (editingShift) {
+        // EDITAR turno (PUT)
+        const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${editingShift.id}`, {
+          method: "PUT",
+          body: JSON.stringify(completeShiftData),
+        });
+        if (response.ok) {
+          toast({
+            title: "Turno actualizado",
+            description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido actualizado correctamente.`,
+          });
+        }
+      } else {
+        // CREAR turno (POST)
+        const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/`, {
+          method: "POST",
+          body: JSON.stringify(completeShiftData),
+        });
+        if (response.ok) {
+          toast({
+            title: "Turno creado",
+            description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido creado correctamente.`,
+          });
+        }
+      }
+      setIsShiftModalOpen(false);
+      setEditingShift(null);
+    } catch (error) {
+      console.error('Error with shift operation:', error);
     }
-    setIsShiftModalOpen(false);
-    setEditingShift(null);
   };
 
   return (
@@ -264,73 +329,85 @@ export default function Contracts() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredContracts.map((contract) => (
-                  <TableRow key={contract.id} className="hover:bg-gray-50">
-                    <TableCell className="font-medium">
-                      {contract.contract_code || 'Sin código'}
-                    </TableCell>
-                    <TableCell>{contract.description}</TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>Inicio: {new Date(contract.start_date).toLocaleDateString()}</div>
-                        <div>Fin: {new Date(contract.end_date).toLocaleDateString()}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{contract.location}</TableCell>
-                    <TableCell>
-                      <StatusBadge status={contract.status} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetails(contract)}
-                          className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                          title="Ver detalles"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(contract)}
-                          className="border-primary-200 text-primary hover:bg-primary-50"
-                          title="Editar"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        {contract.document_url && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadDocument(contract)}
-                            className="border-green-200 text-green-600 hover:bg-green-50"
-                            title="Descargar documento"
-                          >
-                            <Download className="w-4 h-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(contract)}
-                          className="border-red-200 text-red-600 hover:bg-red-50"
-                          title="Eliminar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <div className="flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                        Cargando contratos...
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : filteredContracts.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                      No se encontraron contratos que coincidan con tu búsqueda.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredContracts.map((contract) => (
+                    <TableRow key={contract.id} className="hover:bg-gray-50">
+                      <TableCell className="font-medium">
+                        {contract.contract_code || 'Sin código'}
+                      </TableCell>
+                      <TableCell>{contract.description}</TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>Inicio: {new Date(contract.start_date).toLocaleDateString()}</div>
+                          <div>Fin: {new Date(contract.end_date).toLocaleDateString()}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{contract.location}</TableCell>
+                      <TableCell>
+                        <StatusBadge status={contract.status} />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewDetails(contract)}
+                            className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            title="Ver detalles"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(contract)}
+                            className="border-primary-200 text-primary hover:bg-primary-50"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          {contract.document_url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDownloadDocument(contract)}
+                              className="border-green-200 text-green-600 hover:bg-green-50"
+                              title="Descargar documento"
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDelete(contract)}
+                            className="border-red-200 text-red-600 hover:bg-red-50"
+                            title="Eliminar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
-            {filteredContracts.length === 0 && (
-              <div className="p-8 text-center text-gray-500">
-                No se encontraron contratos que coincidan con tu búsqueda.
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
