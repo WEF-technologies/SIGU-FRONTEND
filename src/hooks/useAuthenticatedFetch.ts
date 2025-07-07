@@ -13,7 +13,7 @@ export const useAuthenticatedFetch = () => {
       };
 
       if (token) {
-        headers['Authentication'] = `Bearer ${token}`;
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
       const response = await fetch(url, {

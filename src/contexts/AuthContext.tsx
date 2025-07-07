@@ -5,6 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
+  lastname?: string;
 }
 
 interface AuthContextType {
@@ -64,16 +65,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const data = await response.json();
     const { access_token: receivedToken, user_id } = data;
 
-    const userData = {
-      id: user_id,
-      email: email,
-      name: 'Usuario'
+    // Obtener información completa del usuario
+    const userResponse = await fetch(`${API_URL}/api/v1/users/${user_id}`, {
+      headers: {
+        'Authorization': `Bearer ${receivedToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!userResponse.ok) {
+      throw new Error('Error al obtener información del usuario');
+    }
+
+    const userData = await userResponse.json();
+    const userInfo = {
+      id: userData.id,
+      email: userData.email,
+      name: userData.name,
+      lastname: userData.lastname
     };
 
     setToken(receivedToken);
-    setUser(userData);
+    setUser(userInfo);
     localStorage.setItem('authToken', receivedToken);
-    localStorage.setItem('authUser', JSON.stringify(userData));
+    localStorage.setItem('authUser', JSON.stringify(userInfo));
   };
 
   const logout = () => {

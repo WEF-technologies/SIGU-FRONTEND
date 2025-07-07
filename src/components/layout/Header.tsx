@@ -7,6 +7,13 @@ import { LogOut, User } from "lucide-react";
 export function Header() {
   const { user, logout } = useAuth();
 
+  const getDisplayName = () => {
+    if (user?.name && user?.lastname) {
+      return `${user.name} ${user.lastname}`;
+    }
+    return user?.name || user?.email || 'Usuario';
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-secondary-medium bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="flex h-14 items-center justify-between px-4">
@@ -15,7 +22,7 @@ export function Header() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm text-gray-700">
             <User className="w-4 h-4" />
-            <span>Bienvenido, {user?.name || user?.email}</span>
+            <span>Bienvenido, {getDisplayName()}</span>
           </div>
           
           <Button
