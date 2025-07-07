@@ -15,7 +15,6 @@ export default function Users() {
   
   const columns = [
     { key: 'document_type' as keyof User, header: 'Documento' },
-    { key: 'document_number' as keyof User, header: 'Número de Documento' },
     { key: 'name' as keyof User, header: 'Nombre' },
     { key: 'lastname' as keyof User, header: 'Apellido' },
     { key: 'telephone' as keyof User, header: 'Teléfono' },

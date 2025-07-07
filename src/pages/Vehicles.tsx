@@ -102,27 +102,18 @@ export default function Vehicles() {
     });
   }, [vehicles, filters]);
 
-  const getStatusBadge = (status: Vehicle['status']) => {
-    const statusConfig = {
-      available: { text: 'Operativa', className: 'bg-green-100 text-green-800' },
-      maintenance: { text: 'En Mantenimiento', className: 'bg-yellow-100 text-yellow-800' },
-      out_of_service: { text: 'Inactiva', className: 'bg-red-100 text-red-800' }
-    };
-    
-    const config = statusConfig[status];
-    return <Badge className={config.className}>{config.text}</Badge>;
-  };
-
-  const getMaintenanceInfo = (vehicle: Vehicle) => {
-    if (!vehicle.last_m3_date) return "No registrado";
-    return vehicle.last_m3_date;
-  };
-
-  const getNextMaintenanceInfo = (vehicle: Vehicle) => {
-    if (!vehicle.current_kilometers || !vehicle.next_m3_km) return "No definido";
-    const remaining = vehicle.next_m3_km - vehicle.current_kilometers;
-    if (remaining <= 0) return <span className="text-red-600 font-medium">Vencido</span>;
-    return `${remaining.toLocaleString()} km`;
+  const getStatusDisplay = (status: string) => {
+    // Si el status es una ubicación (como "Puerto Ordaz"), mostrar como badge personalizado
+    if (status === 'available') {
+      return <Badge className="bg-green-100 text-green-800">Operativa</Badge>;
+    } else if (status === 'maintenance') {
+      return <Badge className="bg-yellow-100 text-yellow-800">En Mantenimiento</Badge>;
+    } else if (status === 'out_of_service') {
+      return <Badge className="bg-red-100 text-red-800">Inactiva</Badge>;
+    } else {
+      // Para cualquier otro valor (como ubicaciones), mostrar como badge azul
+      return <Badge className="bg-blue-100 text-blue-800">{status}</Badge>;
+    }
   };
 
   const resetForm = () => {
@@ -300,15 +291,7 @@ export default function Vehicles() {
                     <td className="px-4 py-4">{vehicle.model}</td>
                     <td className="px-4 py-4">{vehicle.year}</td>
                     <td className="px-4 py-4">
-                      {vehicle.status === 'available' && (
-                        <Badge className="bg-green-100 text-green-800">Operativa</Badge>
-                      )}
-                      {vehicle.status === 'maintenance' && (
-                        <Badge className="bg-yellow-100 text-yellow-800">En Mantenimiento</Badge>
-                      )}
-                      {vehicle.status === 'out_of_service' && (
-                        <Badge className="bg-red-100 text-red-800">Inactiva</Badge>
-                      )}
+                      {getStatusDisplay(vehicle.status)}
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1">
