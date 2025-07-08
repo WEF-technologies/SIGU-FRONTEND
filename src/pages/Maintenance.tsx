@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Maintenance as MaintenanceType, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Eye, Edit, Trash2 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -23,6 +25,7 @@ const maintenanceTypeConfig = {
 
 export default function Maintenance() {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [maintenance, setMaintenance] = useState<MaintenanceType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -30,11 +33,10 @@ export default function Maintenance() {
   const [editingMaintenance, setEditingMaintenance] = useState<MaintenanceType | null>(null);
   const [selectedMaintenance, setSelectedMaintenance] = useState<MaintenanceType | null>(null);
   const [formData, setFormData] = useState({
-    vehicle_id: "",
-    vehicle_plate: "",
+    plate_number: "",
     description: "",
     type: "M1" as 'M1' | 'M2' | 'M3' | 'M4',
-    date: "",
+    date: new Date().toISOString().split('T')[0],
     kilometers: 0,
     next_maintenance_km: 0,
     location: "",
@@ -43,13 +45,30 @@ export default function Maintenance() {
 
   // Cargar mantenimientos y vehículos desde el backend
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/maintenance/`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => setMaintenance(Array.isArray(data) ? data : []));
-    fetch(`${API_URL}/api/v1/vehicles/`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => setVehicles(Array.isArray(data) ? data : []));
-  }, []);
+    const fetchData = async () => {
+      try {
+        // Fetch maintenance
+        const maintenanceResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenance/`);
+        if (maintenanceResponse.ok) {
+          const maintenanceData = await maintenanceResponse.json();
+          setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
+        }
+
+        // Fetch vehicles
+        const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        if (vehiclesResponse.ok) {
+          const vehiclesData = await vehiclesResponse.json();
+          setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setMaintenance([]);
+        setVehicles([]);
+      }
+    };
+
+    fetchData();
+  }, [authenticatedFetch]);
 
   const columns = [
     { key: 'vehicle_plate' as keyof MaintenanceType, header: 'Placa Vehículo' },
@@ -113,11 +132,10 @@ export default function Maintenance() {
 
   const resetForm = () => {
     setFormData({
-      vehicle_id: "",
-      vehicle_plate: "",
+      plate_number: "",
       description: "",
       type: "M1",
-      date: "",
+      date: new Date().toISOString().split('T')[0],
       kilometers: 0,
       next_maintenance_km: 0,
       location: "",
@@ -134,8 +152,7 @@ export default function Maintenance() {
   const handleEdit = (maintenance: MaintenanceType) => {
     setEditingMaintenance(maintenance);
     setFormData({
-      vehicle_id: maintenance.vehicle_id,
-      vehicle_plate: maintenance.vehicle_plate || "",
+      plate_number: maintenance.vehicle_plate || "",
       description: maintenance.description,
       type: maintenance.type,
       date: maintenance.date,
@@ -152,33 +169,27 @@ export default function Maintenance() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleDelete = (maintenance: MaintenanceType) => {
-    fetch(`${API_URL}/api/v1/maintenance/${maintenance.id}`, {
-      method: "DELETE",
-    }).then(() => {
-      setMaintenance(prev => prev.filter(m => m.id !== maintenance.id));
-      toast({
-        title: "Mantenimiento eliminado",
-        description: "El registro de mantenimiento ha sido eliminado correctamente.",
+  const handleDelete = async (maintenance: MaintenanceType) => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/${maintenance.id}`, {
+        method: "DELETE",
       });
-    });
-  };
-
-  const handleVehicleSelect = (vehicleId: string) => {
-    const selectedVehicle = vehicles.find(v => v.id === vehicleId);
-    if (selectedVehicle) {
-      setFormData(prev => ({
-        ...prev,
-        vehicle_id: vehicleId,
-        vehicle_plate: selectedVehicle.plate_number
-      }));
+      if (response.ok) {
+        setMaintenance(prev => prev.filter(m => m.id !== maintenance.id));
+        toast({
+          title: "Mantenimiento eliminado",
+          description: "El registro de mantenimiento ha sido eliminado correctamente.",
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting maintenance:', error);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.vehicle_id) {
+    if (!formData.plate_number) {
       toast({
         title: "Error",
         description: "Debe seleccionar un vehículo.",
@@ -187,36 +198,45 @@ export default function Maintenance() {
       return;
     }
 
-    if (editingMaintenance) {
-      // PUT
-      fetch(`${API_URL}/api/v1/maintenance/${editingMaintenance.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-        .then(res => res.json())
-        .then(updated => {
+    try {
+      if (editingMaintenance) {
+        // PUT
+        const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/${editingMaintenance.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          const updated = await response.json();
           setMaintenance(prev => prev.map(m => m.id === editingMaintenance.id ? updated : m));
           toast({
             title: "Mantenimiento actualizado",
             description: `El mantenimiento ${formData.type} ha sido actualizado correctamente.`,
           });
+        }
+      } else {
+        // POST
+        const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
         });
-    } else {
-      // POST
-      fetch(`${API_URL}/api/v1/maintenance/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-        .then(res => res.json())
-        .then(newMaintenance => {
+        if (response.ok) {
+          const newMaintenance = await response.json();
           setMaintenance(prev => [...prev, newMaintenance]);
           toast({
             title: "Mantenimiento registrado",
             description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
           });
-        });
+        }
+      }
+    } catch (error) {
+      console.error('Error with maintenance operation:', error);
+      toast({
+        title: "Error",
+        description: "Ocurrió un error al procesar el mantenimiento.",
+        variant: "destructive"
+      });
     }
 
     setIsModalOpen(false);
@@ -242,17 +262,17 @@ export default function Maintenance() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="vehicle">Vehículo</Label>
+            <Label htmlFor="plate_number">Vehículo</Label>
             <Select
-              value={formData.vehicle_id}
-              onValueChange={handleVehicleSelect}
+              value={formData.plate_number}
+              onValueChange={(value) => setFormData({...formData, plate_number: value})}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccione un vehículo" />
               </SelectTrigger>
               <SelectContent>
                 {vehicles.map((vehicle) => (
-                  <SelectItem key={vehicle.id} value={vehicle.id}>
+                  <SelectItem key={vehicle.id} value={vehicle.plate_number}>
                     {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
                   </SelectItem>
                 ))}
