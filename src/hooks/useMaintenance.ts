@@ -16,8 +16,8 @@ export function useMaintenance() {
     const fetchData = async () => {
       try {
         console.log('Fetching maintenance data...');
-        // Fetch maintenance
-        const maintenanceResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenance/`);
+        // Fix: Use the correct plural endpoint
+        const maintenanceResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenances/`);
         console.log('Maintenance response status:', maintenanceResponse.status);
         if (maintenanceResponse.ok) {
           const maintenanceData = await maintenanceResponse.json();
@@ -63,7 +63,8 @@ export function useMaintenance() {
 
     console.log('Submitting maintenance data:', submitData);
 
-    const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/`, {
+    // Fix: Use the correct plural endpoint
+    const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(submitData),
@@ -106,7 +107,8 @@ export function useMaintenance() {
 
     console.log('Updating maintenance data:', submitData);
 
-    const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/${id}`, {
+    // Fix: Use the correct plural endpoint
+    const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(submitData),
@@ -137,7 +139,8 @@ export function useMaintenance() {
 
   const deleteMaintenance = async (maintenanceItem: MaintenanceType) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/${maintenanceItem.id}`, {
+      // Fix: Use the correct plural endpoint
+      const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/${maintenanceItem.id}`, {
         method: "DELETE",
       });
       if (response.ok) {
