@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -47,18 +46,29 @@ export default function Maintenance() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log('Fetching maintenance data...');
         // Fetch maintenance
         const maintenanceResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenance/`);
+        console.log('Maintenance response status:', maintenanceResponse.status);
         if (maintenanceResponse.ok) {
           const maintenanceData = await maintenanceResponse.json();
+          console.log('Maintenance data received:', maintenanceData);
           setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
+        } else {
+          console.log('Maintenance fetch failed:', maintenanceResponse.status);
+          setMaintenance([]);
         }
 
         // Fetch vehicles
         const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        console.log('Vehicles response status:', vehiclesResponse.status);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
+          console.log('Vehicles data received:', vehiclesData);
           setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+        } else {
+          console.log('Vehicles fetch failed:', vehiclesResponse.status);
+          setVehicles([]);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -198,35 +208,73 @@ export default function Maintenance() {
       return;
     }
 
+    // Prepare the data for the backend
+    const submitData = {
+      plate_number: formData.plate_number,
+      description: formData.description,
+      type: formData.type,
+      date: formData.date, // Already in YYYY-MM-DD format from the date input
+      kilometers: formData.kilometers || null,
+      next_maintenance_km: formData.next_maintenance_km || null,
+      location: formData.location || null,
+      performed_by: formData.performed_by || null
+    };
+
+    console.log('Submitting maintenance data:', submitData);
+
     try {
       if (editingMaintenance) {
-        // PUT
+        // PUT request for editing
         const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/${editingMaintenance.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(submitData),
         });
+        
+        console.log('PUT response status:', response.status);
+        
         if (response.ok) {
           const updated = await response.json();
+          console.log('Updated maintenance:', updated);
           setMaintenance(prev => prev.map(m => m.id === editingMaintenance.id ? updated : m));
           toast({
             title: "Mantenimiento actualizado",
             description: `El mantenimiento ${formData.type} ha sido actualizado correctamente.`,
           });
+        } else {
+          const errorData = await response.text();
+          console.error('PUT error response:', errorData);
+          toast({
+            title: "Error",
+            description: "Error al actualizar el mantenimiento.",
+            variant: "destructive"
+          });
         }
       } else {
-        // POST
+        // POST request for creating
         const response = await authenticatedFetch(`${API_URL}/api/v1/maintenance/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(submitData),
         });
+        
+        console.log('POST response status:', response.status);
+        
         if (response.ok) {
           const newMaintenance = await response.json();
+          console.log('Created maintenance:', newMaintenance);
           setMaintenance(prev => [...prev, newMaintenance]);
           toast({
             title: "Mantenimiento registrado",
             description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
+          });
+        } else {
+          const errorData = await response.text();
+          console.error('POST error response:', errorData);
+          toast({
+            title: "Error",
+            description: "Error al crear el mantenimiento.",
+            variant: "destructive"
           });
         }
       }
@@ -265,7 +313,10 @@ export default function Maintenance() {
             <Label htmlFor="plate_number">Vehículo</Label>
             <Select
               value={formData.plate_number}
-              onValueChange={(value) => setFormData({...formData, plate_number: value})}
+              onValueChange={(value) => {
+                console.log('Selected vehicle plate:', value);
+                setFormData({...formData, plate_number: value});
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccione un vehículo" />
