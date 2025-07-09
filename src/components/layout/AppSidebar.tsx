@@ -1,3 +1,4 @@
+
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -8,7 +9,8 @@ import {
   UserCheck,
   Settings,
   Wrench,
-  ClipboardList
+  ClipboardList,
+  Route
 } from "lucide-react";
 
 import {
@@ -30,6 +32,7 @@ const menuItems = [
   { title: "Contratos", url: "/contratos", icon: FileText },
   { title: "Vehículos", url: "/vehiculos", icon: Car },
   { title: "Rutas", url: "/rutas", icon: MapPin },
+  { title: "Viajes", url: "/viajes", icon: Route },
   { title: "Choferes", url: "/choferes", icon: UserCheck },
   { title: "Repuestos", url: "/repuestos", icon: Settings },
   { title: "Solicitudes", url: "/solicitudes-repuestos", icon: ClipboardList },

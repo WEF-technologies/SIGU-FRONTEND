@@ -54,6 +54,22 @@ export interface Route extends BaseEntity {
   contract?: Contract;
 }
 
+export interface Trip extends BaseEntity {
+  route_id: string;
+  vehicle_id: string;
+  driver_id: string;
+  start_date: string;
+  end_date?: string;
+  start_kilometers: number;
+  end_kilometers?: number;
+  total_kilometers?: number;
+  status: 'in_progress' | 'completed' | 'cancelled';
+  observations?: string;
+  route?: Route;
+  vehicle?: Vehicle;
+  driver?: Driver;
+}
+
 export interface Shift extends BaseEntity {
   contract_id: string;
   description: string;
