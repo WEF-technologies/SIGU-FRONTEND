@@ -14,6 +14,9 @@ import { Edit, Plus, Calendar, Gauge, MapPin, Wrench, Package } from "lucide-rea
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 interface VehicleDetailsModalProps {
   vehicle: Vehicle | null;
@@ -26,7 +29,9 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const [editingKm, setEditingKm] = useState(false);
   const [kmValue, setKmValue] = useState("");
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const { maintenance, vehicles, createMaintenance } = useMaintenance();
+  const authenticatedFetch = useAuthenticatedFetch();
 
   // Filtrar mantenimientos para este vehículo específico
   const vehicleMaintenances = maintenance.filter(m => m.vehicle_plate === vehicle?.plate_number);
@@ -34,24 +39,27 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   useEffect(() => {
     if (vehicle) {
       setKmValue(vehicle.current_kilometers?.toString() || "");
+      // Cargar repuestos para este vehículo
+      fetchVehicleSpareParts(vehicle.plate_number);
     }
   }, [vehicle]);
 
-  if (!vehicle) return null;
-
-  const spareParts: SparePart[] = [
-    {
-      id: "1",
-      code: "BRK-001",
-      description: "Filtro de aceite",
-      quantity: 2,
-      company_location: "Almacén Central",
-      store_location: "AutoPartes Express",
-      compatible_vehicles: [vehicle.plate_number],
-      created_at: "2024-01-15",
-      updated_at: "2024-01-15"
+  const fetchVehicleSpareParts = async (plateNumber: string) => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/vehicle/${plateNumber}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSpareParts(Array.isArray(data) ? data : []);
+      } else {
+        setSpareParts([]);
+      }
+    } catch (error) {
+      console.error('Error fetching spare parts:', error);
+      setSpareParts([]);
     }
-  ];
+  };
+
+  if (!vehicle) return null;
 
   const getStatusBadge = (status: Vehicle['status']) => {
     const statusConfig = {
@@ -64,14 +72,34 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     return <Badge className={config.className}>{config.text}</Badge>;
   };
 
+  // Calcular información M3 usando los datos del vehículo
   const calculateM3Progress = () => {
-    const currentKm = vehicle.current_kilometers || 0;
-    const lastM3Km = vehicle.last_m3_km || 0;
-    const nextM3Km = vehicle.next_m3_km || (lastM3Km + 10000);
+    if (!vehicle.current_kilometers || !vehicle.last_m3_km || !vehicle.next_m3_km) {
+      return 0;
+    }
+    
+    const currentKm = vehicle.current_kilometers;
+    const lastM3Km = vehicle.last_m3_km;
+    const nextM3Km = vehicle.next_m3_km;
     const kmSinceLastM3 = currentKm - lastM3Km;
     const kmBetweenM3 = nextM3Km - lastM3Km;
     return Math.min((kmSinceLastM3 / kmBetweenM3) * 100, 100);
   };
+
+  const getM3Status = () => {
+    if (!vehicle.current_kilometers || !vehicle.next_m3_km) {
+      return { text: 'N/A', isOverdue: false };
+    }
+    
+    const remaining = vehicle.next_m3_km - vehicle.current_kilometers;
+    if (remaining <= 0) {
+      return { text: 'Vencido', isOverdue: true };
+    }
+    
+    return { text: `${remaining.toLocaleString()} km`, isOverdue: false };
+  };
+
+  const m3Status = getM3Status();
 
   const handleSaveKilometers = () => {
     const km = parseInt(kmValue);
@@ -174,10 +202,16 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Último M3: {vehicle.last_m3_date || 'No registrado'}</span>
-                  <span>Faltan: {vehicle.next_m3_km ? (vehicle.next_m3_km - (vehicle.current_kilometers || 0)).toLocaleString() : 'N/A'} km</span>
+                  <span>Último M3: {vehicle.last_m3_date ? new Date(vehicle.last_m3_date).toLocaleDateString() : 'No registrado'}</span>
+                  <span className={m3Status.isOverdue ? 'text-red-600 font-medium' : ''}>
+                    Faltan: {m3Status.text}
+                  </span>
                 </div>
                 <Progress value={calculateM3Progress()} className="h-2" />
+                <div className="text-xs text-gray-500">
+                  Último M3 en: {vehicle.last_m3_km?.toLocaleString() || 'N/A'} km | 
+                  Próximo M3 en: {vehicle.next_m3_km?.toLocaleString() || 'N/A'} km
+                </div>
               </div>
             </Card>
 
@@ -231,7 +265,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                                 {maintenanceItem.type}
                               </Badge>
                             </TableCell>
-                            <TableCell>{maintenanceItem.date}</TableCell>
+                            <TableCell>{new Date(maintenanceItem.date).toLocaleDateString()}</TableCell>
                             <TableCell>{maintenanceItem.kilometers?.toLocaleString()} km</TableCell>
                             <TableCell>{maintenanceItem.description}</TableCell>
                             <TableCell>{maintenanceItem.location || 'No especificada'}</TableCell>
@@ -246,7 +280,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
 
               <TabsContent value="parts" className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Repuestos Asociados</h3>
+                  <h3 className="font-medium">Repuestos Asociados ({spareParts.length})</h3>
                   <Button size="sm" className="bg-primary">
                     <Plus className="w-4 h-4 mr-2" />
                     Agregar Repuesto
@@ -260,19 +294,29 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                         <TableHead>Descripción</TableHead>
                         <TableHead>Cantidad</TableHead>
                         <TableHead>Ubicación Empresa</TableHead>
-                        <TableHead>Tienda</TableHead>
+                        <TableHead>Precio Unitario</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {spareParts.map((part) => (
-                        <TableRow key={part.id}>
-                          <TableCell>{part.code}</TableCell>
-                          <TableCell>{part.description}</TableCell>
-                          <TableCell>{part.quantity}</TableCell>
-                          <TableCell>{part.company_location}</TableCell>
-                          <TableCell>{part.store_location}</TableCell>
+                      {spareParts.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                            No hay repuestos asociados a este vehículo
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      ) : (
+                        spareParts.map((part) => (
+                          <TableRow key={part.id}>
+                            <TableCell>{part.code}</TableCell>
+                            <TableCell>{part.description}</TableCell>
+                            <TableCell>{part.quantity}</TableCell>
+                            <TableCell>{part.company_location}</TableCell>
+                            <TableCell>
+                              {part.unit_price ? `$${part.unit_price.toLocaleString()}` : 'N/A'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
                     </TableBody>
                   </Table>
                 </Card>

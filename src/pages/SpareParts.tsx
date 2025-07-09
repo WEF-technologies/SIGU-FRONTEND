@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
@@ -7,6 +8,7 @@ import { SparePartDetailsModal } from "@/components/spareparts/SparePartDetailsM
 import { SparePartRequestForm } from "@/components/spareparts/SparePartRequestForm";
 import { SparePart, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Button } from "@/components/ui/button";
 import { Plus, ShoppingCart } from "lucide-react";
 
@@ -14,6 +16,7 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function SpareParts() {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,13 +27,34 @@ export default function SpareParts() {
 
   // Cargar repuestos y vehículos desde el backend
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/spare_parts/`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => setSpareParts(Array.isArray(data) ? data : []));
-    fetch(`${API_URL}/api/v1/vehicles/`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => setVehicles(Array.isArray(data) ? data : []));
-  }, []);
+    const fetchData = async () => {
+      try {
+        // Fetch spare parts
+        const sparePartsResponse = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/`);
+        if (sparePartsResponse.ok) {
+          const sparePartsData = await sparePartsResponse.json();
+          setSpareParts(Array.isArray(sparePartsData) ? sparePartsData : []);
+        } else {
+          setSpareParts([]);
+        }
+
+        // Fetch vehicles
+        const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        if (vehiclesResponse.ok) {
+          const vehiclesData = await vehiclesResponse.json();
+          setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+        } else {
+          setVehicles([]);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setSpareParts([]);
+        setVehicles([]);
+      }
+    };
+
+    fetchData();
+  }, [authenticatedFetch]);
 
   const columns = [
     { key: 'code' as keyof SparePart, header: 'Código' },
@@ -83,16 +107,26 @@ export default function SpareParts() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (sparePart: SparePart) => {
-    fetch(`${API_URL}/api/v1/spare_parts/${sparePart.id}`, {
-      method: "DELETE",
-    }).then(() => {
-      setSpareParts(spareParts.filter(sp => sp.id !== sparePart.id));
-      toast({
-        title: "Repuesto eliminado",
-        description: `${sparePart.code} - ${sparePart.description} ha sido eliminado correctamente.`,
+  const handleDelete = async (sparePart: SparePart) => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/${sparePart.id}`, {
+        method: "DELETE",
       });
-    });
+      if (response.ok) {
+        setSpareParts(prev => prev.filter(sp => sp.id !== sparePart.id));
+        toast({
+          title: "Repuesto eliminado",
+          description: `${sparePart.code} - ${sparePart.description} ha sido eliminado correctamente.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting spare part:', error);
+      toast({
+        title: "Error",
+        description: "Error al eliminar el repuesto.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleViewDetails = (sparePart: SparePart) => {
@@ -100,71 +134,93 @@ export default function SpareParts() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleSubmit = (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
-    if (editingSparePart) {
-      // PUT
-      fetch(`${API_URL}/api/v1/spare_parts/${editingSparePart.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-        .then(res => res.json())
-        .then(updatedSparePart => {
-          setSpareParts(spareParts.map(sp => 
+  const handleSubmit = async (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      if (editingSparePart) {
+        // PUT
+        const response = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/${editingSparePart.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          const updatedSparePart = await response.json();
+          setSpareParts(prev => prev.map(sp => 
             sp.id === editingSparePart.id ? updatedSparePart : sp
           ));
           toast({
             title: "Repuesto actualizado",
             description: `${formData.code} - ${formData.description} ha sido actualizado correctamente.`,
           });
+        }
+      } else {
+        // POST
+        const response = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
         });
-    } else {
-      // POST
-      fetch(`${API_URL}/api/v1/spare_parts/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
-        .then(res => res.json())
-        .then(newSparePart => {
-          setSpareParts([...spareParts, newSparePart]);
+        if (response.ok) {
+          const newSparePart = await response.json();
+          setSpareParts(prev => [...prev, newSparePart]);
           toast({
             title: "Repuesto creado",
             description: `${formData.code} - ${formData.description} ha sido creado correctamente.`,
           });
-        });
+        }
+      }
+    } catch (error) {
+      console.error('Error with spare part operation:', error);
+      toast({
+        title: "Error",
+        description: "Error al procesar la operación.",
+        variant: "destructive"
+      });
     }
     setIsModalOpen(false);
   };
 
   // Solicitud de repuesto (nuevo endpoint)
-  const handleSparePartRequest = (requestData: {
+  const handleSparePartRequest = async (requestData: {
     code: string;
     description: string;
     requestedBy: string;
     date: string;
     notes?: string;
   }) => {
-    // Map requestedBy (camelCase) to requested_by (snake_case) for the API
-    const apiRequestData = {
-      ...requestData,
-      requested_by: requestData.requestedBy,
-    };
-    delete (apiRequestData as any).requestedBy;
+    try {
+      // Map requestedBy (camelCase) to requested_by (snake_case) for the API
+      const apiRequestData = {
+        code: requestData.code,
+        description: requestData.description,
+        requested_by: requestData.requestedBy,
+        date: requestData.date,
+        notes: requestData.notes || null,
+      };
 
-    fetch(`${API_URL}/api/v1/spare_part_requests/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(apiRequestData),
-    })
-      .then(res => res.ok)
-      .then(() => {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiRequestData),
+      });
+      
+      if (response.ok) {
         toast({
           title: "Solicitud enviada",
           description: `Solicitud de ${requestData.code} - ${requestData.description} enviada correctamente.`,
         });
         setIsRequestModalOpen(false);
+      } else {
+        throw new Error('Failed to create request');
+      }
+    } catch (error) {
+      console.error('Error creating spare part request:', error);
+      toast({
+        title: "Error",
+        description: "Error al enviar la solicitud.",
+        variant: "destructive"
       });
+    }
   };
 
   return (
