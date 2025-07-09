@@ -12,7 +12,6 @@ export function useMaintenance() {
   const [maintenance, setMaintenance] = useState<MaintenanceType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
-  // Función para calcular los datos M3 de un vehículo
   const calculateM3Data = (vehicle: Vehicle, maintenanceHistory: MaintenanceType[]) => {
     const vehicleMaintenances = maintenanceHistory.filter(m => m.vehicle_plate === vehicle.plate_number);
     const m3Maintenances = vehicleMaintenances.filter(m => m.type === 'M3').sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -21,7 +20,6 @@ export function useMaintenance() {
     const lastM3Date = lastM3 ? lastM3.date : null;
     const lastM3Km = lastM3 ? lastM3.kilometers || 0 : 0;
     
-    // Calcular próximo M3 (cada 10,000 km después del último M3)
     const nextM3Km = lastM3Km + 10000;
     
     return {
@@ -47,22 +45,22 @@ export function useMaintenance() {
           setMaintenance([]);
         }
 
-        // Fetch vehicles
         const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
         console.log('Vehicles response status:', vehiclesResponse.status);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
           console.log('Vehicles data received:', vehiclesData);
           
-          // Enriquecer vehículos con datos M3 calculados
           const enrichedVehicles = vehiclesData.map((vehicle: Vehicle) => {
             const m3Data = calculateM3Data(vehicle, maintenanceData);
+            console.log(`M3 data for vehicle ${vehicle.plate_number}:`, m3Data);
             return {
               ...vehicle,
               ...m3Data
             };
           });
           
+          console.log('Enriched vehicles:', enrichedVehicles);
           setVehicles(Array.isArray(enrichedVehicles) ? enrichedVehicles : []);
         } else {
           console.log('Vehicles fetch failed:', vehiclesResponse.status);
@@ -105,7 +103,6 @@ export function useMaintenance() {
       console.log('Created maintenance:', newMaintenance);
       setMaintenance(prev => [...prev, newMaintenance]);
       
-      // Recalcular datos M3 para todos los vehículos
       const updatedMaintenanceList = [...maintenance, newMaintenance];
       setVehicles(prev => prev.map(vehicle => {
         const m3Data = calculateM3Data(vehicle, updatedMaintenanceList);
@@ -156,7 +153,6 @@ export function useMaintenance() {
       console.log('Updated maintenance:', updated);
       setMaintenance(prev => prev.map(m => m.id === id ? updated : m));
       
-      // Recalcular datos M3 para todos los vehículos
       const updatedMaintenanceList = maintenance.map(m => m.id === id ? updated : m);
       setVehicles(prev => prev.map(vehicle => {
         const m3Data = calculateM3Data(vehicle, updatedMaintenanceList);
@@ -188,7 +184,6 @@ export function useMaintenance() {
       if (response.ok) {
         setMaintenance(prev => prev.filter(m => m.id !== maintenanceItem.id));
         
-        // Recalcular datos M3 para todos los vehículos
         const updatedMaintenanceList = maintenance.filter(m => m.id !== maintenanceItem.id);
         setVehicles(prev => prev.map(vehicle => {
           const m3Data = calculateM3Data(vehicle, updatedMaintenanceList);

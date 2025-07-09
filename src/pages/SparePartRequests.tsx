@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -6,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Eye, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -23,39 +25,72 @@ interface SparePartRequest {
 
 export default function SparePartRequests() {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [requests, setRequests] = useState<SparePartRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<SparePartRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // Cargar solicitudes desde el backend
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/spare_part_requests/`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => setRequests(Array.isArray(data) ? data : []));
-  }, []);
+    const fetchRequests = async () => {
+      try {
+        console.log('Fetching spare part requests...');
+        const response = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`);
+        console.log('Requests response status:', response.status);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Requests data received:', data);
+          setRequests(Array.isArray(data) ? data : []);
+        } else {
+          console.error('Error fetching requests:', response.status);
+          setRequests([]);
+        }
+      } catch (error) {
+        console.error('Error fetching requests:', error);
+        setRequests([]);
+      }
+    };
+
+    fetchRequests();
+  }, [authenticatedFetch]);
 
   const handleViewDetails = (request: SparePartRequest) => {
     setSelectedRequest(request);
     setIsDetailModalOpen(true);
   };
 
-  const handleStatusChange = (request: SparePartRequest, newStatus: 'approved' | 'rejected') => {
-    fetch(`${API_URL}/api/v1/spare_part_requests/${request.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    })
-      .then(res => res.ok ? res.json() : null)
-      .then(updated => {
-        if (updated) {
-          setRequests(requests.map(req => req.id === request.id ? { ...req, status: newStatus } : req));
-          const statusText = newStatus === 'approved' ? 'aprobada' : 'rechazada';
-          toast({
-            title: `Solicitud ${statusText}`,
-            description: `La solicitud ${request.code} ha sido ${statusText} correctamente.`,
-          });
-        }
+  const handleStatusChange = async (request: SparePartRequest, newStatus: 'approved' | 'rejected') => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/${request.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
       });
+      
+      if (response.ok) {
+        const updated = await response.json();
+        setRequests(requests.map(req => req.id === request.id ? { ...req, status: newStatus } : req));
+        const statusText = newStatus === 'approved' ? 'aprobada' : 'rechazada';
+        toast({
+          title: `Solicitud ${statusText}`,
+          description: `La solicitud ${request.code} ha sido ${statusText} correctamente.`,
+        });
+        setIsDetailModalOpen(false);
+      } else {
+        console.error('Error updating request status:', response.status);
+        toast({
+          title: "Error",
+          description: "Error al actualizar el estado de la solicitud.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error updating request status:', error);
+      toast({
+        title: "Error",
+        description: "Error al actualizar el estado de la solicitud.",
+        variant: "destructive"
+      });
+    }
   };
 
   const columns = [
