@@ -1,28 +1,60 @@
+
 import { useState, useEffect } from "react";
-import { Eye, Download } from "lucide-react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { DriverForm } from "@/components/drivers/DriverForm";
 import { DriverActions } from "@/components/drivers/DriverActions";
 import { Driver, Contract } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function Drivers() {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch("http://localhost:8000/api/v1/drivers/").then(res => res.ok ? res.json() : []),
-      fetch("http://localhost:8000/api/v1/contracts/").then(res => res.ok ? res.json() : []),
-    ]).then(([driversData, contractsData]) => {
-      setDrivers(Array.isArray(driversData) ? driversData : []);
-      setContracts(Array.isArray(contractsData) ? contractsData : []);
-    });
-  }, []);
+    const fetchData = async () => {
+      try {
+        // Fetch drivers
+        console.log('Fetching drivers...');
+        const driversResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/`);
+        console.log('Drivers response status:', driversResponse.status);
+        if (driversResponse.ok) {
+          const driversData = await driversResponse.json();
+          console.log('Drivers data received:', driversData);
+          setDrivers(Array.isArray(driversData) ? driversData : []);
+        } else {
+          console.log('No drivers found or endpoint not available');
+          setDrivers([]);
+        }
+
+        // Fetch contracts
+        console.log('Fetching contracts...');
+        const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        console.log('Contracts response status:', contractsResponse.status);
+        if (contractsResponse.ok) {
+          const contractsData = await contractsResponse.json();
+          console.log('Contracts data received:', contractsData);
+          setContracts(Array.isArray(contractsData) ? contractsData : []);
+        } else {
+          console.log('No contracts found or endpoint not available');
+          setContracts([]);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setDrivers([]);
+        setContracts([]);
+      }
+    };
+
+    fetchData();
+  }, [authenticatedFetch]);
 
   const columns = [
     { key: 'name' as keyof Driver, header: 'Nombre' },
@@ -49,6 +81,7 @@ export default function Drivers() {
       )
     }
   ];
+
   const handleAdd = () => {
     setEditingDriver(null);
     setIsModalOpen(true);
@@ -60,45 +93,66 @@ export default function Drivers() {
   };
 
   const handleDelete = async (driver: Driver) => {
-    // Eliminar chofer en backend
-    await fetch(`http://localhost:8000/api/v1/drivers/${driver.id}`, {
-      method: "DELETE",
-    });
-    setDrivers(drivers.filter(d => d.id !== driver.id));
-    toast({
-      title: "Chofer eliminado",
-      description: `${driver.name} ${driver.last_name} ha sido eliminado correctamente.`,
-    });
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/${driver.id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        setDrivers(drivers.filter(d => d.id !== driver.id));
+        toast({
+          title: "Chofer eliminado",
+          description: `${driver.name} ${driver.last_name} ha sido eliminado correctamente.`,
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting driver:', error);
+      toast({
+        title: "Error",
+        description: "Error al eliminar el chofer.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSubmit = async (formData: Omit<Driver, 'id' | 'created_at' | 'updated_at'>) => {
-    if (editingDriver) {
-      // Actualizar chofer en backend
-      const res = await fetch(`http://localhost:8000/api/v1/drivers/${editingDriver.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const updatedDriver = await res.json();
-      setDrivers(drivers.map(d => 
-        d.id === editingDriver.id ? updatedDriver : d
-      ));
+    try {
+      if (editingDriver) {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/${editingDriver.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          const updatedDriver = await response.json();
+          setDrivers(drivers.map(d => 
+            d.id === editingDriver.id ? updatedDriver : d
+          ));
+          toast({
+            title: "Chofer actualizado",
+            description: `${formData.name} ${formData.last_name} ha sido actualizado correctamente.`,
+          });
+        }
+      } else {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (response.ok) {
+          const newDriver = await response.json();
+          setDrivers([...drivers, newDriver]);
+          toast({
+            title: "Chofer creado",
+            description: `${formData.name} ${formData.last_name} ha sido creado correctamente.`,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error with driver operation:', error);
       toast({
-        title: "Chofer actualizado",
-        description: `${formData.name} ${formData.last_name} ha sido actualizado correctamente.`,
-      });
-    } else {
-      // Crear chofer en backend
-      const res = await fetch("http://localhost:8000/api/v1/drivers/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      const newDriver = await res.json();
-      setDrivers([...drivers, newDriver]);
-      toast({
-        title: "Chofer creado",
-        description: `${formData.name} ${formData.last_name} ha sido creado correctamente.`,
+        title: "Error",
+        description: "Error al procesar la operación.",
+        variant: "destructive"
       });
     }
     setIsModalOpen(false);

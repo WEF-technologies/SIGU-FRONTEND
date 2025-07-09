@@ -20,6 +20,7 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
     description: "",
     quantity: 0,
     company_location: "",
+    store_location: "",
     compatible_vehicles: [] as string[],
     unit_price: 0,
   });
@@ -31,6 +32,7 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
         description: sparePart.description,
         quantity: sparePart.quantity,
         company_location: sparePart.company_location || "",
+        store_location: sparePart.store_location || "",
         compatible_vehicles: sparePart.compatible_vehicles || [],
         unit_price: sparePart.unit_price || 0,
       });
