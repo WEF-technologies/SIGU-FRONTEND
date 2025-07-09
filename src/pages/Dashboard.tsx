@@ -14,16 +14,18 @@ interface DashboardStats {
   activeVehicles: number;
   totalDrivers: number;
   activeContracts: number;
-  pendingMaintenances: number;
+  totalMaintenances: number;
   urgentMaintenances: number;
 }
 
-interface MaintenanceAlert {
+interface MaintenanceRecord {
   id: string;
-  vehiclePlate: string;
+  vehicle_plate: string;
   type: string;
-  dueDate: string;
-  kilometersLeft: number;
+  date: string;
+  description: string;
+  location?: string;
+  performed_by?: string;
 }
 
 export default function Dashboard() {
@@ -34,27 +36,11 @@ export default function Dashboard() {
     activeVehicles: 0,
     totalDrivers: 0,
     activeContracts: 0,
-    pendingMaintenances: 0,
+    totalMaintenances: 0,
     urgentMaintenances: 0,
   });
+  const [recentMaintenances, setRecentMaintenances] = useState<MaintenanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  const [maintenanceAlerts] = useState<MaintenanceAlert[]>([
-    {
-      id: "1",
-      vehiclePlate: "ABC-123",
-      type: "M3 - Cambio de aceite",
-      dueDate: "2024-01-15",
-      kilometersLeft: 250,
-    },
-    {
-      id: "2",
-      vehiclePlate: "XYZ-789",
-      type: "M3 - Revisión general",
-      dueDate: "2024-01-18",
-      kilometersLeft: 100,
-    },
-  ]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -68,14 +54,25 @@ export default function Dashboard() {
           vehicles = await vehiclesResponse.json();
         }
 
-        // Fetch users
+        // Fetch users (not drivers - drivers is separate)
         const usersResponse = await authenticatedFetch(`${API_URL}/api/v1/users/`);
         let users = [];
         if (usersResponse.ok) {
           users = await usersResponse.json();
         }
 
-        // Fetch contracts (con manejo de errores)
+        // Fetch drivers
+        let drivers = [];
+        try {
+          const driversResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/`);
+          if (driversResponse.ok) {
+            drivers = await driversResponse.json();
+          }
+        } catch (error) {
+          console.log('Drivers endpoint not available:', error);
+        }
+
+        // Fetch contracts
         let contracts = [];
         try {
           const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
@@ -83,29 +80,41 @@ export default function Dashboard() {
             contracts = await contractsResponse.json();
           }
         } catch (error) {
-          console.log('Contratos no disponibles:', error);
+          console.log('Contracts endpoint not available:', error);
         }
 
-        // Calculate stats
+        // Fetch maintenances
+        let maintenances = [];
+        try {
+          const maintenancesResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenances/`);
+          if (maintenancesResponse.ok) {
+            maintenances = await maintenancesResponse.json();
+            setRecentMaintenances(maintenances.slice(0, 3)); // Show only last 3
+          }
+        } catch (error) {
+          console.log('Maintenances endpoint not available:', error);
+        }
+
+        // Calculate real stats
         const totalVehicles = vehicles.length;
         const activeVehicles = vehicles.filter((v: any) => 
           v.status === 'available' || v.status === 'Puerto Ordaz' || 
           v.status === 'Barcelona' || v.status === 'Ciudad Piar'
         ).length;
         
-        const totalDrivers = users.length;
+        const totalDrivers = drivers.length; // Use actual drivers, not users
         const activeContracts = contracts.length;
+        const totalMaintenances = maintenances.length;
 
-        // Calculate maintenance stats (mockup for now)
-        const pendingMaintenances = 5;
-        const urgentMaintenances = 2;
+        // Calculate urgent maintenances (for now, we'll consider recent ones as urgent)
+        const urgentMaintenances = 0; // No real calculation yet
 
         setStats({
           totalVehicles,
           activeVehicles,
           totalDrivers,
           activeContracts,
-          pendingMaintenances,
+          totalMaintenances,
           urgentMaintenances,
         });
 
@@ -149,7 +158,7 @@ export default function Dashboard() {
     },
     {
       title: "Mantenimientos",
-      value: stats.pendingMaintenances,
+      value: stats.totalMaintenances,
       subtitle: `${stats.urgentMaintenances} urgentes`,
       icon: Wrench,
       color: "text-orange-600",
@@ -182,25 +191,6 @@ export default function Dashboard() {
           Resumen general del sistema de gestión vehicular
         </p>
       </div>
-
-      {/* Alertas de mantenimiento */}
-      {maintenanceAlerts.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="text-lg font-semibold text-primary-900 flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-orange-500" />
-            Alertas de Mantenimiento
-          </h2>
-          {maintenanceAlerts.map((alert) => (
-            <Alert key={alert.id} className="border-orange-200 bg-orange-50">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-              <AlertDescription className="text-orange-800">
-                <strong>{alert.vehiclePlate}</strong> - {alert.type}. 
-                Faltan {alert.kilometersLeft} km. Vencimiento: {alert.dueDate}
-              </AlertDescription>
-            </Alert>
-          ))}
-        </div>
-      )}
 
       {/* Tarjetas de estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -239,46 +229,32 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Resumen de actividad reciente */}
+      {/* Sección de actividad reciente */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card 
-          className="border-secondary-medium cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate("/rutas")}
-        >
+        {/* Rutas - Empty state since no real data */}
+        <Card className="border-secondary-medium">
           <CardHeader>
             <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
               <MapPin className="w-5 h-5" />
               Rutas Activas
-              <span className="text-xs text-secondary-dark ml-auto">Ver todas →</span>
+              <span className="text-xs text-secondary-dark ml-auto cursor-pointer" onClick={() => navigate("/rutas")}>Ver todas →</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {[
-                { route: "Centro - Aeropuerto", vehicle: "ABC-123", status: "En curso", km: "45 km" },
-                { route: "Puerto - Terminal", vehicle: "XYZ-789", status: "Completada", km: "32 km" },
-                { route: "Norte - Sur", vehicle: "DEF-456", status: "Pendiente", km: "28 km" },
-              ].map((item, index) => (
-                <div key={index} className="flex justify-between items-center py-2 border-b border-secondary-medium last:border-b-0">
-                  <div>
-                    <p className="font-medium text-primary-900">{item.route}</p>
-                    <p className="text-sm text-secondary-dark">Vehículo: {item.vehicle} • {item.km}</p>
-                  </div>
-                  <Badge 
-                    className={
-                      item.status === "En curso" ? "bg-blue-100 text-blue-800" :
-                      item.status === "Completada" ? "bg-green-100 text-green-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }
-                  >
-                    {item.status}
-                  </Badge>
-                </div>
-              ))}
+            <div className="text-center py-8 text-secondary-dark">
+              <MapPin className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>No hay rutas activas registradas</p>
+              <button 
+                onClick={() => navigate("/rutas")}
+                className="mt-2 text-primary hover:underline text-sm"
+              >
+                Gestionar rutas
+              </button>
             </div>
           </CardContent>
         </Card>
 
+        {/* Mantenimientos Recientes */}
         <Card 
           className="border-secondary-medium cursor-pointer hover:shadow-lg transition-shadow"
           onClick={() => navigate("/mantenimiento")}
@@ -292,27 +268,30 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                { vehicle: "ABC-123", type: "M1", date: "2024-01-10", status: "Completado", location: "Taller Central" },
-                { vehicle: "XYZ-789", type: "M2", date: "2024-01-12", status: "En proceso", location: "Servicios Norte" },
-                { vehicle: "DEF-456", type: "M3", date: "2024-01-15", status: "Programado", location: "Por asignar" },
-              ].map((item, index) => (
-                <div key={index} className="flex justify-between items-center py-2 border-b border-secondary-medium last:border-b-0">
-                  <div>
-                    <p className="font-medium text-primary-900">{item.vehicle} - {item.type}</p>
-                    <p className="text-sm text-secondary-dark">{item.date} • {item.location}</p>
+              {recentMaintenances.length > 0 ? (
+                recentMaintenances.map((item, index) => (
+                  <div key={index} className="flex justify-between items-center py-2 border-b border-secondary-medium last:border-b-0">
+                    <div>
+                      <p className="font-medium text-primary-900">{item.vehicle_plate} - {item.type}</p>
+                      <p className="text-sm text-secondary-dark">{item.date} • {item.location || 'Sin ubicación'}</p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-800">
+                      Completado
+                    </Badge>
                   </div>
-                  <Badge 
-                    className={
-                      item.status === "Completado" ? "bg-green-100 text-green-800" :
-                      item.status === "En proceso" ? "bg-blue-100 text-blue-800" :
-                      "bg-yellow-100 text-yellow-800"
-                    }
+                ))
+              ) : (
+                <div className="text-center py-8 text-secondary-dark">
+                  <Wrench className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>No hay mantenimientos registrados</p>
+                  <button 
+                    onClick={() => navigate("/mantenimiento")}
+                    className="mt-2 text-primary hover:underline text-sm"
                   >
-                    {item.status}
-                  </Badge>
+                    Registrar mantenimiento
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
