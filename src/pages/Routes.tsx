@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Route } from "@/types";
 import { Plus } from "lucide-react";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -24,13 +25,18 @@ export default function Routes() {
     kilometers: "",
     status: "pending" as 'pending' | 'in_progress' | 'completed'
   });
+  const authenticatedFetch = useAuthenticatedFetch();
 
   // Cargar rutas desde el backend
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/routes/`)
+    authenticatedFetch(`${API_URL}/api/v1/routes/`)
       .then(res => res.ok ? res.json() : [])
-      .then(data => setRoutes(Array.isArray(data) ? data : []));
-  }, []);
+      .then(data => setRoutes(Array.isArray(data) ? data : []))
+      .catch(error => {
+        console.error('Error loading routes:', error);
+        setRoutes([]);
+      });
+  }, [authenticatedFetch]);
 
   const columns = [
     { key: 'description' as keyof Route, header: 'Descripción' },
@@ -88,10 +94,12 @@ export default function Routes() {
   };
 
   const handleDelete = (route: Route) => {
-    fetch(`${API_URL}/api/v1/routes/${route.id}`, {
+    authenticatedFetch(`${API_URL}/api/v1/routes/${route.id}`, {
       method: "DELETE",
     }).then(() => {
       setRoutes(routes.filter(r => r.id !== route.id));
+    }).catch(error => {
+      console.error('Error deleting route:', error);
     });
   };
 
@@ -109,25 +117,29 @@ export default function Routes() {
 
     if (editingRoute) {
       // PUT
-      fetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
+      authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
         .then(res => res.json())
         .then(updatedRoute => {
           setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
+        })
+        .catch(error => {
+          console.error('Error updating route:', error);
         });
     } else {
       // POST
-      fetch(`${API_URL}/api/v1/routes/`, {
+      authenticatedFetch(`${API_URL}/api/v1/routes/`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
         .then(res => res.json())
         .then(newRoute => {
           setRoutes([...routes, newRoute]);
+        })
+        .catch(error => {
+          console.error('Error creating route:', error);
         });
     }
 
