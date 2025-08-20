@@ -18,7 +18,7 @@ export default function Routes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [formData, setFormData] = useState({
-    contract_id: "",
+    contract_description: "",
     description: "",
     from_location: "",
     to_location: "",
@@ -70,7 +70,7 @@ export default function Routes() {
   const handleAdd = () => {
     setEditingRoute(null);
     setFormData({
-      contract_id: "",
+      contract_description: "",
       description: "",
       from_location: "",
       to_location: "",
@@ -83,7 +83,7 @@ export default function Routes() {
   const handleEdit = (route: Route) => {
     setEditingRoute(route);
     setFormData({
-      contract_id: route.contract_id,
+      contract_description: route.contract_id, // Using contract_id from route for now
       description: route.description,
       from_location: route.from_location,
       to_location: route.to_location,
@@ -107,7 +107,7 @@ export default function Routes() {
     e.preventDefault();
 
     const payload = {
-      contract_id: formData.contract_id,
+      contract_description: formData.contract_description,
       description: formData.description,
       from_location: formData.from_location,
       to_location: formData.to_location,
@@ -177,12 +177,12 @@ export default function Routes() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="contract_id">ID del Contrato</Label>
+            <Label htmlFor="contract_description">Descripción del Contrato</Label>
             <Input
-              id="contract_id"
-              value={formData.contract_id}
-              onChange={(e) => setFormData({...formData, contract_id: e.target.value})}
-              placeholder="Ingrese el ID del contrato"
+              id="contract_description"
+              value={formData.contract_description}
+              onChange={(e) => setFormData({...formData, contract_description: e.target.value})}
+              placeholder="Ingrese la descripción del contrato"
               required
             />
           </div>
