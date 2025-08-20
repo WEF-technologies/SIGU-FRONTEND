@@ -66,10 +66,11 @@ export function useMaintenance() {
           const vehiclesData = await vehiclesResponse.json();
           console.log('Vehicles data received:', vehiclesData);
           
-          const enrichedVehicles = vehiclesData.map((vehicle: Vehicle) => {
+          const enrichedVehicles = vehiclesData.map((vehicle: any) => {
             const m3Data = calculateM3Data(vehicle, maintenanceData);
             const enrichedVehicle = {
               ...vehicle,
+              current_kilometers: vehicle.kilometers || 0, // Map kilometers to current_kilometers
               ...m3Data
             };
             console.log(`Enriched vehicle ${vehicle.plate_number}:`, enrichedVehicle);

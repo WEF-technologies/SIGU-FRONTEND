@@ -171,6 +171,18 @@ export default function Trips() {
     }
   };
 
+  const refreshVehicleData = async () => {
+    try {
+      const vehiclesRes = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+      if (vehiclesRes.ok) {
+        const vehiclesData = await vehiclesRes.json();
+        setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
+      }
+    } catch (error) {
+      console.error('Error refreshing vehicle data:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -196,6 +208,11 @@ export default function Trips() {
           const updatedTrip = await response.json();
           setTrips(trips.map(t => t.id === editingTrip.id ? updatedTrip : t));
           
+          // Refresh vehicle data if trip status changed to completed
+          if (payload.status === 'completed') {
+            await refreshVehicleData();
+          }
+          
           toast({
             title: "Viaje actualizado",
             description: "El viaje ha sido actualizado correctamente.",
@@ -211,6 +228,12 @@ export default function Trips() {
         if (response.ok) {
           const newTrip = await response.json();
           setTrips([...trips, newTrip]);
+          
+          // Refresh vehicle data if trip was created as completed
+          if (payload.status === 'completed') {
+            await refreshVehicleData();
+          }
+          
           toast({
             title: "Viaje creado",
             description: "El viaje ha sido creado correctamente.",

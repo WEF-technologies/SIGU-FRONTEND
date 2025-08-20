@@ -13,35 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useMaintenance } from "@/hooks/useMaintenance";
 import { Eye, Edit, Trash2, History, Calendar, Gauge, Plus } from "lucide-react";
-import { useEffect } from "react";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export default function Vehicles() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-
-  useEffect(() => {
-    const fetchVehicles = async () => {
-      try {
-        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
-        if (response.ok) {
-          const data = await response.json();
-          setVehicles(Array.isArray(data) ? data : []);
-        } else {
-          console.error('Error fetching vehicles:', response.status);
-          setVehicles([]);
-        }
-      } catch (error) {
-        console.error('Error fetching vehicles:', error);
-        setVehicles([]);
-      }
-    };
-
-    fetchVehicles();
-  }, []);
+  const { vehicles } = useMaintenance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -162,11 +142,12 @@ export default function Vehicles() {
         method: "DELETE",
       });
       if (response.ok) {
-        setVehicles(prev => prev.filter(v => v.plate_number !== vehicle.plate_number));
         toast({
           title: "Vehículo eliminado",
           description: `${vehicle.plate_number} ha sido eliminado correctamente.`,
         });
+        // Refresh page to reload vehicle data
+        window.location.reload();
       }
     } catch (error) {
       console.error('Error deleting vehicle:', error);
@@ -174,19 +155,12 @@ export default function Vehicles() {
   };
 
   const handleUpdateKilometers = (vehicleId: string, kilometers: number) => {
-    setVehicles(prev => prev.map(v => 
-      v.id === vehicleId 
-        ? { ...v, current_kilometers: kilometers, updated_at: new Date().toISOString() }
-        : v
-    ));
-    // Also update selectedVehicle if it's the same vehicle
-    if (selectedVehicle && selectedVehicle.id === vehicleId) {
-      setSelectedVehicle(prev => prev ? { ...prev, current_kilometers: kilometers } : null);
-    }
+    // Since we're using useMaintenance hook, we'll refresh the page to reload data
     toast({
       title: "Kilometraje actualizado",
       description: `El kilometraje ha sido actualizado correctamente.`,
     });
+    window.location.reload();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -201,11 +175,14 @@ export default function Vehicles() {
         });
         if (response.ok) {
           const vehicle = await response.json();
-          setVehicles(prev => prev.map(v => v.plate_number === vehicle.plate_number ? vehicle : v));
           toast({
             title: "Vehículo actualizado",
             description: `${vehicle.plate_number} ha sido actualizado correctamente.`,
           });
+          setIsModalOpen(false);
+          resetForm();
+          // Refresh page to reload vehicle data
+          window.location.reload();
         }
       } else {
         // Crear (POST)
@@ -215,19 +192,19 @@ export default function Vehicles() {
         });
         if (response.ok) {
           const vehicle = await response.json();
-          setVehicles(prev => [...prev, vehicle]);
           toast({
             title: "Vehículo creado",
             description: `${vehicle.plate_number} ha sido creado correctamente.`,
           });
+          setIsModalOpen(false);
+          resetForm();
+          // Refresh page to reload vehicle data
+          window.location.reload();
         }
       }
     } catch (error) {
       console.error('Error with vehicle operation:', error);
     }
-
-    setIsModalOpen(false);
-    resetForm();
   };
 
   const clearFilters = () => {
