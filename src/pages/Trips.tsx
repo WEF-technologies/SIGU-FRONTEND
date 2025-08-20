@@ -30,8 +30,6 @@ export default function Trips() {
     driver_id: "",
     start_date: "",
     end_date: "",
-    start_kilometers: "",
-    end_kilometers: "",
     status: "in_progress" as Trip['status'],
     observations: ""
   });
@@ -72,7 +70,7 @@ export default function Trips() {
     };
 
     fetchData();
-  }, []);
+  }, [authenticatedFetch]);
 
   const columns = [
     { 
@@ -135,8 +133,6 @@ export default function Trips() {
       driver_id: "",
       start_date: "",
       end_date: "",
-      start_kilometers: "",
-      end_kilometers: "",
       status: "in_progress",
       observations: ""
     });
@@ -151,8 +147,6 @@ export default function Trips() {
       driver_id: trip.driver_id,
       start_date: trip.start_date.split('T')[0],
       end_date: trip.end_date ? trip.end_date.split('T')[0] : "",
-      start_kilometers: trip.start_kilometers?.toString() || "",
-      end_kilometers: trip.end_kilometers?.toString() || "",
       status: trip.status,
       observations: trip.observations || ""
     });
@@ -186,8 +180,6 @@ export default function Trips() {
       driver_id: formData.driver_id,
       start_date: formData.start_date,
       end_date: formData.end_date || null,
-      start_kilometers: parseInt(formData.start_kilometers),
-      end_kilometers: formData.end_kilometers ? parseInt(formData.end_kilometers) : null,
       status: formData.status,
       observations: formData.observations
     };
@@ -203,11 +195,6 @@ export default function Trips() {
         if (response.ok) {
           const updatedTrip = await response.json();
           setTrips(trips.map(t => t.id === editingTrip.id ? updatedTrip : t));
-          
-          // Actualizar kilometraje del vehículo si el viaje se completó
-          if (updatedTrip.status === 'completed' && updatedTrip.end_kilometers) {
-            await updateVehicleKilometers(updatedTrip.vehicle_id, updatedTrip.end_kilometers);
-          }
           
           toast({
             title: "Viaje actualizado",
@@ -235,30 +222,6 @@ export default function Trips() {
     }
 
     setIsModalOpen(false);
-  };
-
-  const updateVehicleKilometers = async (vehicleId: string, kilometers: number) => {
-    try {
-      const vehicle = vehicles.find(v => v.id === vehicleId);
-      if (vehicle) {
-        await authenticatedFetch(`${API_URL}/api/v1/vehicles/${vehicle.plate_number}`, {
-          method: "PUT",
-          body: JSON.stringify({
-            ...vehicle,
-            current_kilometers: kilometers
-          }),
-        });
-        
-        // Actualizar estado local
-        setVehicles(prev => prev.map(v => 
-          v.id === vehicleId 
-            ? { ...v, current_kilometers: kilometers }
-            : v
-        ));
-      }
-    } catch (error) {
-      console.error('Error updating vehicle kilometers:', error);
-    }
   };
 
   return (
@@ -379,31 +342,6 @@ export default function Trips() {
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => setFormData({...formData, end_date: e.target.value})}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="start_kilometers">Kilometraje Inicial</Label>
-              <Input
-                id="start_kilometers"
-                type="number"
-                value={formData.start_kilometers}
-                onChange={(e) => setFormData({...formData, start_kilometers: e.target.value})}
-                placeholder="Kilometraje al inicio del viaje"
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="end_kilometers">Kilometraje Final (Opcional)</Label>
-              <Input
-                id="end_kilometers"
-                type="number"
-                value={formData.end_kilometers}
-                onChange={(e) => setFormData({...formData, end_kilometers: e.target.value})}
-                placeholder="Kilometraje al final del viaje"
               />
             </div>
           </div>
