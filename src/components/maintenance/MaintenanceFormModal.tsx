@@ -36,7 +36,7 @@ export function MaintenanceFormModal({
     kilometers: editingMaintenance?.kilometers || 0,
     location: editingMaintenance?.location || "",
     performed_by: editingMaintenance?.performed_by || "",
-    spare_part_id: editingMaintenance?.spare_part_id || "",
+    spare_part_id: editingMaintenance?.spare_part_id || "none",
     spare_part_description: editingMaintenance?.spare_part_description || ""
   });
 
@@ -69,7 +69,7 @@ export function MaintenanceFormModal({
       kilometers: 0,
       location: "",
       performed_by: "",
-      spare_part_id: "",
+      spare_part_id: "none",
       spare_part_description: ""
     });
   };
@@ -81,7 +81,12 @@ export function MaintenanceFormModal({
       return;
     }
 
-    const success = await onSubmit(formData);
+    const submitData = {
+      ...formData,
+      spare_part_id: formData.spare_part_id === "none" ? null : formData.spare_part_id
+    };
+    
+    const success = await onSubmit(submitData);
     if (success) {
       onClose();
       resetForm();
@@ -186,7 +191,7 @@ export function MaintenanceFormModal({
           <Select
             value={formData.spare_part_id}
             onValueChange={(value) => {
-              const selectedPart = spareParts.find(p => p.id === value);
+              const selectedPart = value === "none" ? null : spareParts.find(p => p.id === value);
               setFormData({
                 ...formData, 
                 spare_part_id: value,
@@ -198,7 +203,7 @@ export function MaintenanceFormModal({
               <SelectValue placeholder="Seleccione un repuesto" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Sin repuesto</SelectItem>
+              <SelectItem value="none">Sin repuesto</SelectItem>
               {spareParts.map((part) => (
                 <SelectItem key={part.id} value={part.id}>
                   {part.code} - {part.description}
