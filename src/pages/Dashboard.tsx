@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Car, UserCheck, FileText, AlertTriangle, MapPin, Wrench } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useMaintenance } from "@/hooks/useMaintenance";
+import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -31,6 +33,7 @@ interface MaintenanceRecord {
 export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
+  const { alerts } = useMaintenance();
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
     activeVehicles: 0,
@@ -106,8 +109,8 @@ export default function Dashboard() {
         const activeContracts = contracts.length;
         const totalMaintenances = maintenances.length;
 
-        // Calculate urgent maintenances (for now, we'll consider recent ones as urgent)
-        const urgentMaintenances = 0; // No real calculation yet
+        // Calculate urgent maintenances using alerts data
+        const urgentMaintenances = alerts.filter(alert => alert.severity >= 3).length;
 
         setStats({
           totalVehicles,
@@ -126,7 +129,7 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
-  }, [authenticatedFetch]);
+  }, [authenticatedFetch, alerts]);
 
   const statCards = [
     {
@@ -228,6 +231,30 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Alertas de Mantenimiento */}
+      <Card className="border-secondary-medium">
+        <CardHeader>
+          <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" />
+            Alertas de Mantenimiento
+            <span className="text-xs text-secondary-dark ml-auto cursor-pointer" onClick={() => navigate("/mantenimiento")}>Ver todas →</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MaintenanceAlerts alerts={alerts.slice(0, 5)} />
+          {alerts.length > 5 && (
+            <div className="mt-4 text-center">
+              <button 
+                onClick={() => navigate("/mantenimiento")}
+                className="text-primary hover:underline text-sm"
+              >
+                Ver todas las alertas ({alerts.length})
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Sección de actividad reciente */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
