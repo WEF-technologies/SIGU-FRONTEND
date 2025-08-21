@@ -4,6 +4,7 @@ import { DataTable } from "@/components/shared/DataTable";
 import { Maintenance as MaintenanceType } from "@/types";
 import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
+import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { getMaintenanceTableColumns } from "@/components/maintenance/MaintenanceTableColumns";
 import { useMaintenance } from "@/hooks/useMaintenance";
 
@@ -11,6 +12,7 @@ export default function Maintenance() {
   const { 
     maintenance, 
     vehicles, 
+    alerts,
     createMaintenance, 
     updateMaintenance, 
     deleteMaintenance 
@@ -55,7 +57,9 @@ export default function Maintenance() {
   });
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-6">
+      <MaintenanceAlerts alerts={alerts} />
+      
       <DataTable
         data={maintenance}
         columns={columns}

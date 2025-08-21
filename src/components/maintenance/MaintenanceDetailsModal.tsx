@@ -4,20 +4,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { CalendarDays, Gauge, MapPin, User, Wrench, Car } from "lucide-react";
+import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
+import { CalendarDays, Gauge, MapPin, User, Wrench, Car, Package } from "lucide-react";
 
 interface MaintenanceDetailsModalProps {
   maintenance: Maintenance | null;
   isOpen: boolean;
   onClose: () => void;
 }
-
-const maintenanceTypeConfig = {
-  M1: { label: "M1 - Preventivo Básico", color: "bg-blue-100 text-blue-800" },
-  M2: { label: "M2 - Correctivo", color: "bg-yellow-100 text-yellow-800" },
-  M3: { label: "M3 - Mayor (Crítico)", color: "bg-red-100 text-red-800" },
-  M4: { label: "M4 - Especializado", color: "bg-purple-100 text-purple-800" }
-};
 
 export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: MaintenanceDetailsModalProps) {
   if (!maintenance) return null;
@@ -47,7 +41,7 @@ export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: Mainte
               </div>
               <div>
                 <Label className="text-sm text-gray-600">Tipo de Mantenimiento</Label>
-                <Badge className={config.color}>{maintenance.type}</Badge>
+                <Badge variant="outline" className={config.color}>{maintenance.type.toUpperCase()}</Badge>
               </div>
               <div>
                 <Label className="text-sm text-gray-600 flex items-center gap-1">
@@ -97,13 +91,16 @@ export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: Mainte
             </div>
           </Card>
 
-          {/* Próximo mantenimiento */}
-          {maintenance.next_maintenance_km && (
+          {/* Repuestos utilizados */}
+          {(maintenance.spare_part_description || maintenance.spare_part_id) && (
             <Card className="p-4">
               <div>
-                <Label className="text-sm text-gray-600">Próximo Mantenimiento</Label>
-                <p className="font-medium">
-                  {maintenance.next_maintenance_km.toLocaleString()} km
+                <Label className="text-sm text-gray-600 flex items-center gap-1">
+                  <Package className="w-4 h-4" />
+                  Repuestos Utilizados
+                </Label>
+                <p className="font-medium mt-2">
+                  {maintenance.spare_part_description || 'Repuesto registrado'}
                 </p>
               </div>
             </Card>

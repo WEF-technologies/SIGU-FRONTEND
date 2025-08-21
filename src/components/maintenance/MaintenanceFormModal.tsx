@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FormModal } from "@/components/shared/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Maintenance as MaintenanceType, Vehicle } from "@/types";
+import { Maintenance as MaintenanceType, Vehicle, SparePart } from "@/types";
 import { maintenanceTypeConfig, MaintenanceTypeKey } from "@/constants/maintenanceTypes";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
 interface MaintenanceFormModalProps {
   isOpen: boolean;
@@ -25,27 +26,51 @@ export function MaintenanceFormModal({
   vehicles, 
   onSubmit 
 }: MaintenanceFormModalProps) {
+  const authenticatedFetch = useAuthenticatedFetch();
+  const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const [formData, setFormData] = useState({
     plate_number: editingMaintenance?.vehicle_plate || "",
     description: editingMaintenance?.description || "",
-    type: (editingMaintenance?.type || "M1") as MaintenanceTypeKey,
+    type: (editingMaintenance?.type || "m2+") as MaintenanceTypeKey,
     date: editingMaintenance?.date || new Date().toISOString().split('T')[0],
     kilometers: editingMaintenance?.kilometers || 0,
-    next_maintenance_km: editingMaintenance?.next_maintenance_km || 0,
     location: editingMaintenance?.location || "",
-    performed_by: editingMaintenance?.performed_by || ""
+    performed_by: editingMaintenance?.performed_by || "",
+    spare_part_id: editingMaintenance?.spare_part_id || "",
+    spare_part_description: editingMaintenance?.spare_part_description || ""
   });
+
+  useEffect(() => {
+    const fetchSpareParts = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        const response = await authenticatedFetch(`${API_URL}/api/v1/spare-parts/`);
+        if (response.ok) {
+          const data = await response.json();
+          setSpareParts(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Error fetching spare parts:', error);
+        setSpareParts([]);
+      }
+    };
+
+    if (isOpen) {
+      fetchSpareParts();
+    }
+  }, [isOpen, authenticatedFetch]);
 
   const resetForm = () => {
     setFormData({
       plate_number: "",
       description: "",
-      type: "M1",
+      type: "m2+",
       date: new Date().toISOString().split('T')[0],
       kilometers: 0,
-      next_maintenance_km: 0,
       location: "",
-      performed_by: ""
+      performed_by: "",
+      spare_part_id: "",
+      spare_part_description: ""
     });
   };
 
@@ -157,14 +182,39 @@ export function MaintenanceFormModal({
         </div>
 
         <div>
-          <Label htmlFor="next_maintenance_km">Próximo Mantenimiento (km)</Label>
+          <Label htmlFor="spare_part_id">Repuesto Utilizado (Opcional)</Label>
+          <Select
+            value={formData.spare_part_id}
+            onValueChange={(value) => {
+              const selectedPart = spareParts.find(p => p.id === value);
+              setFormData({
+                ...formData, 
+                spare_part_id: value,
+                spare_part_description: selectedPart ? selectedPart.description : ""
+              });
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccione un repuesto" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Sin repuesto</SelectItem>
+              {spareParts.map((part) => (
+                <SelectItem key={part.id} value={part.id}>
+                  {part.code} - {part.description}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="spare_part_description">Descripción del Repuesto</Label>
           <Input
-            id="next_maintenance_km"
-            type="number"
-            min="0"
-            value={formData.next_maintenance_km}
-            onChange={(e) => setFormData({...formData, next_maintenance_km: parseInt(e.target.value) || 0})}
-            placeholder="Kilómetros para próximo mantenimiento"
+            id="spare_part_description"
+            value={formData.spare_part_description}
+            onChange={(e) => setFormData({...formData, spare_part_description: e.target.value})}
+            placeholder="Descripción manual del repuesto utilizado"
           />
         </div>
 

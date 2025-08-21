@@ -94,14 +94,26 @@ export interface Driver extends BaseEntity {
 export interface Maintenance extends BaseEntity {
   vehicle_id: string;
   description: string;
-  type: 'M1' | 'M2' | 'M3' | 'M4';
+  type: 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
   date: string;
   kilometers?: number;
-  next_maintenance_km?: number;
   location?: string;
   performed_by?: string;
+  spare_part_id?: string;
+  spare_part_description?: string;
   vehicle?: Vehicle;
   vehicle_plate?: string;
+}
+
+export interface MaintenanceAlert {
+  vehicle_plate: string;
+  type: string;
+  last_km: number | null;
+  current_km: number;
+  interval: number;
+  remaining_km: number;
+  status: 'ok' | 'near' | 'due' | 'missing';
+  severity: number;
 }
 
 export interface SparePart extends BaseEntity {
@@ -116,5 +128,5 @@ export interface SparePart extends BaseEntity {
   unit_price?: number;
 }
 
-export type MaintenanceType = 'M1' | 'M2' | 'M3' | 'M4';
+export type MaintenanceType = 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';

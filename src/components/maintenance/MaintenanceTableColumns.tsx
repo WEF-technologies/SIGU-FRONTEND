@@ -23,7 +23,7 @@ export function getMaintenanceTableColumns({
       header: 'Tipo',
       render: (value: MaintenanceType['type']) => {
         const config = maintenanceTypeConfig[value];
-        return <Badge className={config.color}>{value}</Badge>;
+        return <Badge variant="outline" className={config.color}>{value.toUpperCase()}</Badge>;
       }
     },
     { key: 'description' as keyof MaintenanceType, header: 'Descripción' },
@@ -38,9 +38,9 @@ export function getMaintenanceTableColumns({
       render: (value: any) => value ? value.toLocaleString() + ' km' : 'N/A'
     },
     { 
-      key: 'next_maintenance_km' as keyof MaintenanceType, 
-      header: 'Próximo Mant. (km)',
-      render: (value: any) => value ? value.toLocaleString() + ' km' : 'N/A'
+      key: 'spare_part_description' as keyof MaintenanceType, 
+      header: 'Repuestos',
+      render: (value: any) => value ? value : 'N/A'
     },
     { 
       key: 'actions' as keyof MaintenanceType, 
