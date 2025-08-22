@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Route } from "@/types";
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -17,26 +15,44 @@ export default function Routes() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({
     contract_description: "",
     description: "",
     from_location: "",
     to_location: "",
-    kilometers: "",
-    status: "pending" as 'pending' | 'in_progress' | 'completed'
+    kilometers: ""
   });
   const authenticatedFetch = useAuthenticatedFetch();
 
   // Cargar rutas desde el backend
+  const fetchRoutes = async (contractDescription?: string) => {
+    try {
+      const url = contractDescription 
+        ? `${API_URL}/api/v1/routes/?contract_description=${encodeURIComponent(contractDescription)}`
+        : `${API_URL}/api/v1/routes/`;
+      
+      const response = await authenticatedFetch(url);
+      const data = response.ok ? await response.json() : [];
+      setRoutes(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading routes:', error);
+      setRoutes([]);
+    }
+  };
+
   useEffect(() => {
-    authenticatedFetch(`${API_URL}/api/v1/routes/`)
-      .then(res => res.ok ? res.json() : [])
-      .then(data => setRoutes(Array.isArray(data) ? data : []))
-      .catch(error => {
-        console.error('Error loading routes:', error);
-        setRoutes([]);
-      });
+    fetchRoutes();
   }, [authenticatedFetch]);
+
+  // Buscar rutas por descripción de contrato
+  useEffect(() => {
+    if (searchTerm.trim()) {
+      fetchRoutes(searchTerm);
+    } else {
+      fetchRoutes();
+    }
+  }, [searchTerm]);
 
   const columns = [
     { key: 'description' as keyof Route, header: 'Descripción' },
@@ -46,11 +62,6 @@ export default function Routes() {
       key: 'kilometers' as keyof Route, 
       header: 'Kilometraje (km)',
       render: (value: any) => value ? `${value} km` : '-'
-    },
-    {
-      key: 'status' as keyof Route,
-      header: 'Estado',
-      render: (value: any) => <StatusBadge status={value} />
     },
     {
       key: 'actions' as keyof Route,
@@ -74,8 +85,7 @@ export default function Routes() {
       description: "",
       from_location: "",
       to_location: "",
-      kilometers: "",
-      status: "pending"
+      kilometers: ""
     });
     setIsModalOpen(true);
   };
@@ -87,8 +97,7 @@ export default function Routes() {
       description: route.description,
       from_location: route.from_location,
       to_location: route.to_location,
-      kilometers: route.kilometers?.toString() || "",
-      status: route.status || "pending"
+      kilometers: route.kilometers?.toString() || ""
     });
     setIsModalOpen(true);
   };
@@ -111,8 +120,7 @@ export default function Routes() {
       description: formData.description,
       from_location: formData.from_location,
       to_location: formData.to_location,
-      kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined,
-      status: formData.status
+      kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined
     };
 
     if (editingRoute) {
@@ -158,6 +166,19 @@ export default function Routes() {
           Agregar Ruta
         </Button>
       </div>
+      
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            placeholder="Buscar por descripción del contrato..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
       <DataTable
         data={routes}
         columns={columns}
@@ -166,7 +187,7 @@ export default function Routes() {
         title=""
         addButtonText=""
         searchField="description"
-        searchPlaceholder="Buscar ruta..."
+        searchPlaceholder=""
         hideAddButton={true}
       />
 
@@ -234,22 +255,6 @@ export default function Routes() {
             />
           </div>
 
-          <div>
-            <Label htmlFor="status">Estado</Label>
-            <Select
-              value={formData.status}
-              onValueChange={(value: 'pending' | 'in_progress' | 'completed') => setFormData({...formData, status: value})}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pendiente</SelectItem>
-                <SelectItem value="in_progress">En Progreso</SelectItem>
-                <SelectItem value="completed">Completada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="flex justify-end space-x-2 pt-4">
             <Button

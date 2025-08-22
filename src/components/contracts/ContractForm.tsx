@@ -32,7 +32,6 @@ export function ContractForm({
     end_date: '',
     location: '',
     status: 'active' as Contract['status'],
-    contract_code: '',
     vehicle_ids: [] as string[],
     driver_ids: [] as string[],
   });
@@ -47,7 +46,6 @@ export function ContractForm({
         end_date: contract.end_date,
         location: contract.location,
         status: contract.status,
-        contract_code: contract.contract_code || '',
         vehicle_ids: contract.vehicles?.map(v => v.id) || [],
         driver_ids: contract.drivers?.map(d => d.id) || [],
       });
@@ -66,7 +64,6 @@ export function ContractForm({
       end_date: formData.end_date,
       location: formData.location,
       status: formData.status,
-      contract_code: formData.contract_code,
       vehicles: selectedVehicles,
       drivers: selectedDrivers,
       document_url: selectedFile ? `mock://document/${selectedFile.name}` : undefined,
@@ -106,36 +103,23 @@ export function ContractForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="contract_code">Código del Contrato</Label>
-          <Input
-            id="contract_code"
-            value={formData.contract_code}
-            onChange={(e) => setFormData(prev => ({ ...prev, contract_code: e.target.value }))}
-            placeholder="CNT-2024-001"
-            required
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="status">Estado</Label>
-          <Select
-            value={formData.status}
-            onValueChange={(value: Contract['status']) => 
-              setFormData(prev => ({ ...prev, status: value }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Activo</SelectItem>
-              <SelectItem value="inactive">Inactivo</SelectItem>
-              <SelectItem value="terminated">Terminado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div>
+        <Label htmlFor="status">Estado</Label>
+        <Select
+          value={formData.status}
+          onValueChange={(value: Contract['status']) => 
+            setFormData(prev => ({ ...prev, status: value }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Activo</SelectItem>
+            <SelectItem value="inactive">Inactivo</SelectItem>
+            <SelectItem value="terminated">Terminado</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div>

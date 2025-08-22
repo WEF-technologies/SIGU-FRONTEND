@@ -106,7 +106,6 @@ export default function Contracts() {
 
   const filteredContracts = contracts.filter(contract =>
     contract.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.contract_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     contract.location?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -233,7 +232,7 @@ export default function Contracts() {
     // Aquí deberías implementar la descarga real si lo necesitas
     toast({
       title: "Descargando documento",
-      description: `Descargando documento del contrato ${contract.contract_code || contract.description}`,
+      description: `Descargando documento del contrato ${contract.description}`,
     });
   };
 
@@ -320,7 +319,6 @@ export default function Contracts() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
-                  <TableHead className="font-semibold">Código</TableHead>
                   <TableHead className="font-semibold">Descripción</TableHead>
                   <TableHead className="font-semibold">Fechas</TableHead>
                   <TableHead className="font-semibold">Ubicación</TableHead>
@@ -331,7 +329,7 @@ export default function Contracts() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={5} className="text-center py-8">
                       <div className="flex items-center justify-center">
                         <Loader2 className="w-6 h-6 animate-spin mr-2" />
                         Cargando contratos...
@@ -340,17 +338,14 @@ export default function Contracts() {
                   </TableRow>
                 ) : filteredContracts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                       No se encontraron contratos que coincidan con tu búsqueda.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredContracts.map((contract) => (
                     <TableRow key={contract.id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">
-                        {contract.contract_code || 'Sin código'}
-                      </TableCell>
-                      <TableCell>{contract.description}</TableCell>
+                      <TableCell className="font-medium">{contract.description}</TableCell>
                       <TableCell>
                         <div className="text-sm">
                           <div>Inicio: {new Date(contract.start_date).toLocaleDateString()}</div>
