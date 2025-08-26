@@ -161,10 +161,6 @@ export function ContractDetailsModal({
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <span className="font-medium text-gray-700">Código:</span>
-                  <p className="text-gray-900">{contract.contract_code || 'No asignado'}</p>
-                </div>
-                <div>
                   <span className="font-medium text-gray-700">Descripción:</span>
                   <p className="text-gray-900">{contract.description}</p>
                 </div>
@@ -186,69 +182,24 @@ export function ContractDetailsModal({
                     <p className="text-gray-900">{new Date(contract.end_date).toLocaleDateString()}</p>
                   </div>
                 </div>
-                {contract.document_url && (
-                  <div>
-                    <span className="font-medium text-gray-700">Documento:</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleDownloadDocument}
-                      disabled={downloadingDoc}
-                      className="ml-2"
-                    >
-                      {downloadingDoc ? (
-                        <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                      ) : (
-                        <Download className="w-4 h-4 mr-1" />
-                      )}
-                      {downloadingDoc ? 'Descargando...' : 'Descargar'}
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Vehículos Asignados</CardTitle>
+                <CardTitle className="text-lg">Información de Vehículos</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  {contract.vehicles && contract.vehicles.length > 0 ? (
-                    contract.vehicles.map((vehicle) => (
-                      <Badge key={vehicle.id} variant="outline" className="mr-2 mb-2 p-2">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{vehicle.plate_number}</span>
-                          <span className="text-xs text-gray-500">{vehicle.brand} {vehicle.model}</span>
-                        </div>
-                      </Badge>
-                    ))
-                  ) : (
-                    <p className="text-gray-500">No hay vehículos asignados</p>
-                  )}
-                </div>
+                <p className="text-gray-500">Los vehículos se gestionan por separado del contrato</p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Choferes Asignados</CardTitle>
+                <CardTitle className="text-lg">Información de Choferes</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  {contract.drivers && contract.drivers.length > 0 ? (
-                    contract.drivers.map((driver) => (
-                      <Badge key={driver.id} variant="outline" className="mr-2 mb-2 p-2">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{driver.name} {driver.last_name}</span>
-                          <span className="text-xs text-gray-500">{driver.document_number}</span>
-                        </div>
-                      </Badge>
-                    ))
-                  ) : (
-                    <p className="text-gray-500">No hay choferes asignados</p>
-                  )}
-                </div>
+                <p className="text-gray-500">Los choferes se gestionan por separado del contrato</p>
               </CardContent>
             </Card>
           </div>

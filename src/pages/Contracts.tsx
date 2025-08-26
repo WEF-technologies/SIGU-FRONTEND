@@ -27,12 +27,9 @@ export default function Contracts() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormLoading, setIsFormLoading] = useState(false);
-  const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
@@ -62,40 +59,17 @@ export default function Contracts() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [contractsResponse, vehiclesResponse, driversResponse] = await Promise.allSettled([
-          authenticatedFetch(`${API_URL}/api/v1/contracts/`),
-          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
-          authenticatedFetch(`${API_URL}/api/v1/drivers/`)
-        ]);
-
-        // Handle contracts
-        if (contractsResponse.status === 'fulfilled' && contractsResponse.value.ok) {
-          const contractsData = await contractsResponse.value.json();
+        const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        
+        if (contractsResponse.ok) {
+          const contractsData = await contractsResponse.json();
           setContracts(Array.isArray(contractsData) ? contractsData : []);
         } else {
           setContracts([]);
         }
-
-        // Handle vehicles
-        if (vehiclesResponse.status === 'fulfilled' && vehiclesResponse.value.ok) {
-          const vehiclesData = await vehiclesResponse.value.json();
-          setVehicles(Array.isArray(vehiclesData) ? vehiclesData : []);
-        } else {
-          setVehicles([]);
-        }
-
-        // Handle drivers
-        if (driversResponse.status === 'fulfilled' && driversResponse.value.ok) {
-          const driversData = await driversResponse.value.json();
-          setDrivers(Array.isArray(driversData) ? driversData : []);
-        } else {
-          setDrivers([]);
-        }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error fetching contracts:', error);
         setContracts([]);
-        setVehicles([]);
-        setDrivers([]);
       } finally {
         setLoading(false);
       }
@@ -110,12 +84,6 @@ export default function Contracts() {
   );
 
   const handleAdd = () => {
-    setEditingContract(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEdit = (contract: Contract) => {
-    setEditingContract(contract);
     setIsModalOpen(true);
   };
 
@@ -124,67 +92,27 @@ export default function Contracts() {
     setIsDetailsModalOpen(true);
   };
 
-  const handleDelete = async (contract: Contract) => {
-    if (!confirm(`¿Estás seguro de que quieres eliminar el contrato "${contract.description}"?`)) {
-      return;
-    }
-    setLoading(true);
-    try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/${contract.id}`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
-        setContracts(prev => prev.filter(c => c.id !== contract.id));
-        toast({
-          title: "Contrato eliminado",
-          description: `${contract.description} ha sido eliminado correctamente.`,
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting contract:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => {
     setIsFormLoading(true);
     try {
-      if (editingContract) {
-        // Actualizar contrato
-        const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/${editingContract.id}`, {
-          method: "PUT",
-          body: JSON.stringify(contractData),
+      const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/`, {
+        method: "POST",
+        body: JSON.stringify(contractData),
+      });
+      if (response.ok) {
+        const newContract = await response.json();
+        setContracts(prev => [...prev, newContract]);
+        toast({
+          title: "Contrato creado",
+          description: `${contractData.description} ha sido creado correctamente.`,
         });
-        if (response.ok) {
-          const updatedContract = await response.json();
-          setContracts(prev => prev.map(c => c.id === editingContract.id ? updatedContract : c));
-          toast({
-            title: "Contrato actualizado",
-            description: `${contractData.description} ha sido actualizado correctamente.`,
-          });
-        }
-      } else {
-        // Crear contrato
-        const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/`, {
-          method: "POST",
-          body: JSON.stringify(contractData),
-        });
-        if (response.ok) {
-          const newContract = await response.json();
-          setContracts(prev => [...prev, newContract]);
-          toast({
-            title: "Contrato creado",
-            description: `${contractData.description} ha sido creado correctamente.`,
-          });
-        }
       }
       setIsModalOpen(false);
-      setEditingContract(null);
     } catch (error) {
       toast({
         title: "Error",
-        description: `No se pudo ${editingContract ? 'actualizar' : 'crear'} el contrato`,
+        description: "No se pudo crear el contrato",
         variant: "destructive",
       });
     } finally {
@@ -220,21 +148,6 @@ export default function Contracts() {
     }
   };
 
-  const handleDownloadDocument = async (contract: Contract) => {
-    if (!contract.document_url) {
-      toast({
-        title: "Sin documento",
-        description: "Este contrato no tiene un documento asociado.",
-        variant: "destructive",
-      });
-      return;
-    }
-    // Aquí deberías implementar la descarga real si lo necesitas
-    toast({
-      title: "Descargando documento",
-      description: `Descargando documento del contrato ${contract.description}`,
-    });
-  };
 
   const handleShiftSubmit = async (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
     const completeShiftData = {
@@ -358,7 +271,7 @@ export default function Contracts() {
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-1">
-                          <Button
+                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleViewDetails(contract)}
@@ -366,35 +279,6 @@ export default function Contracts() {
                             title="Ver detalles"
                           >
                             <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(contract)}
-                            className="border-primary-200 text-primary hover:bg-primary-50"
-                            title="Editar"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          {contract.document_url && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDownloadDocument(contract)}
-                              className="border-green-200 text-green-600 hover:bg-green-50"
-                              title="Descargar documento"
-                            >
-                              <Download className="w-4 h-4" />
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(contract)}
-                            className="border-red-200 text-red-600 hover:bg-red-50"
-                            title="Eliminar"
-                          >
-                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -410,15 +294,12 @@ export default function Contracts() {
       <FormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingContract ? "Editar Contrato" : "Crear Nuevo Contrato"}
+        title="Crear Nuevo Contrato"
       >
         <ContractForm
-          contract={editingContract}
           onSubmit={handleSubmit}
           onCancel={() => setIsModalOpen(false)}
           isLoading={isFormLoading}
-          availableVehicles={vehicles}
-          availableDrivers={drivers}
         />
       </FormModal>
 

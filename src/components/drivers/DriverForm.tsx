@@ -108,7 +108,7 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
           <SelectContent>
             {contracts.map((contract) => (
               <SelectItem key={contract.id} value={contract.id}>
-                {contract.contract_code} - {contract.description}
+                {contract.description}
               </SelectItem>
             ))}
           </SelectContent>

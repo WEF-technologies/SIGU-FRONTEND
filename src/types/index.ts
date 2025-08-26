@@ -35,13 +35,7 @@ export interface Contract extends BaseEntity {
   start_date: string;
   end_date: string;
   location: string;
-  status: 'active' | 'inactive' | 'terminated';
-  contract_code?: string;
-  vehicles: Vehicle[];
-  drivers: Driver[];
-  routes?: Route[];
-  shifts?: Shift[];
-  document_url?: string;
+  status: string;
 }
 
 export interface Route extends BaseEntity {

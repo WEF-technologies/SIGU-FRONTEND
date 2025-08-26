@@ -65,7 +65,7 @@ export default function Drivers() {
     {
       key: 'contract' as keyof Driver,
       header: 'Contrato',
-      render: (value: Contract) => value?.contract_code || 'Sin asignar'
+      render: (value: Contract) => value?.description || 'Sin asignar'
     },
     {
       key: 'actions' as keyof Driver,
