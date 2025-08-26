@@ -17,29 +17,6 @@ interface ContractDetailsModalProps {
   onAddShift: (contract: Contract) => void;
 }
 
-// Datos mock para rutas y turnos
-const mockRoutes: Route[] = [
-  {
-    id: '1',
-    contract_id: '1',
-    description: 'Ruta Centro - Norte',
-    from_location: 'Centro de la Ciudad',
-    to_location: 'Zona Norte',
-    status: 'in_progress',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    contract_id: '1',
-    description: 'Ruta Norte - Terminal',
-    from_location: 'Zona Norte',
-    to_location: 'Terminal de Buses',
-    status: 'pending',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  }
-];
 
 const mockShifts: Shift[] = [
   {
@@ -96,17 +73,23 @@ export function ContractDetailsModal({
     
     setLoading(true);
     
-    // Simular delay de carga
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
     try {
-      const contractRoutes = mockRoutes.filter(route => route.contract_id === contract.id);
-      const contractShifts = mockShifts.filter(shift => shift.contract_id === contract.id);
+      // Fetch routes for this contract using contract description
+      const routesResponse = await fetch(`/api/routes?contract_description=${encodeURIComponent(contract.description)}`);
+      if (routesResponse.ok) {
+        const fetchedRoutes = await routesResponse.json();
+        setRoutes(fetchedRoutes);
+      } else {
+        setRoutes([]);
+      }
       
-      setRoutes(contractRoutes);
+      // For now, shifts are still mock data
+      const contractShifts = mockShifts.filter(shift => shift.contract_id === contract.id);
       setShifts(contractShifts);
     } catch (error) {
       console.error('Error loading contract details:', error);
+      setRoutes([]);
+      setShifts([]);
       toast({
         title: "Error",
         description: "No se pudieron cargar todos los detalles del contrato",
@@ -187,15 +170,6 @@ export function ContractDetailsModal({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Información de Vehículos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-500">Los vehículos se gestionan por separado del contrato</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
                 <CardTitle className="text-lg">Información de Choferes</CardTitle>
               </CardHeader>
               <CardContent>
@@ -219,15 +193,12 @@ export function ContractDetailsModal({
                   <div className="space-y-3">
                     {routes.length > 0 ? (
                       routes.map((route) => (
-                        <div key={route.id} className="border rounded-lg p-3">
-                          <h4 className="font-medium text-gray-900">{route.description}</h4>
-                          <p className="text-sm text-gray-600 mt-1">
-                            {route.from_location} → {route.to_location}
-                          </p>
-                          <div className="mt-2">
-                            <StatusBadge status={route.status} />
-                          </div>
-                        </div>
+                         <div key={route.id} className="border rounded-lg p-3">
+                           <h4 className="font-medium text-gray-900">{route.description}</h4>
+                           <p className="text-sm text-gray-600 mt-1">
+                             {route.from_location} → {route.to_location}
+                           </p>
+                         </div>
                       ))
                     ) : (
                       <p className="text-gray-500">No hay rutas asignadas</p>

@@ -43,7 +43,6 @@ export interface Route extends BaseEntity {
   description: string;
   from_location: string;
   to_location: string;
-  status: 'pending' | 'in_progress' | 'completed';
   kilometers?: number;
   contract?: Contract;
 }
