@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Contract, Shift, Route } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Edit, Trash2, Plus, Download, FileText, Loader2 } from "lucide-react";
 
 interface ContractDetailsModalProps {
@@ -57,6 +58,7 @@ export function ContractDetailsModal({
   onAddShift 
 }: ContractDetailsModalProps) {
   const { toast } = useToast();
+  const authenticatedFetch = useAuthenticatedFetch();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(false);
@@ -75,7 +77,7 @@ export function ContractDetailsModal({
     
     try {
       // Fetch routes for this contract using contract description
-      const routesResponse = await fetch(`/api/routes?contract_description=${encodeURIComponent(contract.description)}`);
+      const routesResponse = await authenticatedFetch(`http://localhost:8000/api/v1/routes/?contract_description=${encodeURIComponent(contract.description)}`);
       if (routesResponse.ok) {
         const fetchedRoutes = await routesResponse.json();
         setRoutes(fetchedRoutes);
