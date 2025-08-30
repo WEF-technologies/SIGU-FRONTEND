@@ -80,7 +80,7 @@ export interface Driver extends BaseEntity {
   blood_type?: string;
   address?: string;
   contract_id?: string;
-  document_url?: string;
+  license_expiry?: string;
   contract?: Contract;
 }
 

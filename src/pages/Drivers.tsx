@@ -21,6 +21,20 @@ export default function Drivers() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Fetch contracts first
+        console.log('Fetching contracts...');
+        const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        console.log('Contracts response status:', contractsResponse.status);
+        let contractsData = [];
+        if (contractsResponse.ok) {
+          contractsData = await contractsResponse.json();
+          console.log('Contracts data received:', contractsData);
+          setContracts(Array.isArray(contractsData) ? contractsData : []);
+        } else {
+          console.log('No contracts found or endpoint not available');
+          setContracts([]);
+        }
+
         // Fetch drivers
         console.log('Fetching drivers...');
         const driversResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/`);
@@ -28,23 +42,20 @@ export default function Drivers() {
         if (driversResponse.ok) {
           const driversData = await driversResponse.json();
           console.log('Drivers data received:', driversData);
-          setDrivers(Array.isArray(driversData) ? driversData : []);
+          
+          // Map contract data to drivers
+          const driversWithContracts = driversData.map((driver: Driver) => {
+            if (driver.contract_id) {
+              const contract = contractsData.find((c: Contract) => c.id === driver.contract_id);
+              return { ...driver, contract };
+            }
+            return driver;
+          });
+          
+          setDrivers(Array.isArray(driversWithContracts) ? driversWithContracts : []);
         } else {
           console.log('No drivers found or endpoint not available');
           setDrivers([]);
-        }
-
-        // Fetch contracts
-        console.log('Fetching contracts...');
-        const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
-        console.log('Contracts response status:', contractsResponse.status);
-        if (contractsResponse.ok) {
-          const contractsData = await contractsResponse.json();
-          console.log('Contracts data received:', contractsData);
-          setContracts(Array.isArray(contractsData) ? contractsData : []);
-        } else {
-          console.log('No contracts found or endpoint not available');
-          setContracts([]);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -94,11 +105,11 @@ export default function Drivers() {
 
   const handleDelete = async (driver: Driver) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/${driver.id}`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/${driver.document_number}`, {
         method: "DELETE",
       });
       if (response.ok) {
-        setDrivers(drivers.filter(d => d.id !== driver.id));
+        setDrivers(drivers.filter(d => d.document_number !== driver.document_number));
         toast({
           title: "Chofer eliminado",
           description: `${driver.name} ${driver.last_name} ha sido eliminado correctamente.`,
@@ -117,15 +128,27 @@ export default function Drivers() {
   const handleSubmit = async (formData: Omit<Driver, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (editingDriver) {
-        const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/${editingDriver.id}`, {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/${editingDriver.document_number}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            name: formData.name,
+            last_name: formData.last_name,
+            document_number: formData.document_number,
+            telephone: formData.telephone,
+            address: formData.address,
+            contract_id: formData.contract_id,
+            status: formData.status
+          }),
         });
         if (response.ok) {
           const updatedDriver = await response.json();
+          // Add contract info to updated driver
+          const contract = contracts.find(c => c.id === updatedDriver.contract_id);
+          const driverWithContract = { ...updatedDriver, contract };
+          
           setDrivers(drivers.map(d => 
-            d.id === editingDriver.id ? updatedDriver : d
+            d.document_number === editingDriver.document_number ? driverWithContract : d
           ));
           toast({
             title: "Chofer actualizado",
@@ -136,11 +159,23 @@ export default function Drivers() {
         const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            name: formData.name,
+            last_name: formData.last_name,
+            document_number: formData.document_number,
+            telephone: formData.telephone,
+            address: formData.address,
+            contract_id: formData.contract_id,
+            status: formData.status
+          }),
         });
         if (response.ok) {
           const newDriver = await response.json();
-          setDrivers([...drivers, newDriver]);
+          // Add contract info to new driver
+          const contract = contracts.find(c => c.id === newDriver.contract_id);
+          const driverWithContract = { ...newDriver, contract };
+          
+          setDrivers([...drivers, driverWithContract]);
           toast({
             title: "Chofer creado",
             description: `${formData.name} ${formData.last_name} ha sido creado correctamente.`,

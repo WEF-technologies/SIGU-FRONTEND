@@ -28,11 +28,9 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedContract = contracts.find(c => c.id === formData.contract_id);
     onSubmit({
       ...formData,
-      status: 'active' as 'active' | 'inactive',
-      contract: selectedContract
+      status: 'active' as 'active' | 'inactive'
     });
   };
 

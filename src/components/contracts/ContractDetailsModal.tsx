@@ -3,11 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Contract, Shift, Route } from "@/types";
+import { Contract, Shift, Route, Driver } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import { Edit, Trash2, Plus, Download, FileText, Loader2 } from "lucide-react";
+import { Edit, Trash2, Plus, Download, FileText, Loader2, Users } from "lucide-react";
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
@@ -61,6 +61,7 @@ export function ContractDetailsModal({
   const authenticatedFetch = useAuthenticatedFetch();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloadingDoc, setDownloadingDoc] = useState(false);
 
@@ -82,7 +83,19 @@ export function ContractDetailsModal({
         const fetchedRoutes = await routesResponse.json();
         setRoutes(fetchedRoutes);
       } else {
+        console.log('No routes found for this contract');
         setRoutes([]);
+      }
+
+      // Fetch drivers for this contract
+      const driversResponse = await authenticatedFetch(`http://localhost:8000/api/v1/drivers/`);
+      if (driversResponse.ok) {
+        const allDrivers = await driversResponse.json();
+        const contractDrivers = allDrivers.filter((driver: Driver) => driver.contract_id === contract.id);
+        setDrivers(contractDrivers);
+      } else {
+        console.log('No drivers found');
+        setDrivers([]);
       }
       
       // For now, shifts are still mock data
@@ -92,6 +105,7 @@ export function ContractDetailsModal({
       console.error('Error loading contract details:', error);
       setRoutes([]);
       setShifts([]);
+      setDrivers([]);
       toast({
         title: "Error",
         description: "No se pudieron cargar todos los detalles del contrato",
@@ -172,10 +186,34 @@ export function ContractDetailsModal({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Información de Choferes</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Choferes Asignados
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-500">Los choferes se gestionan por separado del contrato</p>
+                {loading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                    <span>Cargando choferes...</span>
+                  </div>
+                ) : drivers.length > 0 ? (
+                  <div className="space-y-2">
+                    {drivers.map((driver) => (
+                      <div key={driver.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                        <div>
+                          <div className="font-medium">{driver.name} {driver.last_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Cédula: {driver.document_number} | Tel: {driver.telephone}
+                          </div>
+                        </div>
+                        <StatusBadge status={driver.status} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No hay choferes asignados a este contrato</p>
+                )}
               </CardContent>
             </Card>
           </div>
