@@ -93,7 +93,7 @@ export default function Routes() {
   const handleEdit = (route: Route) => {
     setEditingRoute(route);
     setFormData({
-      contract_description: route.contract_id, // Using contract_id from route for now
+      contract_description: route.contract?.description || "",
       description: route.description,
       from_location: route.from_location,
       to_location: route.to_location,
