@@ -72,8 +72,9 @@ export default function Vehicles() {
       }
       
       if (filters.maintenancePending) {
-        const needsMaintenance = vehicle.current_kilometers && vehicle.next_m3_km && 
-          vehicle.current_kilometers >= vehicle.next_m3_km;
+        const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+        const nextM3Km = vehicle.next_m3_kilometers;
+        const needsMaintenance = currentKm && nextM3Km && currentKm >= nextM3Km;
         if (!needsMaintenance) {
           return false;
         }
@@ -124,7 +125,7 @@ export default function Vehicles() {
       plate_number: vehicle.plate_number,
       status: vehicle.status,
       current_maintenance_type: vehicle.current_maintenance_type,
-      current_kilometers: vehicle.current_kilometers || 0,
+      current_kilometers: vehicle.current_kilometers || vehicle.kilometers || 0,
       location: vehicle.location || "",
     });
     setEditingVehicle(vehicle);
@@ -171,7 +172,10 @@ export default function Vehicles() {
         // Editar (PUT)
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${formData.plate_number}`, {
           method: "PUT",
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            ...formData,
+            kilometers: formData.current_kilometers
+          }),
         });
         if (response.ok) {
           const vehicle = await response.json();
@@ -188,7 +192,10 @@ export default function Vehicles() {
         // Crear (POST)
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`, {
           method: "POST",
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            ...formData,
+            kilometers: formData.current_kilometers
+          }),
         });
         if (response.ok) {
           const vehicle = await response.json();
@@ -277,20 +284,24 @@ export default function Vehicles() {
                         {vehicle.last_m3_date || "No registrado"}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-1">
-                        <Gauge className="w-4 h-4 text-gray-400" />
-                        {vehicle.current_kilometers && vehicle.next_m3_km ? (
-                          vehicle.next_m3_km - vehicle.current_kilometers <= 0 ? (
-                            <span className="text-red-600 font-medium">Vencido</span>
-                          ) : (
-                            `${(vehicle.next_m3_km - vehicle.current_kilometers).toLocaleString()} km`
-                          )
-                        ) : (
-                          "No definido"
-                        )}
-                      </div>
-                    </td>
+                     <td className="px-4 py-4">
+                       <div className="flex items-center gap-1">
+                         <Gauge className="w-4 h-4 text-gray-400" />
+                         {(() => {
+                           const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+                           const nextM3Km = vehicle.next_m3_kilometers;
+                           if (currentKm && nextM3Km) {
+                             const remaining = nextM3Km - currentKm;
+                             return remaining <= 0 ? (
+                               <span className="text-red-600 font-medium">Vencido</span>
+                             ) : (
+                               `${remaining.toLocaleString()} km`
+                             );
+                           }
+                           return "No definido";
+                         })()}
+                       </div>
+                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-1">
                         <Button

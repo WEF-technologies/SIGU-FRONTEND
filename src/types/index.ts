@@ -13,10 +13,19 @@ export interface Vehicle extends BaseEntity {
   status: 'available' | 'maintenance' | 'out_of_service';
   current_maintenance_type?: 'M1' | 'M2' | 'M3' | 'M4';
   current_kilometers?: number;
+  kilometers?: number; // Backend uses 'kilometers' field
   location?: string;
   last_m3_date?: string;
-  last_m3_km?: number;
-  next_m3_km?: number;
+  next_m3_kilometers?: number;
+}
+
+export interface NextM3Item {
+  vehicle_plate: string;
+  last_m3_date?: string;
+  next_m3_kilometers?: number;
+  current_kilometers: number;
+  remaining_km?: number;
+  status: 'ok' | 'near' | 'due' | 'missing';
 }
 
 export interface User extends BaseEntity {

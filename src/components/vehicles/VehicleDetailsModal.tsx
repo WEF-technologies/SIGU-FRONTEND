@@ -38,7 +38,8 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
 
   useEffect(() => {
     if (vehicle) {
-      setKmValue(vehicle.current_kilometers?.toString() || "");
+      const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+      setKmValue(currentKm.toString());
       // Cargar repuestos para este vehículo
       fetchVehicleSpareParts(vehicle.plate_number);
     }
@@ -74,24 +75,29 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
 
   // Calcular información M3 usando los datos del vehículo
   const calculateM3Progress = () => {
-    if (!vehicle.current_kilometers || !vehicle.last_m3_km || !vehicle.next_m3_km) {
+    const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+    const nextM3Km = vehicle.next_m3_kilometers;
+    
+    if (!currentKm || !nextM3Km) {
       return 0;
     }
     
-    const currentKm = vehicle.current_kilometers;
-    const lastM3Km = vehicle.last_m3_km;
-    const nextM3Km = vehicle.next_m3_km;
+    // Asumimos un intervalo M3 de 7000km para el cálculo de progreso
+    const M3_INTERVAL = 7000;
+    const lastM3Km = nextM3Km - M3_INTERVAL;
     const kmSinceLastM3 = currentKm - lastM3Km;
-    const kmBetweenM3 = nextM3Km - lastM3Km;
-    return Math.min((kmSinceLastM3 / kmBetweenM3) * 100, 100);
+    return Math.min((kmSinceLastM3 / M3_INTERVAL) * 100, 100);
   };
 
   const getM3Status = () => {
-    if (!vehicle.current_kilometers || !vehicle.next_m3_km) {
+    const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+    const nextM3Km = vehicle.next_m3_kilometers;
+    
+    if (!currentKm || !nextM3Km) {
       return { text: 'N/A', isOverdue: false };
     }
     
-    const remaining = vehicle.next_m3_km - vehicle.current_kilometers;
+    const remaining = nextM3Km - currentKm;
     if (remaining <= 0) {
       return { text: 'Vencido', isOverdue: true };
     }
@@ -159,7 +165,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                         type="number"
                         value={kmValue}
                         onChange={(e) => setKmValue(e.target.value)}
-                        placeholder={vehicle.current_kilometers?.toString() || "0"}
+                        placeholder={(vehicle.current_kilometers || vehicle.kilometers || 0).toString()}
                         className="w-24"
                       />
                       <Button size="sm" onClick={handleSaveKilometers}>
@@ -171,7 +177,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{vehicle.current_kilometers?.toLocaleString() || 'No registrado'} km</p>
+                      <p className="font-medium">{(vehicle.current_kilometers || vehicle.kilometers || 0).toLocaleString()} km</p>
                       <Button
                         size="sm"
                         variant="outline"
@@ -209,8 +215,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                 </div>
                 <Progress value={calculateM3Progress()} className="h-2" />
                 <div className="text-xs text-gray-500">
-                  Último M3 en: {vehicle.last_m3_km?.toLocaleString() || 'N/A'} km | 
-                  Próximo M3 en: {vehicle.next_m3_km?.toLocaleString() || 'N/A'} km
+                  Próximo M3 en: {vehicle.next_m3_kilometers?.toLocaleString() || 'N/A'} km
                 </div>
               </div>
             </Card>
