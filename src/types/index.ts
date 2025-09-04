@@ -130,5 +130,39 @@ export interface SparePart extends BaseEntity {
   unit_price?: number;
 }
 
+export interface VehiclePart extends BaseEntity {
+  vehicle_id: string;
+  vehicle_plate: string;
+  type: string;
+  code: string;
+  serial_number?: string;
+  position?: string;
+  installed_date: string;
+  installed_kilometers?: number;
+  life_kilometers?: number;
+  expiry_date?: string;
+  status: 'active' | 'removed' | 'maintenance';
+  removed_date?: string;
+  removed_kilometers?: number;
+  notes?: string;
+}
+
+export interface PartAlert {
+  vehicle_plate: string;
+  part_type: string;
+  code: string;
+  serial_number?: string;
+  position?: string;
+  installed_date: string;
+  installed_kilometers?: number;
+  life_kilometers?: number;
+  expiry_date?: string;
+  current_kilometers: number;
+  remaining_km?: number;
+  days_to_expiry?: number;
+  status_km: 'ok' | 'near' | 'due' | 'missing';
+  status_date: 'ok' | 'near' | 'due' | 'missing';
+}
+
 export type MaintenanceType = 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';

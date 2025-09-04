@@ -10,7 +10,8 @@ import {
   Settings,
   Wrench,
   ClipboardList,
-  Route
+  Route,
+  Cog
 } from "lucide-react";
 
 import {
@@ -37,6 +38,7 @@ const menuItems = [
   { title: "Repuestos", url: "/repuestos", icon: Settings },
   { title: "Solicitudes", url: "/solicitudes-repuestos", icon: ClipboardList },
   { title: "Mantenimiento", url: "/mantenimiento", icon: Wrench },
+  { title: "Partes Vehículos", url: "/partes-vehiculo", icon: Cog },
 ];
 
 export function AppSidebar() {
