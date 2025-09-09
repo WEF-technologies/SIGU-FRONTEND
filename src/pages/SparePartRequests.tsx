@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -69,7 +68,7 @@ export default function SparePartRequests() {
       if (response.ok) {
         const updated = await response.json();
         setRequests(requests.map(req => req.id === request.id ? { ...req, status: newStatus } : req));
-        const statusText = newStatus === 'approved' ? 'aprobada' : 'rechazada';
+        const statusText = newStatus === 'approved' ? 'aprobada' : 'rechazada'; 
         toast({
           title: `Solicitud ${statusText}`,
           description: `La solicitud ${request.code} ha sido ${statusText} correctamente.`,

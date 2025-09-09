@@ -41,7 +41,6 @@ SIGU (Sistema Integral de Gestión de Unidades) es una plataforma desarrollada p
 
 4. Accede a la aplicación en [http://localhost:8080](http://localhost:8080)
 
----
 
 ## 👥 Autores
 
