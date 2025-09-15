@@ -3,7 +3,7 @@ import { Maintenance as MaintenanceType, Vehicle, MaintenanceAlert } from "@/typ
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
 
 export function useMaintenance() {
   const { toast } = useToast();

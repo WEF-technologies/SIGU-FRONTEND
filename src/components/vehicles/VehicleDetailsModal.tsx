@@ -16,7 +16,7 @@ import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
 
 interface VehicleDetailsModalProps {
   vehicle: Vehicle | null;

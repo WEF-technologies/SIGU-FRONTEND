@@ -43,7 +43,7 @@ export function MaintenanceFormModal({
   useEffect(() => {
     const fetchSpareParts = async () => {
       try {
-        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+        const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
         const response = await authenticatedFetch(`${API_URL}/api/v1/spare-parts/`);
         if (response.ok) {
           const data = await response.json();

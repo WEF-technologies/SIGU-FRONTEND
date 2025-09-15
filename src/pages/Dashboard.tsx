@@ -9,7 +9,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
 
 interface DashboardStats {
   totalVehicles: number;

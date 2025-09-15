@@ -1,7 +1,7 @@
 
 import { Contract, Vehicle, User, Route, Shift } from '@/types';
 
-const API_BASE_URL = 'http://localhost:8000/api'; // Cambiar por tu URL de backend
+const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app'}/api`;
 
 // Configuración base para las peticiones
 const apiConfig = {
