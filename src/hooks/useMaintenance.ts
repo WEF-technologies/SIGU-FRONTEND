@@ -11,13 +11,19 @@ export function useMaintenance() {
   const [maintenance, setMaintenance] = useState<MaintenanceType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [alerts, setAlerts] = useState<MaintenanceAlert[]>([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(
+    () => new Set(JSON.parse(localStorage.getItem('dismissedMaintenanceAlerts') || '[]'))
+  );
 
   const fetchAlerts = async () => {
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/alerts`);
       if (response.ok) {
         const alertsData = await response.json();
-        setAlerts(Array.isArray(alertsData) ? alertsData : []);
+        const filteredAlerts = Array.isArray(alertsData) 
+          ? alertsData.filter(alert => !dismissedAlerts.has(`${alert.vehicle_plate}-${alert.type}`))
+          : [];
+        setAlerts(filteredAlerts);
       } else {
         setAlerts([]);
       }
@@ -71,7 +77,7 @@ export function useMaintenance() {
     };
 
     fetchData();
-  }, [authenticatedFetch]);
+  }, [authenticatedFetch, dismissedAlerts]);
 
   const createMaintenance = async (formData: any) => {
     const submitData = {
@@ -222,6 +228,15 @@ export function useMaintenance() {
     }
   };
 
+  const dismissAlert = (alert: MaintenanceAlert) => {
+    const alertKey = `${alert.vehicle_plate}-${alert.type}`;
+    const newDismissedAlerts = new Set(dismissedAlerts);
+    newDismissedAlerts.add(alertKey);
+    setDismissedAlerts(newDismissedAlerts);
+    localStorage.setItem('dismissedMaintenanceAlerts', JSON.stringify([...newDismissedAlerts]));
+    setAlerts(alerts.filter(a => `${a.vehicle_plate}-${a.type}` !== alertKey));
+  };
+
   return {
     maintenance,
     vehicles,
@@ -229,6 +244,7 @@ export function useMaintenance() {
     createMaintenance,
     updateMaintenance,
     deleteMaintenance,
-    fetchAlerts
+    fetchAlerts,
+    dismissAlert
   };
 }

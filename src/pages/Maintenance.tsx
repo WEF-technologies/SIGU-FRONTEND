@@ -15,7 +15,8 @@ export default function Maintenance() {
     alerts,
     createMaintenance, 
     updateMaintenance, 
-    deleteMaintenance 
+    deleteMaintenance,
+    dismissAlert
   } = useMaintenance();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,7 +59,7 @@ export default function Maintenance() {
 
   return (
     <div className="animate-fade-in space-y-6">
-      <MaintenanceAlerts alerts={alerts} />
+      <MaintenanceAlerts alerts={alerts} onDismiss={dismissAlert} />
       
       <DataTable
         data={maintenance}

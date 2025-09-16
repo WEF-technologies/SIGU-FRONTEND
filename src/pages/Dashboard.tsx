@@ -33,7 +33,7 @@ interface MaintenanceRecord {
 export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
-  const { alerts } = useMaintenance();
+  const { alerts, dismissAlert } = useMaintenance();
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
     activeVehicles: 0,
@@ -242,7 +242,7 @@ export default function Dashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <MaintenanceAlerts alerts={alerts.slice(0, 5)} />
+          <MaintenanceAlerts alerts={alerts.slice(0, 5)} onDismiss={dismissAlert} />
           {alerts.length > 5 && (
             <div className="mt-4 text-center">
               <button 

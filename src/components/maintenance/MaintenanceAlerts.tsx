@@ -2,13 +2,15 @@ import { MaintenanceAlert } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Clock, CheckCircle, XCircle, X } from "lucide-react";
 
 interface MaintenanceAlertsProps {
   alerts: MaintenanceAlert[];
+  onDismiss?: (alert: MaintenanceAlert) => void;
 }
 
-export function MaintenanceAlerts({ alerts }: MaintenanceAlertsProps) {
+export function MaintenanceAlerts({ alerts, onDismiss }: MaintenanceAlertsProps) {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'ok':
@@ -112,6 +114,16 @@ export function MaintenanceAlerts({ alerts }: MaintenanceAlertsProps) {
                         <span className="text-sm text-gray-600">
                           Actual: {alert.current_km.toLocaleString()} km
                         </span>
+                        {onDismiss && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDismiss(alert)}
+                            className="h-6 w-6 p-0 hover:bg-red-100"
+                          >
+                            <X className="h-4 w-4 text-red-600" />
+                          </Button>
+                        )}
                       </div>
                     </AlertDescription>
                   </Alert>
@@ -145,6 +157,16 @@ export function MaintenanceAlerts({ alerts }: MaintenanceAlertsProps) {
                         <span className="text-sm text-gray-600">
                           Actual: {alert.current_km.toLocaleString()} km
                         </span>
+                        {onDismiss && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDismiss(alert)}
+                            className="h-6 w-6 p-0 hover:bg-yellow-100"
+                          >
+                            <X className="h-4 w-4 text-yellow-600" />
+                          </Button>
+                        )}
                       </div>
                     </AlertDescription>
                   </Alert>
