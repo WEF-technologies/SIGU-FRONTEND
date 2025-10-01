@@ -14,7 +14,7 @@ export const useVehicleParts = () => {
 
   const fetchVehicles = async () => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/vehicles/`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicles/`, {
         method: 'GET',
       });
       if (response.ok) {
@@ -29,9 +29,9 @@ export const useVehicleParts = () => {
 
   const fetchParts = async (vehiclePlate?: string) => {
     try {
-      let url = `${API_BASE_URL}/vehicle_parts/`;
+      let url = `${API_BASE_URL}/api/v1/vehicle_parts/`;
       if (vehiclePlate) {
-        url = `${API_BASE_URL}/vehicle_parts/vehicle/${vehiclePlate}`;
+        url = `${API_BASE_URL}/api/v1/vehicle_parts/vehicle/${vehiclePlate}`;
       }
       
       const response = await authenticatedFetch(url, {
@@ -50,7 +50,7 @@ export const useVehicleParts = () => {
 
   const fetchAlerts = async () => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/vehicle_parts/alerts`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/alerts`, {
         method: 'GET',
       });
       
@@ -66,7 +66,7 @@ export const useVehicleParts = () => {
 
   const createPart = async (partData: Partial<VehiclePart>) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/vehicle_parts/`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/`, {
         method: 'POST',
         body: JSON.stringify(partData),
       });
@@ -89,7 +89,7 @@ export const useVehicleParts = () => {
 
   const updatePart = async (partId: string, partData: Partial<VehiclePart>) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/vehicle_parts/${partId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/${partId}`, {
         method: 'PUT',
         body: JSON.stringify(partData),
       });
@@ -112,7 +112,7 @@ export const useVehicleParts = () => {
 
   const deletePart = async (part: VehiclePart) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/vehicle_parts/${part.id}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/${part.id}`, {
         method: 'DELETE',
       });
 

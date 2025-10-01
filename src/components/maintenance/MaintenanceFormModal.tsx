@@ -44,7 +44,7 @@ export function MaintenanceFormModal({
     const fetchSpareParts = async () => {
       try {
         const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
-        const response = await authenticatedFetch(`${API_URL}/api/v1/spare-parts/`);
+        const response = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/`);
         if (response.ok) {
           const data = await response.json();
           setSpareParts(Array.isArray(data) ? data : []);
