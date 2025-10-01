@@ -8,6 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
+import { DriverAlerts } from "@/components/drivers/DriverAlerts";
+import { DriverAlert } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
 
@@ -34,6 +36,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
   const { alerts, dismissAlert } = useMaintenance();
+  const [driverAlerts, setDriverAlerts] = useState<DriverAlert[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
     activeVehicles: 0,
@@ -111,6 +114,17 @@ export default function Dashboard() {
 
         // Calculate urgent maintenances using alerts data
         const urgentMaintenances = alerts.filter(alert => alert.severity >= 3).length;
+
+        // Fetch driver alerts
+        try {
+          const driverAlertsResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`);
+          if (driverAlertsResponse.ok) {
+            const driverAlertsData = await driverAlertsResponse.json();
+            setDriverAlerts(Array.isArray(driverAlertsData) ? driverAlertsData : []);
+          }
+        } catch (error) {
+          console.log('Driver alerts endpoint not available:', error);
+        }
 
         setStats({
           totalVehicles,
@@ -250,6 +264,30 @@ export default function Dashboard() {
                 className="text-primary hover:underline text-sm"
               >
                 Ver todas las alertas ({alerts.length})
+              </button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Alertas de Choferes */}
+      <Card className="border-secondary-medium">
+        <CardHeader>
+          <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
+            <UserCheck className="w-5 h-5" />
+            Alertas de Choferes
+            <span className="text-xs text-secondary-dark ml-auto cursor-pointer" onClick={() => navigate("/choferes")}>Ver todos →</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DriverAlerts alerts={driverAlerts.slice(0, 5)} />
+          {driverAlerts.length > 5 && (
+            <div className="mt-4 text-center">
+              <button 
+                onClick={() => navigate("/choferes")}
+                className="text-primary hover:underline text-sm"
+              >
+                Ver todas las alertas ({driverAlerts.length})
               </button>
             </div>
           )}

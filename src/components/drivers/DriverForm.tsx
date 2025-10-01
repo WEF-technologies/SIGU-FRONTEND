@@ -23,7 +23,9 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
     document_number: driver?.document_number || "",
     telephone: driver?.telephone || "",
     address: driver?.address || "",
-    contract_id: driver?.contract_id || ""
+    contract_id: driver?.contract_id || "",
+    license_expiry_date: driver?.license_expiry_date || "",
+    defensive_driving_expiry_date: driver?.defensive_driving_expiry_date || ""
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -92,6 +94,27 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
           placeholder="Ingrese la dirección completa"
           rows={2}
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="license_expiry_date">Vencimiento Licencia</Label>
+          <Input
+            id="license_expiry_date"
+            type="date"
+            value={formData.license_expiry_date}
+            onChange={(e) => setFormData({...formData, license_expiry_date: e.target.value})}
+          />
+        </div>
+        <div>
+          <Label htmlFor="defensive_driving_expiry_date">Vencimiento Manejo Defensivo</Label>
+          <Input
+            id="defensive_driving_expiry_date"
+            type="date"
+            value={formData.defensive_driving_expiry_date}
+            onChange={(e) => setFormData({...formData, defensive_driving_expiry_date: e.target.value})}
+          />
+        </div>
       </div>
 
       <div>

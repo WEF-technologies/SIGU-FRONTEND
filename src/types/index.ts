@@ -89,8 +89,19 @@ export interface Driver extends BaseEntity {
   blood_type?: string;
   address?: string;
   contract_id?: string;
-  license_expiry?: string;
+  license_expiry_date?: string;
+  defensive_driving_expiry_date?: string;
   contract?: Contract;
+}
+
+export interface DriverAlert {
+  document_number: string;
+  name: string;
+  last_name: string;
+  license_expiry_date?: string;
+  defensive_driving_expiry_date?: string;
+  status_license: 'ok' | 'near' | 'due' | 'missing';
+  status_defensive: 'ok' | 'near' | 'due' | 'missing';
 }
 
 export interface Maintenance extends BaseEntity {

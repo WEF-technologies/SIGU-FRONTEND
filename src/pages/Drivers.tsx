@@ -4,7 +4,8 @@ import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { DriverForm } from "@/components/drivers/DriverForm";
 import { DriverActions } from "@/components/drivers/DriverActions";
-import { Driver, Contract } from "@/types";
+import { DriverAlerts } from "@/components/drivers/DriverAlerts";
+import { Driver, Contract, DriverAlert } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
@@ -15,6 +16,7 @@ export default function Drivers() {
   const authenticatedFetch = useAuthenticatedFetch();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [alerts, setAlerts] = useState<DriverAlert[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
 
@@ -57,10 +59,20 @@ export default function Drivers() {
           console.log('No drivers found or endpoint not available');
           setDrivers([]);
         }
+
+        // Fetch driver alerts
+        console.log('Fetching driver alerts...');
+        const alertsResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`);
+        if (alertsResponse.ok) {
+          const alertsData = await alertsResponse.json();
+          console.log('Driver alerts received:', alertsData);
+          setAlerts(Array.isArray(alertsData) ? alertsData : []);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
         setDrivers([]);
         setContracts([]);
+        setAlerts([]);
       }
     };
 
@@ -138,7 +150,9 @@ export default function Drivers() {
             telephone: formData.telephone,
             address: formData.address,
             contract_id: formData.contract_id,
-            status: formData.status
+            status: formData.status,
+            license_expiry_date: formData.license_expiry_date || null,
+            defensive_driving_expiry_date: formData.defensive_driving_expiry_date || null
           }),
         });
         if (response.ok) {
@@ -166,7 +180,9 @@ export default function Drivers() {
             telephone: formData.telephone,
             address: formData.address,
             contract_id: formData.contract_id,
-            status: formData.status
+            status: formData.status,
+            license_expiry_date: formData.license_expiry_date || null,
+            defensive_driving_expiry_date: formData.defensive_driving_expiry_date || null
           }),
         });
         if (response.ok) {
@@ -195,6 +211,7 @@ export default function Drivers() {
 
   return (
     <div>
+      <DriverAlerts alerts={alerts} />
       <DataTable
         data={drivers}
         columns={columns}
