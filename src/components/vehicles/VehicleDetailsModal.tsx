@@ -110,7 +110,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const handleSaveKilometers = () => {
     const km = parseInt(kmValue);
     if (!isNaN(km) && km > 0) {
-      onUpdateKilometers(vehicle.id, km);
+      onUpdateKilometers(vehicle.plate_number, km);
       setEditingKm(false);
     }
   };

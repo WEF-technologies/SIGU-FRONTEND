@@ -58,7 +58,11 @@ export function useMaintenance() {
           
           const mappedVehicles = vehiclesData.map((vehicle: any) => ({
             ...vehicle,
-            current_kilometers: vehicle.kilometers || 0
+            current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+            // Preservar todos los campos calculados del backend
+            next_m3_kilometers: vehicle.next_m3_kilometers,
+            last_m3_date: vehicle.last_m3_date,
+            last_m3_kilometers: vehicle.last_m3_kilometers
           }));
           
           setVehicles(Array.isArray(mappedVehicles) ? mappedVehicles : []);
@@ -114,7 +118,10 @@ export function useMaintenance() {
         const vehiclesData = await vehiclesResponse.json();
         const mappedVehicles = vehiclesData.map((vehicle: any) => ({
           ...vehicle,
-          current_kilometers: vehicle.kilometers || 0
+          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+          next_m3_kilometers: vehicle.next_m3_kilometers,
+          last_m3_date: vehicle.last_m3_date,
+          last_m3_kilometers: vehicle.last_m3_kilometers
         }));
         setVehicles(mappedVehicles);
       }
@@ -173,7 +180,10 @@ export function useMaintenance() {
         const vehiclesData = await vehiclesResponse.json();
         const mappedVehicles = vehiclesData.map((vehicle: any) => ({
           ...vehicle,
-          current_kilometers: vehicle.kilometers || 0
+          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+          next_m3_kilometers: vehicle.next_m3_kilometers,
+          last_m3_date: vehicle.last_m3_date,
+          last_m3_kilometers: vehicle.last_m3_kilometers
         }));
         setVehicles(mappedVehicles);
       }
@@ -209,14 +219,17 @@ export function useMaintenance() {
         const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
-          const mappedVehicles = vehiclesData.map((vehicle: any) => ({
-            ...vehicle,
-            current_kilometers: vehicle.kilometers || 0
-          }));
-          setVehicles(mappedVehicles);
-        }
-        
-        await fetchAlerts();
+        const mappedVehicles = vehiclesData.map((vehicle: any) => ({
+          ...vehicle,
+          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+          next_m3_kilometers: vehicle.next_m3_kilometers,
+          last_m3_date: vehicle.last_m3_date,
+          last_m3_kilometers: vehicle.last_m3_kilometers
+        }));
+        setVehicles(mappedVehicles);
+      }
+      
+      await fetchAlerts();
         
         toast({
           title: "Mantenimiento eliminado",
