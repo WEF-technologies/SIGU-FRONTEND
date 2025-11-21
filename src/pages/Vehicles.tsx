@@ -21,7 +21,7 @@ const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enm
 export default function Vehicles() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
-  const { vehicles } = useMaintenance();
+  const { vehicles, refreshVehicles, updateVehicleInState } = useMaintenance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -147,8 +147,8 @@ export default function Vehicles() {
           title: "Vehículo eliminado",
           description: `${vehicle.plate_number} ha sido eliminado correctamente.`,
         });
-        // Refresh page to reload vehicle data
-        window.location.reload();
+        // Refresh local vehicles state
+        await refreshVehicles();
       }
     } catch (error) {
       console.error('Error deleting vehicle:', error);
@@ -167,7 +167,7 @@ export default function Vehicles() {
           title: "Kilometraje actualizado",
           description: `El kilometraje ha sido actualizado correctamente.`,
         });
-        window.location.reload();
+        await refreshVehicles();
       } else {
         toast({
           title: "Error",
@@ -206,8 +206,8 @@ export default function Vehicles() {
           });
           setIsModalOpen(false);
           resetForm();
-          // Refresh page to reload vehicle data
-          window.location.reload();
+          // Update the vehicle in local state without reloading
+          updateVehicleInState(vehicle);
         }
       } else {
         // Crear (POST)
@@ -226,8 +226,8 @@ export default function Vehicles() {
           });
           setIsModalOpen(false);
           resetForm();
-          // Refresh page to reload vehicle data
-          window.location.reload();
+          // Insert the new vehicle into local state
+          updateVehicleInState(vehicle);
         }
       }
     } catch (error) {

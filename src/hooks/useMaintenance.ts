@@ -83,6 +83,52 @@ export function useMaintenance() {
     fetchData();
   }, [authenticatedFetch, dismissedAlerts]);
 
+  // Expose a function to refresh vehicles (useful to avoid full page reloads)
+  const refreshVehicles = async () => {
+    try {
+      const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+      if (vehiclesResponse.ok) {
+        const vehiclesData = await vehiclesResponse.json();
+        const mappedVehicles = vehiclesData.map((vehicle: any) => ({
+          ...vehicle,
+          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+          next_m3_kilometers: vehicle.next_m3_kilometers,
+          last_m3_date: vehicle.last_m3_date,
+          last_m3_kilometers: vehicle.last_m3_kilometers
+        }));
+        setVehicles(Array.isArray(mappedVehicles) ? mappedVehicles : []);
+      } else {
+        setVehicles([]);
+      }
+    } catch (error) {
+      console.error('Error refreshing vehicles:', error);
+      setVehicles([]);
+    }
+  };
+
+  // Update or insert a single vehicle in the local state (used after PUT/POST responses)
+  const updateVehicleInState = (updatedVehicle: any) => {
+    try {
+      const mapped = {
+        ...updatedVehicle,
+        current_kilometers: updatedVehicle.kilometers || updatedVehicle.current_kilometers || 0,
+        next_m3_kilometers: updatedVehicle.next_m3_kilometers,
+        last_m3_date: updatedVehicle.last_m3_date,
+        last_m3_kilometers: updatedVehicle.last_m3_kilometers
+      };
+
+      setVehicles(prev => {
+        const exists = prev.some(v => v.id === mapped.id || v.plate_number === mapped.plate_number);
+        if (exists) {
+          return prev.map(v => (v.id === mapped.id || v.plate_number === mapped.plate_number) ? mapped : v);
+        }
+        return [mapped, ...prev];
+      });
+    } catch (error) {
+      console.error('Error updating vehicle in state:', error);
+    }
+  };
+
   const createMaintenance = async (formData: any) => {
     const submitData = {
       plate_number: formData.plate_number,
@@ -254,6 +300,8 @@ export function useMaintenance() {
     maintenance,
     vehicles,
     alerts,
+    refreshVehicles,
+    updateVehicleInState,
     createMaintenance,
     updateMaintenance,
     deleteMaintenance,
