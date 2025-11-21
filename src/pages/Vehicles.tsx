@@ -155,13 +155,34 @@ export default function Vehicles() {
     }
   };
 
-  const handleUpdateKilometers = (vehicleId: string, kilometers: number) => {
-    // Since we're using useMaintenance hook, we'll refresh the page to reload data
-    toast({
-      title: "Kilometraje actualizado",
-      description: `El kilometraje ha sido actualizado correctamente.`,
-    });
-    window.location.reload();
+  const handleUpdateKilometers = async (plateNumber: string, kilometers: number) => {
+    try {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${plateNumber}/kilometers`, {
+        method: "PUT",
+        body: JSON.stringify({ kilometers }),
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Kilometraje actualizado",
+          description: `El kilometraje ha sido actualizado correctamente.`,
+        });
+        window.location.reload();
+      } else {
+        toast({
+          title: "Error",
+          description: "Error al actualizar el kilometraje.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Error updating kilometers:', error);
+      toast({
+        title: "Error",
+        description: "Error al actualizar el kilometraje.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,8 +190,8 @@ export default function Vehicles() {
 
     try {
       if (editingVehicle) {
-        // Editar (PUT)
-        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${formData.plate_number}`, {
+        // Editar (PUT) - usar la placa original del vehículo que se está editando
+        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${editingVehicle.plate_number}`, {
           method: "PUT",
           body: JSON.stringify({
             ...formData,
