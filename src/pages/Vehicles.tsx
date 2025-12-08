@@ -137,6 +137,24 @@ export default function Vehicles() {
     setIsDetailsModalOpen(true);
   };
 
+  const getErrorMessage = async (response: Response, defaultMessage: string): Promise<string> => {
+    try {
+      const data = await response.json();
+      if (data.detail) {
+        if (typeof data.detail === 'string') {
+          return data.detail;
+        }
+        if (Array.isArray(data.detail)) {
+          return data.detail.map((err: any) => err.msg || err.message || JSON.stringify(err)).join(', ');
+        }
+        return JSON.stringify(data.detail);
+      }
+      return data.message || defaultMessage;
+    } catch {
+      return defaultMessage;
+    }
+  };
+
   const handleDelete = async (vehicle: Vehicle) => {
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${vehicle.plate_number}`, {
@@ -147,11 +165,22 @@ export default function Vehicles() {
           title: "Vehículo eliminado",
           description: `${vehicle.plate_number} ha sido eliminado correctamente.`,
         });
-        // Refresh local vehicles state
         await refreshVehicles();
+      } else {
+        const errorMsg = await getErrorMessage(response, "No se pudo eliminar el vehículo");
+        toast({
+          title: "Error al eliminar",
+          description: errorMsg,
+          variant: "destructive"
+        });
       }
     } catch (error) {
       console.error('Error deleting vehicle:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor. Verifique su conexión.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -190,8 +219,6 @@ export default function Vehicles() {
 
     try {
       if (editingVehicle) {
-        // Editar (PUT) - usar la placa original del vehículo que se está editando
-        // Solo enviar los campos que el backend espera para actualizar
         const updatePayload = {
           brand: formData.brand,
           model: formData.model,
@@ -207,6 +234,7 @@ export default function Vehicles() {
           method: "PUT",
           body: JSON.stringify(updatePayload),
         });
+        
         if (response.ok) {
           const vehicle = await response.json();
           toast({
@@ -215,11 +243,16 @@ export default function Vehicles() {
           });
           setIsModalOpen(false);
           resetForm();
-          // Update the vehicle in local state without reloading
           updateVehicleInState(vehicle);
+        } else {
+          const errorMsg = await getErrorMessage(response, "No se pudo actualizar el vehículo");
+          toast({
+            title: "Error al actualizar",
+            description: errorMsg,
+            variant: "destructive"
+          });
         }
       } else {
-        // Crear (POST)
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`, {
           method: "POST",
           body: JSON.stringify({
@@ -227,6 +260,7 @@ export default function Vehicles() {
             kilometers: formData.current_kilometers
           }),
         });
+        
         if (response.ok) {
           const vehicle = await response.json();
           toast({
@@ -235,12 +269,23 @@ export default function Vehicles() {
           });
           setIsModalOpen(false);
           resetForm();
-          // Insert the new vehicle into local state
           updateVehicleInState(vehicle);
+        } else {
+          const errorMsg = await getErrorMessage(response, "No se pudo crear el vehículo");
+          toast({
+            title: "Error al crear",
+            description: errorMsg,
+            variant: "destructive"
+          });
         }
       }
     } catch (error) {
       console.error('Error with vehicle operation:', error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor. Verifique su conexión.",
+        variant: "destructive"
+      });
     }
   };
 
