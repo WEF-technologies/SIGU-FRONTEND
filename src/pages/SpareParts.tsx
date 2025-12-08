@@ -12,7 +12,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Button } from "@/components/ui/button";
 import { Plus, ShoppingCart } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 export default function SpareParts() {
   const { toast } = useToast();

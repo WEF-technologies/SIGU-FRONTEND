@@ -11,7 +11,7 @@ import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
 import { DriverAlert } from "@/types";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 interface DashboardStats {
   totalVehicles: number;

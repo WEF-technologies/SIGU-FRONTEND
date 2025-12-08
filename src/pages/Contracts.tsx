@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 export default function Contracts() {
   const { toast } = useToast();
