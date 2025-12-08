@@ -191,12 +191,21 @@ export default function Vehicles() {
     try {
       if (editingVehicle) {
         // Editar (PUT) - usar la placa original del vehículo que se está editando
+        // Solo enviar los campos que el backend espera para actualizar
+        const updatePayload = {
+          brand: formData.brand,
+          model: formData.model,
+          year: formData.year,
+          plate_number: formData.plate_number,
+          status: formData.status,
+          current_maintenance_type: formData.current_maintenance_type,
+          kilometers: formData.current_kilometers,
+          location: formData.location || null,
+        };
+        
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${editingVehicle.plate_number}`, {
           method: "PUT",
-          body: JSON.stringify({
-            ...formData,
-            kilometers: formData.current_kilometers
-          }),
+          body: JSON.stringify(updatePayload),
         });
         if (response.ok) {
           const vehicle = await response.json();
