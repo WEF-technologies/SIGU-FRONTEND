@@ -78,7 +78,7 @@ export function ContractDetailsModal({
     
     try {
       // Fetch routes for this contract using contract description
-      const routesResponse = await authenticatedFetch(`${import.meta.env.VITE_API_URL || 'https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app'}/api/v1/routes/?contract_description=${encodeURIComponent(contract.description)}`);
+      const routesResponse = await authenticatedFetch(`${import.meta.env.VITE_API_URL || 'https://sigu-back.vercel.app'}/api/v1/routes/?contract_description=${encodeURIComponent(contract.description)}`);
       if (routesResponse.ok) {
         const contractRoutes = await routesResponse.json();
         setRoutes(contractRoutes);
@@ -88,7 +88,7 @@ export function ContractDetailsModal({
       }
 
       // Fetch available drivers
-      const driversResponse = await authenticatedFetch(`${import.meta.env.VITE_API_URL || 'https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app'}/api/v1/drivers/`);
+      const driversResponse = await authenticatedFetch(`${import.meta.env.VITE_API_URL || 'https://sigu-back.vercel.app'}/api/v1/drivers/`);
       if (driversResponse.ok) {
         const allDrivers = await driversResponse.json();
         const contractDrivers = allDrivers.filter((driver: Driver) => driver.contract_id === contract.id);

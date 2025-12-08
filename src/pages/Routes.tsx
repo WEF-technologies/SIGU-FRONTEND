@@ -9,7 +9,7 @@ import { Route } from "@/types";
 import { Plus, Search } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 export default function Routes() {
   const [routes, setRoutes] = useState<Route[]>([]);

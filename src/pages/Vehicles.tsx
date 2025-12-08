@@ -16,7 +16,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { Eye, Edit, Trash2, History, Calendar, Gauge, Plus } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back-e39xv5vbt-enmanuelalxs-projects.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 export default function Vehicles() {
   const { toast } = useToast();
