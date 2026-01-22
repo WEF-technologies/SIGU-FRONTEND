@@ -137,53 +137,63 @@ export default function Routes() {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    try {
-      const contractId = formData.contract_id?.trim();
-      if (!contractId) {
-        console.error('Seleccione un contrato válido');
-        return;
-      }
-
-      const payload: any = {
-        contract_id: contractId,
-        description: formData.description,
-        from_location: formData.from_location,
-        to_location: formData.to_location,
-        kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined
-      };
-
-      if (editingRoute) {
-        const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          const updatedRoute = await res.json();
-          setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
-        } else {
-          console.error('Error updating route:', res.statusText);
-        }
-      } else {
-        const res = await authenticatedFetch(`${API_URL}/api/v1/routes/`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          const newRoute = await res.json();
-          setRoutes([...routes, newRoute]);
-        } else {
-          console.error('Error creating route:', res.statusText);
-        }
-      }
-
-      setIsModalOpen(false);
-    } catch (error) {
-      console.error('Error submitting route:', error);
+  try {
+    const contractId = formData.contract_id?.trim();
+    if (!contractId) {
+      console.error('Seleccione un contrato válido');
+      return;
     }
-  };
+
+    // Buscar el contrato seleccionado para obtener su descripción
+    const selectedContract = contracts.find(c => c.id === contractId);
+    if (!selectedContract) {
+      console.error('Contrato no encontrado');
+      return;
+    }
+
+    const payload: any = {
+      contract_id: contractId,
+      contract_description: selectedContract.description, // ← Agregar esta línea
+      description: formData.description,
+      from_location: formData.from_location,
+      to_location: formData.to_location,
+      kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined
+    };
+
+    if (editingRoute) {
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const updatedRoute = await res.json();
+        setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
+      } else {
+        const errorData = await res.json();
+        console.error('Error updating route:', errorData);
+      }
+    } else {
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const newRoute = await res.json();
+        setRoutes([...routes, newRoute]);
+      } else {
+        const errorData = await res.json();
+        console.error('Error creating route:', errorData);
+      }
+    }
+
+    setIsModalOpen(false);
+  } catch (error) {
+    console.error('Error submitting route:', error);
+  }
+};
 
   return (
     <div>
