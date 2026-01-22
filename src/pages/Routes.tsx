@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Route } from "@/types";
+import { Route, Contract } from "@/types";
 import { Plus, Search } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
@@ -16,8 +16,11 @@ export default function Routes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [contractsError, setContractsError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    contract_description: "",
+    contract_id: "",
     description: "",
     from_location: "",
     to_location: "",
@@ -43,6 +46,28 @@ export default function Routes() {
 
   useEffect(() => {
     fetchRoutes();
+    // Fetch contracts for select
+    (async () => {
+      setContractsLoading(true);
+      setContractsError(null);
+      try {
+        const resp = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setContracts(Array.isArray(data) ? data : []);
+        } else {
+          const text = await resp.text();
+          setContractsError(`Error fetching contracts: ${resp.status} ${resp.statusText} ${text}`);
+          setContracts([]);
+        }
+      } catch (err: any) {
+        console.error('Error loading contracts:', err);
+        setContractsError(err?.message || 'Error loading contracts');
+        setContracts([]);
+      } finally {
+        setContractsLoading(false);
+      }
+    })();
   }, [authenticatedFetch]);
 
   // Buscar rutas por descripción de contrato
@@ -81,7 +106,7 @@ export default function Routes() {
   const handleAdd = () => {
     setEditingRoute(null);
     setFormData({
-      contract_description: "",
+      contract_id: "",
       description: "",
       from_location: "",
       to_location: "",
@@ -93,7 +118,7 @@ export default function Routes() {
   const handleEdit = (route: Route) => {
     setEditingRoute(route);
     setFormData({
-      contract_description: route.contract?.description || "",
+      contract_id: route.contract?.id || "",
       description: route.description,
       from_location: route.from_location,
       to_location: route.to_location,
@@ -112,46 +137,52 @@ export default function Routes() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const payload = {
-      contract_description: formData.contract_description,
-      description: formData.description,
-      from_location: formData.from_location,
-      to_location: formData.to_location,
-      kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined
-    };
+    try {
+      const contractId = formData.contract_id?.trim();
+      if (!contractId) {
+        console.error('Seleccione un contrato válido');
+        return;
+      }
 
-    if (editingRoute) {
-      // PUT
-      authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      })
-        .then(res => res.json())
-        .then(updatedRoute => {
+      const payload: any = {
+        contract_id: contractId,
+        description: formData.description,
+        from_location: formData.from_location,
+        to_location: formData.to_location,
+        kilometers: formData.kilometers ? parseFloat(formData.kilometers) : undefined
+      };
+
+      if (editingRoute) {
+        const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const updatedRoute = await res.json();
           setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
-        })
-        .catch(error => {
-          console.error('Error updating route:', error);
+        } else {
+          console.error('Error updating route:', res.statusText);
+        }
+      } else {
+        const res = await authenticatedFetch(`${API_URL}/api/v1/routes/`, {
+          method: "POST",
+          body: JSON.stringify(payload),
         });
-    } else {
-      // POST
-      authenticatedFetch(`${API_URL}/api/v1/routes/`, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      })
-        .then(res => res.json())
-        .then(newRoute => {
+        if (res.ok) {
+          const newRoute = await res.json();
           setRoutes([...routes, newRoute]);
-        })
-        .catch(error => {
-          console.error('Error creating route:', error);
-        });
-    }
+        } else {
+          console.error('Error creating route:', res.statusText);
+        }
+      }
 
-    setIsModalOpen(false);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error submitting route:', error);
+    }
   };
 
   return (
@@ -198,14 +229,30 @@ export default function Routes() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="contract_description">Descripción del Contrato</Label>
-            <Input
-              id="contract_description"
-              value={formData.contract_description}
-              onChange={(e) => setFormData({...formData, contract_description: e.target.value})}
-              placeholder="Ingrese la descripción del contrato"
+            <Label htmlFor="contract_id">Contrato</Label>
+            <select
+              id="contract_id"
+              value={formData.contract_id}
+              onChange={(e) => setFormData({...formData, contract_id: e.target.value})}
+              className="w-full rounded-md border px-3 py-2"
               required
-            />
+            >
+              {contractsLoading && <option value="">Cargando contratos...</option>}
+              {contractsError && <option value="">Error cargando contratos</option>}
+              {!contractsLoading && !contractsError && (
+                <>
+                  <option value="">Seleccione un contrato</option>
+                  {contracts.length === 0 && <option value="">No hay contratos disponibles</option>}
+                  {contracts.map((c) => (
+                    <option key={c.id} value={c.id}>{c.description}</option>
+                  ))}
+                </>
+              )}
+            </select>
+            {contractsError && <p className="text-sm text-red-600 mt-1">{contractsError}</p>}
+            {!contractsLoading && contracts.length === 0 && !contractsError && (
+              <p className="text-sm text-yellow-700 mt-1">No hay contratos disponibles. Crea un contrato primero.</p>
+            )}
           </div>
 
           <div>
@@ -264,7 +311,7 @@ export default function Routes() {
             >
               Cancelar
             </Button>
-            <Button type="submit">
+            <Button type="submit" disabled={contractsLoading || contracts.length === 0}>
               {editingRoute ? "Actualizar Ruta" : "Crear Ruta"}
             </Button>
           </div>
