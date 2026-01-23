@@ -163,6 +163,9 @@ const handleSubmit = async (e: React.FormEvent) => {
       
       const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
         method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
@@ -170,8 +173,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
         setIsModalOpen(false);
       } else {
-        const errorData = await res.json();
-        console.error('Error updating route:', errorData);
+        const errorData = await res.json().catch(() => null);
+        console.error('Error updating route:', res.status, errorData);
       }
     } else {
       const payload = {
@@ -185,6 +188,9 @@ const handleSubmit = async (e: React.FormEvent) => {
       
       const res = await authenticatedFetch(`${API_URL}/api/v1/routes/`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(payload),
       });
       if (res.ok) {
@@ -192,14 +198,15 @@ const handleSubmit = async (e: React.FormEvent) => {
         setRoutes([...routes, newRoute]);
         setIsModalOpen(false);
       } else {
-        const errorData = await res.json();
-        console.error('Error creating route:', errorData);
+        const errorData = await res.json().catch(() => null);
+        console.error('Error creating route:', res.status, errorData);
       }
     }
   } catch (error) {
     console.error('Error submitting route:', error);
   }
 };
+
 
 
   return (
