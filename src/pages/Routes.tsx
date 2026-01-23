@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Route, Contract } from "@/types";
 import { Plus, Search } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useToast } from "@/hooks/use-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -27,6 +28,7 @@ export default function Routes() {
     kilometers: ""
   });
   const authenticatedFetch = useAuthenticatedFetch();
+  const { toast } = useToast();
 
   // Cargar rutas desde el backend
   const fetchRoutes = async (contractDescription?: string) => {
@@ -141,18 +143,6 @@ const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
 
   try {
-    const contractId = formData.contract_id?.trim();
-    if (!contractId) {
-      console.error('Seleccione un contrato válido');
-      return;
-    }
-
-    const selectedContract = contracts.find(c => c.id === contractId);
-    if (!selectedContract) {
-      console.error('Contrato no encontrado');
-      return;
-    }
-
     if (editingRoute) {
       const payload = {
         description: formData.description,
@@ -172,11 +162,29 @@ const handleSubmit = async (e: React.FormEvent) => {
         const updatedRoute = await res.json();
         setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
         setIsModalOpen(false);
+        setEditingRoute(null);
+        setFormData({ contract_id: "", description: "", from_location: "", to_location: "", kilometers: "" });
+        toast({ title: "Ruta actualizada", description: "La ruta se actualizó correctamente." });
       } else {
         const errorData = await res.json().catch(() => null);
         console.error('Error updating route:', res.status, errorData);
+        toast({ title: "Error", description: "No se pudo actualizar la ruta.", variant: "destructive" });
       }
     } else {
+      const contractId = formData.contract_id?.trim();
+      if (!contractId) {
+        console.error('Seleccione un contrato válido');
+        toast({ title: "Error", description: "Seleccione un contrato válido.", variant: "destructive" });
+        return;
+      }
+
+      const selectedContract = contracts.find(c => c.id === contractId);
+      if (!selectedContract) {
+        console.error('Contrato no encontrado');
+        toast({ title: "Error", description: "Contrato no encontrado.", variant: "destructive" });
+        return;
+      }
+
       const payload = {
         contract_id: contractId,
         contract_description: selectedContract.description,
@@ -197,13 +205,17 @@ const handleSubmit = async (e: React.FormEvent) => {
         const newRoute = await res.json();
         setRoutes([...routes, newRoute]);
         setIsModalOpen(false);
+        setFormData({ contract_id: "", description: "", from_location: "", to_location: "", kilometers: "" });
+        toast({ title: "Ruta creada", description: "La ruta se creó correctamente." });
       } else {
         const errorData = await res.json().catch(() => null);
         console.error('Error creating route:', res.status, errorData);
+        toast({ title: "Error", description: "No se pudo crear la ruta.", variant: "destructive" });
       }
     }
   } catch (error) {
     console.error('Error submitting route:', error);
+    toast({ title: "Error", description: "Error al enviar la ruta.", variant: "destructive" });
   }
 };
 
