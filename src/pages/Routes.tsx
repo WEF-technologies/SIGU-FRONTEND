@@ -41,7 +41,8 @@ export default function Routes() {
       
       const response = await authenticatedFetch(url);
       const data = response.ok ? await response.json() : [];
-      setRoutes(Array.isArray(data) ? data : []);
+      const normalize = (r: any) => ({ ...(r || {}), id: r?.id || r?.route_id });
+      setRoutes(Array.isArray(data) ? data.map(normalize) : []);
     } catch (error) {
       console.error('Error loading routes:', error);
       setRoutes([]);
@@ -127,12 +128,13 @@ export default function Routes() {
 
   const handleDelete = async (route: Route) => {
     try {
-      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${route.id}`, {
+      const rid = (route as any).id || (route as any).route_id;
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${rid}`, {
         method: "DELETE",
       });
       if (res.ok) {
-        setRoutes(routes.filter(r => r.id !== route.id));
-        if (editingRoute && editingRoute.id === route.id) {
+        setRoutes(routes.filter(r => r.id !== rid));
+        if (editingRoute && (editingRoute.id === rid || (editingRoute as any).route_id === rid)) {
           setEditingRoute(null);
           setIsModalOpen(false);
           setFormData({ contract_id: "", description: "", from_location: "", to_location: "", kilometers: "" });
@@ -161,7 +163,8 @@ const handleSubmit = async (e: React.FormEvent) => {
         kilometers: formData.kilometers ? parseFloat(formData.kilometers) : null
       };
       
-      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${editingRoute.id}`, {
+      const eid = (editingRoute as any).id || (editingRoute as any).route_id;
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${eid}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -169,8 +172,10 @@ const handleSubmit = async (e: React.FormEvent) => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const updatedRoute = await res.json();
-        setRoutes(routes.map(r => r.id === editingRoute.id ? updatedRoute : r));
+          const updatedRoute = await res.json();
+          const normalize = (r: any) => ({ ...(r || {}), id: r?.id || r?.route_id });
+          const normalized = normalize(updatedRoute);
+          setRoutes(routes.map(r => r.id === eid ? normalized : r));
         setIsModalOpen(false);
         setEditingRoute(null);
         setFormData({ contract_id: "", description: "", from_location: "", to_location: "", kilometers: "" });
@@ -212,8 +217,10 @@ const handleSubmit = async (e: React.FormEvent) => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        const newRoute = await res.json();
-        setRoutes([...routes, newRoute]);
+          const newRoute = await res.json();
+          const normalize = (r: any) => ({ ...(r || {}), id: r?.id || r?.route_id });
+          const normalized = normalize(newRoute);
+          setRoutes([...routes, normalized]);
         setIsModalOpen(false);
         setFormData({ contract_id: "", description: "", from_location: "", to_location: "", kilometers: "" });
         toast({ title: "Ruta creada", description: "La ruta se creó correctamente." });
@@ -236,7 +243,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-primary-900">Gestión de Rutas</h2>
         <Button 
-          onClick={handleAdd} 
+          onClick={handleAdd}
           className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
