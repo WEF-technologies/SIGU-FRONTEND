@@ -9,6 +9,16 @@ import { Route, Contract } from "@/types";
 import { Plus, Search } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -29,6 +39,8 @@ export default function Routes() {
   });
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Route | null>(null);
 
   // Cargar rutas desde el backend
   const fetchRoutes = async (contractDescription?: string) => {
@@ -94,13 +106,25 @@ export default function Routes() {
       key: 'actions' as keyof Route,
       header: 'Acciones',
       render: (_: any, route: Route) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleEdit(route)}
-        >
-          Editar
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEdit(route)}
+          >
+            Editar
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              setPendingDelete(route);
+              setIsDeleteOpen(true);
+            }}
+          >
+            Eliminar
+          </Button>
+        </div>
       )
     }
   ];
@@ -129,14 +153,35 @@ export default function Routes() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (route: Route) => {
-    authenticatedFetch(`${API_URL}/api/v1/routes/${route.id}`, {
-      method: "DELETE",
-    }).then(() => {
-      setRoutes(routes.filter(r => r.id !== route.id));
-    }).catch(error => {
+  const handleDelete = async (route: Route) => {
+    try {
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${route.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setRoutes(routes.filter(r => r.id !== route.id));
+        if (editingRoute && editingRoute.id === route.id) {
+          setEditingRoute(null);
+          setIsModalOpen(false);
+          setFormData({ contract_id: "", description: "", from_location: "", to_location: "", kilometers: "" });
+        }
+        toast({ title: "Ruta eliminada", description: "La ruta fue eliminada correctamente." });
+      } else {
+        const text = await res.text().catch(() => null);
+        console.error('Error deleting route:', res.status, text);
+        toast({ title: "Error", description: "No se pudo eliminar la ruta.", variant: "destructive" });
+      }
+    } catch (error) {
       console.error('Error deleting route:', error);
-    });
+      toast({ title: "Error", description: "Error al eliminar la ruta.", variant: "destructive" });
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    await handleDelete(pendingDelete);
+    setIsDeleteOpen(false);
+    setPendingDelete(null);
   };
 
 const handleSubmit = async (e: React.FormEvent) => {
@@ -353,6 +398,25 @@ const handleSubmit = async (e: React.FormEvent) => {
           </div>
         </form>
       </FormModal>
+
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar eliminación</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro que deseas eliminar esta ruta? Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setIsDeleteOpen(false); setPendingDelete(null); }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
