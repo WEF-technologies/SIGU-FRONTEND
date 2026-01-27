@@ -8,6 +8,7 @@ import { DriverAlerts } from "@/components/drivers/DriverAlerts";
 import { Driver, Contract, DriverAlert } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import ContractDriversModal from "@/components/drivers/ContractDriversModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -19,6 +20,9 @@ export default function Drivers() {
   const [alerts, setAlerts] = useState<DriverAlert[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [activeContract, setActiveContract] = useState<Contract | null>(null);
+  const [activeContractDrivers, setActiveContractDrivers] = useState<Driver[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,7 +58,19 @@ export default function Drivers() {
             return driver;
           });
           
-          setDrivers(Array.isArray(driversWithContracts) ? driversWithContracts : []);
+          const sortDrivers = (ds: Driver[]) => {
+            return ds.slice().sort((a, b) => {
+              const aContract = (a as any).contract?.description || "";
+              const bContract = (b as any).contract?.description || "";
+              if (aContract.localeCompare(bContract) !== 0) return aContract.localeCompare(bContract);
+              const aLast = a.last_name || a.name || "";
+              const bLast = b.last_name || b.name || "";
+              if (aLast.localeCompare(bLast) !== 0) return aLast.localeCompare(bLast);
+              return (a.name || "").localeCompare(b.name || "");
+            });
+          };
+
+          setDrivers(Array.isArray(driversWithContracts) ? sortDrivers(driversWithContracts) : []);
         } else {
           console.log('No drivers found or endpoint not available');
           setDrivers([]);
@@ -78,6 +94,18 @@ export default function Drivers() {
 
     fetchData();
   }, [authenticatedFetch]);
+
+    const openContractModal = (contract: Contract, driversForContract: Driver[]) => {
+      setActiveContract(contract);
+      setActiveContractDrivers(driversForContract);
+      setContractModalOpen(true);
+    };
+
+    const closeContractModal = () => {
+      setContractModalOpen(false);
+      setActiveContract(null);
+      setActiveContractDrivers([]);
+    };
 
   const columns = [
     { key: 'name' as keyof Driver, header: 'Nombre' },
@@ -121,7 +149,7 @@ export default function Drivers() {
         method: "DELETE",
       });
       if (response.ok) {
-        setDrivers(drivers.filter(d => d.document_number !== driver.document_number));
+        setDrivers((prev) => prev.filter(d => d.document_number !== driver.document_number));
         toast({
           title: "Chofer eliminado",
           description: `${driver.name} ${driver.last_name} ha sido eliminado correctamente.`,
@@ -160,10 +188,18 @@ export default function Drivers() {
           // Add contract info to updated driver
           const contract = contracts.find(c => c.id === updatedDriver.contract_id);
           const driverWithContract = { ...updatedDriver, contract };
-          
-          setDrivers(drivers.map(d => 
-            d.document_number === editingDriver.document_number ? driverWithContract : d
-          ));
+            setDrivers((prev) => {
+              const next = prev.map(d => d.document_number === editingDriver.document_number ? driverWithContract : d);
+              return next.slice().sort((a, b) => {
+                const aContract = (a as any).contract?.description || "";
+                const bContract = (b as any).contract?.description || "";
+                if (aContract.localeCompare(bContract) !== 0) return aContract.localeCompare(bContract);
+                const aLast = a.last_name || a.name || "";
+                const bLast = b.last_name || b.name || "";
+                if (aLast.localeCompare(bLast) !== 0) return aLast.localeCompare(bLast);
+                return (a.name || "").localeCompare(b.name || "");
+              });
+            });
           toast({
             title: "Chofer actualizado",
             description: `${formData.name} ${formData.last_name} ha sido actualizado correctamente.`,
@@ -190,8 +226,18 @@ export default function Drivers() {
           // Add contract info to new driver
           const contract = contracts.find(c => c.id === newDriver.contract_id);
           const driverWithContract = { ...newDriver, contract };
-          
-          setDrivers([...drivers, driverWithContract]);
+          setDrivers((prev) => {
+            const next = [...prev, driverWithContract];
+            return next.slice().sort((a, b) => {
+              const aContract = (a as any).contract?.description || "";
+              const bContract = (b as any).contract?.description || "";
+              if (aContract.localeCompare(bContract) !== 0) return aContract.localeCompare(bContract);
+              const aLast = a.last_name || a.name || "";
+              const bLast = b.last_name || b.name || "";
+              if (aLast.localeCompare(bLast) !== 0) return aLast.localeCompare(bLast);
+              return (a.name || "").localeCompare(b.name || "");
+            });
+          });
           toast({
             title: "Chofer creado",
             description: `${formData.name} ${formData.last_name} ha sido creado correctamente.`,
@@ -212,6 +258,19 @@ export default function Drivers() {
   return (
     <div>
       <DriverAlerts alerts={alerts} />
+      {/* Contracts quick view */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        {contracts.map((c) => {
+          const count = drivers.filter(d => d.contract_id === c.id).length;
+          return (
+            <div key={c.id} className="flex items-center gap-2 border px-3 py-1 rounded-md">
+              <div className="text-sm font-medium">{c.description}</div>
+              <div className="text-sm text-gray-500">{count}</div>
+              <button className="text-sm text-blue-600" onClick={() => openContractModal(c, drivers.filter(d => d.contract_id === c.id))}>Ver</button>
+            </div>
+          );
+        })}
+      </div>
       <DataTable
         data={drivers}
         columns={columns}
@@ -222,6 +281,16 @@ export default function Drivers() {
         addButtonText="Agregar Chofer"
         searchField="document_number"
         searchPlaceholder="Buscar por cédula..."
+      />
+
+      <ContractDriversModal
+        contract={activeContract}
+        drivers={activeContractDrivers}
+        isOpen={contractModalOpen}
+        onClose={closeContractModal}
+        onEdit={(d) => { setEditingDriver(d); setIsModalOpen(true); }}
+        onDelete={handleDelete}
+        onAdd={(contractId: string) => { setEditingDriver({ contract_id: contractId } as any); setIsModalOpen(true); setContractModalOpen(false); }}
       />
 
       <FormModal
