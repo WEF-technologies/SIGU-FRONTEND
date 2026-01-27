@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Route, Contract } from "@/types";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { RouteActions } from "@/components/routes/RouteActions";
@@ -18,7 +18,7 @@ export default function Routes() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRoute, setEditingRoute] = useState<Route | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractsError, setContractsError] = useState<string | null>(null);
@@ -76,14 +76,7 @@ export default function Routes() {
     })();
   }, [authenticatedFetch]);
 
-  // Buscar rutas por descripción de contrato
-  useEffect(() => {
-    if (searchTerm.trim()) {
-      fetchRoutes(searchTerm);
-    } else {
-      fetchRoutes();
-    }
-  }, [searchTerm]);
+  
 
   
 
@@ -252,17 +245,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         </Button>
       </div>
       
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <Input
-            placeholder="Buscar por descripción del contrato..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
+      
 
       {/* Agrupar rutas por contrato y mostrarlas en un acordeón */}
       <div className="space-y-4">
