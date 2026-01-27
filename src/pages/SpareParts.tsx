@@ -56,42 +56,6 @@ export default function SpareParts() {
     fetchData();
   }, [authenticatedFetch]);
 
-  const columns = [
-    { key: 'code' as keyof SparePart, header: 'Código' },
-    { key: 'description' as keyof SparePart, header: 'Descripción' },
-    { key: 'quantity' as keyof SparePart, header: 'Cantidad' },
-    { key: 'company_location' as keyof SparePart, header: 'Ubicación Empresa' },
-    { 
-      key: 'compatible_vehicles' as keyof SparePart, 
-      header: 'Vehículos',
-      render: (vehicles: string[]) => (
-        <span className="text-sm text-gray-600">
-          {vehicles && vehicles.length > 0 ? `${vehicles.length} vehículo(s)` : 'Ninguno'}
-        </span>
-      )
-    },
-    {
-      key: 'unit_price' as keyof SparePart,
-      header: 'Precio Unit.',
-      render: (value: number) => (
-        <span className="text-sm font-medium">
-          {value ? `$${value.toLocaleString()}` : '-'}
-        </span>
-      )
-    },
-    {
-      key: 'actions' as keyof SparePart,
-      header: 'Acciones',
-      render: (_: any, sparePart: SparePart) => (
-        <SparePartActions
-          sparePart={sparePart}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onViewDetails={handleViewDetails}
-        />
-      )
-    }
-  ];
 
   const handleAdd = () => {
     setEditingSparePart(null);
@@ -133,6 +97,43 @@ export default function SpareParts() {
     setViewingSparePart(sparePart);
     setIsDetailsModalOpen(true);
   };
+
+  const columns = [
+    { key: 'code' as keyof SparePart, header: 'Código' },
+    { key: 'description' as keyof SparePart, header: 'Descripción' },
+    { key: 'quantity' as keyof SparePart, header: 'Cantidad' },
+    { key: 'company_location' as keyof SparePart, header: 'Ubicación Empresa' },
+    { 
+      key: 'compatible_vehicles' as keyof SparePart, 
+      header: 'Vehículos',
+      render: (vehicles: string[]) => (
+        <span className="text-sm text-gray-600">
+          {vehicles && vehicles.length > 0 ? `${vehicles.length} vehículo(s)` : 'Ninguno'}
+        </span>
+      )
+    },
+    {
+      key: 'unit_price' as keyof SparePart,
+      header: 'Precio Unit.',
+      render: (value: number) => (
+        <span className="text-sm font-medium">
+          {value ? `$${value.toLocaleString()}` : '-'}
+        </span>
+      )
+    },
+    {
+      key: 'actions' as keyof SparePart,
+      header: 'Acciones',
+      render: (_: any, sparePart: SparePart) => (
+        <SparePartActions
+          sparePart={sparePart}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onViewDetails={handleViewDetails}
+        />
+      )
+    }
+  ];
 
   const handleSubmit = async (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
     try {
