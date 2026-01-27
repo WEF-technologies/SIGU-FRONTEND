@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +9,7 @@ import { Plus, Search } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { RouteActions } from "@/components/routes/RouteActions";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -84,23 +84,7 @@ export default function Routes() {
     }
   }, [searchTerm]);
 
-  const columns = [
-    { key: 'description' as keyof Route, header: 'Descripción' },
-    { key: 'from_location' as keyof Route, header: 'Origen' },
-    { key: 'to_location' as keyof Route, header: 'Destino' },
-    { 
-      key: 'kilometers' as keyof Route, 
-      header: 'Kilometraje (km)',
-      render: (value: any) => value ? `${value} km` : '-'
-    },
-    {
-      key: 'actions' as keyof Route,
-      header: 'Acciones',
-      render: (_: any, route: Route) => (
-        <RouteActions route={route} onEdit={handleEdit} onDelete={handleDelete} />
-      )
-    }
-  ];
+  
 
   const handleAdd = () => {
     setEditingRoute(null);
@@ -263,17 +247,57 @@ const handleSubmit = async (e: React.FormEvent) => {
         </div>
       </div>
 
-      <DataTable
-        data={routes}
-        columns={columns}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        title=""
-        addButtonText=""
-        searchField="description"
-        searchPlaceholder=""
-        hideAddButton={true}
-      />
+      {/* Agrupar rutas por contrato y mostrarlas en un acordeón */}
+      <div className="space-y-4">
+        {Object.keys(routes || {}).length === 0 ? (
+          <p className="text-sm text-gray-600">No hay rutas disponibles.</p>
+        ) : (
+          (() => {
+            const grouped: Record<string, { contract: Contract; routes: Route[] }> = {};
+            routes.forEach((r) => {
+              const cid = (r as any).contract?.id || (r as any).contract_id || (r as any).contract_id || "no-contract";
+              if (!grouped[cid]) {
+                const contract = contracts.find((c) => c.id === cid) || (r as any).contract || { id: cid, description: (r as any).contract_description || "Sin contrato" } as Contract;
+                grouped[cid] = { contract, routes: [] };
+              }
+              grouped[cid].routes.push(r);
+            });
+
+            const entries = Object.values(grouped).sort((a, b) => a.contract.description.localeCompare(b.contract.description || ""));
+
+            return (
+              <Accordion type="single" collapsible>
+                {entries.map(({ contract, routes: rts }) => (
+                  <AccordionItem key={contract.id || contract.description} value={contract.id || contract.description}>
+                    <AccordionTrigger>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="font-medium">{contract.description}</div>
+                        <div className="text-sm text-gray-500">{rts.length} ruta(s)</div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-2">
+                        {rts.map((route) => (
+                          <div key={(route as any).id || (route as any).route_id} className="flex items-center justify-between p-3 border rounded">
+                            <div>
+                              <div className="font-medium">{route.description}</div>
+                              <div className="text-sm text-gray-600">{route.from_location} → {route.to_location}</div>
+                              <div className="text-sm text-gray-500">{route.kilometers ? `${route.kilometers} km` : '-'}</div>
+                            </div>
+                            <div>
+                              <RouteActions route={route} onEdit={handleEdit} onDelete={handleDelete} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            );
+          })()
+        )}
+      </div>
 
       <FormModal
         isOpen={isModalOpen}
