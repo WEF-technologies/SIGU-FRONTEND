@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { DataTable } from "@/components/shared/DataTable";
+import { FormModal } from "@/components/shared/FormModal";
 import { FormModal } from "@/components/shared/FormModal";
 import { DriverForm } from "@/components/drivers/DriverForm";
 import { DriverActions } from "@/components/drivers/DriverActions";
@@ -8,7 +8,7 @@ import { DriverAlerts } from "@/components/drivers/DriverAlerts";
 import { Driver, Contract, DriverAlert } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import ContractDriversModal from "@/components/drivers/ContractDriversModal";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -20,9 +20,7 @@ export default function Drivers() {
   const [alerts, setAlerts] = useState<DriverAlert[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
-  const [contractModalOpen, setContractModalOpen] = useState(false);
-  const [activeContract, setActiveContract] = useState<Contract | null>(null);
-  const [activeContractDrivers, setActiveContractDrivers] = useState<Driver[]>([]);
+  
 
   useEffect(() => {
     const fetchData = async () => {
@@ -95,43 +93,13 @@ export default function Drivers() {
     fetchData();
   }, [authenticatedFetch]);
 
-    const openContractModal = (contract: Contract, driversForContract: Driver[]) => {
-      setActiveContract(contract);
-      setActiveContractDrivers(driversForContract);
-      setContractModalOpen(true);
-    };
+  
+  const openAddForContract = (contractId: string) => {
+    setEditingDriver({ contract_id: contractId } as any);
+    setIsModalOpen(true);
+  };
 
-    const closeContractModal = () => {
-      setContractModalOpen(false);
-      setActiveContract(null);
-      setActiveContractDrivers([]);
-    };
-
-  const columns = [
-    { key: 'name' as keyof Driver, header: 'Nombre' },
-    { key: 'last_name' as keyof Driver, header: 'Apellido' },
-    { key: 'document_number' as keyof Driver, header: 'Núm. Cédula' },
-    { key: 'telephone' as keyof Driver, header: 'Teléfono' },
-    { key: 'address' as keyof Driver, header: 'Dirección' },
-    {
-      key: 'contract' as keyof Driver,
-      header: 'Contrato',
-      render: (value: Contract) => value?.description || 'Sin asignar'
-    },
-    {
-      key: 'actions' as keyof Driver,
-      header: 'Acciones',
-      render: (_: any, driver: Driver) => (
-        <div className="flex gap-1">
-          <DriverActions
-            driver={driver}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-          />
-        </div>
-      )
-    }
-  ];
+  
 
   const handleAdd = () => {
     setEditingDriver(null);
@@ -258,40 +226,46 @@ export default function Drivers() {
   return (
     <div>
       <DriverAlerts alerts={alerts} />
-      {/* Contracts quick view */}
-      <div className="flex gap-3 mb-4 flex-wrap">
-        {contracts.map((c) => {
-          const count = drivers.filter(d => d.contract_id === c.id).length;
-          return (
-            <div key={c.id} className="flex items-center gap-2 border px-3 py-1 rounded-md">
-              <div className="text-sm font-medium">{c.description}</div>
-              <div className="text-sm text-gray-500">{count}</div>
-              <button className="text-sm text-blue-600" onClick={() => openContractModal(c, drivers.filter(d => d.contract_id === c.id))}>Ver</button>
-            </div>
-          );
-        })}
+      <div className="space-y-4">
+        <Accordion type="single" collapsible>
+          {contracts.concat([{ id: "__no_contract__", description: "Sin contrato" } as Contract]).map((c) => {
+            const cid = c.id === "__no_contract__" ? null : c.id;
+            const driversForContract = drivers.filter(d => (cid ? d.contract_id === cid : !d.contract_id));
+            return (
+              <AccordionItem key={c.id} value={c.id}>
+                <AccordionTrigger>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="font-medium">{c.description}</div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-500">{driversForContract.length} chofer(es)</div>
+                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openAddForContract(cid || ""); }}>
+                        Agregar
+                      </Button>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-2">
+                    {driversForContract.length === 0 && <p className="text-sm text-gray-600">No hay choferes.</p>}
+                    {driversForContract.map((driver) => (
+                      <div key={driver.document_number} className="flex items-center justify-between p-3 border rounded">
+                        <div>
+                          <div className="font-medium">{driver.name} {driver.last_name}</div>
+                          <div className="text-sm text-gray-600">Cédula: {driver.document_number} • {driver.telephone}</div>
+                          <div className="text-sm text-gray-500">{driver.address}</div>
+                        </div>
+                        <div>
+                          <DriverActions driver={driver} onEdit={handleEdit} onDelete={handleDelete} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
       </div>
-      <DataTable
-        data={drivers}
-        columns={columns}
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        title="Gestión de Choferes"
-        addButtonText="Agregar Chofer"
-        searchField="document_number"
-        searchPlaceholder="Buscar por cédula..."
-      />
-
-      <ContractDriversModal
-        contract={activeContract}
-        drivers={activeContractDrivers}
-        isOpen={contractModalOpen}
-        onClose={closeContractModal}
-        onEdit={(d) => { setEditingDriver(d); setIsModalOpen(true); }}
-        onDelete={handleDelete}
-        onAdd={(contractId: string) => { setEditingDriver({ contract_id: contractId } as any); setIsModalOpen(true); setContractModalOpen(false); }}
-      />
 
       <FormModal
         isOpen={isModalOpen}
