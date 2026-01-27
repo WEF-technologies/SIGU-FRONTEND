@@ -10,6 +10,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { RouteActions } from "@/components/routes/RouteActions";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import ContractRoutesModal from "@/components/routes/ContractRoutesModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -133,6 +134,22 @@ export default function Routes() {
       console.error('Error deleting route:', error);
       toast({ title: "Error", description: "Error al eliminar la ruta.", variant: "destructive" });
     }
+  };
+
+  const [contractModalOpen, setContractModalOpen] = useState(false);
+  const [activeContract, setActiveContract] = useState<Contract | null>(null);
+  const [activeContractRoutes, setActiveContractRoutes] = useState<Route[]>([]);
+
+  const openContractModal = (contract: Contract, rts: Route[]) => {
+    setActiveContract(contract);
+    setActiveContractRoutes(rts);
+    setContractModalOpen(true);
+  };
+
+  const closeContractModal = () => {
+    setContractModalOpen(false);
+    setActiveContract(null);
+    setActiveContractRoutes([]);
   };
 
 const handleSubmit = async (e: React.FormEvent) => {
@@ -266,34 +283,58 @@ const handleSubmit = async (e: React.FormEvent) => {
             const entries = Object.values(grouped).sort((a, b) => a.contract.description.localeCompare(b.contract.description || ""));
 
             return (
-              <Accordion type="single" collapsible>
-                {entries.map(({ contract, routes: rts }) => (
-                  <AccordionItem key={contract.id || contract.description} value={contract.id || contract.description}>
-                    <AccordionTrigger>
-                      <div className="flex items-center justify-between w-full">
-                        <div className="font-medium">{contract.description}</div>
-                        <div className="text-sm text-gray-500">{rts.length} ruta(s)</div>
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-2">
-                        {rts.map((route) => (
-                          <div key={(route as any).id || (route as any).route_id} className="flex items-center justify-between p-3 border rounded">
-                            <div>
-                              <div className="font-medium">{route.description}</div>
-                              <div className="text-sm text-gray-600">{route.from_location} → {route.to_location}</div>
-                              <div className="text-sm text-gray-500">{route.kilometers ? `${route.kilometers} km` : '-'}</div>
-                            </div>
-                            <div>
-                              <RouteActions route={route} onEdit={handleEdit} onDelete={handleDelete} />
-                            </div>
+              <>
+                <Accordion type="single" collapsible>
+                  {entries.map(({ contract, routes: rts }) => (
+                    <AccordionItem key={contract.id || contract.description} value={contract.id || contract.description}>
+                      <AccordionTrigger>
+                        <div className="flex items-center justify-between w-full">
+                          <div className="font-medium">{contract.description}</div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-sm text-gray-500">{rts.length} ruta(s)</div>
+                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openContractModal(contract, rts); }}>
+                              Ver
+                            </Button>
                           </div>
-                        ))}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-2">
+                          {rts.slice(0, 3).map((route) => (
+                            <div key={(route as any).id || (route as any).route_id} className="flex items-center justify-between p-3 border rounded">
+                              <div>
+                                <div className="font-medium">{route.description}</div>
+                                <div className="text-sm text-gray-600">{route.from_location} → {route.to_location}</div>
+                                <div className="text-sm text-gray-500">{route.kilometers ? `${route.kilometers} km` : '-'}</div>
+                              </div>
+                              <div>
+                                <RouteActions route={route} onEdit={handleEdit} onDelete={handleDelete} />
+                              </div>
+                            </div>
+                          ))}
+                          {rts.length > 3 && (
+                            <div className="text-sm text-gray-500">Mostrando 3 de {rts.length} rutas. Usa "Ver" para ver todas.</div>
+                          )}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+
+                <ContractRoutesModal
+                  contract={activeContract}
+                  routes={activeContractRoutes}
+                  isOpen={contractModalOpen}
+                  onClose={closeContractModal}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onAdd={(contractId: string) => {
+                    setFormData({ ...formData, contract_id: contractId });
+                    setContractModalOpen(false);
+                    setIsModalOpen(true);
+                  }}
+                />
+              </>
             );
           })()
         )}
