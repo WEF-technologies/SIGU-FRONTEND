@@ -20,6 +20,7 @@ export default function Drivers() {
   const [alerts, setAlerts] = useState<DriverAlert[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
+  const [createPrefill, setCreatePrefill] = useState<Partial<Driver> | null>(null);
   
 
   useEffect(() => {
@@ -95,7 +96,8 @@ export default function Drivers() {
 
   
   const openAddForContract = (contractId: string) => {
-    setEditingDriver({ contract_id: contractId } as any);
+    setEditingDriver(null);
+    setCreatePrefill({ contract_id: contractId });
     setIsModalOpen(true);
   };
 
@@ -103,6 +105,7 @@ export default function Drivers() {
 
   const handleAdd = () => {
     setEditingDriver(null);
+    setCreatePrefill(null);
     setIsModalOpen(true);
   };
 
@@ -228,9 +231,9 @@ export default function Drivers() {
       <DriverAlerts alerts={alerts} />
       <div className="space-y-4">
         <Accordion type="single" collapsible>
-          {contracts.concat([{ id: "__no_contract__", description: "Sin contrato" } as Contract]).map((c) => {
-            const cid = c.id === "__no_contract__" ? null : c.id;
-            const driversForContract = drivers.filter(d => (cid ? d.contract_id === cid : !d.contract_id));
+          {contracts.map((c) => {
+            const cid = c.id;
+            const driversForContract = drivers.filter(d => d.contract_id === cid);
             return (
               <AccordionItem key={c.id} value={c.id}>
                 <AccordionTrigger>
@@ -238,7 +241,7 @@ export default function Drivers() {
                     <div className="font-medium">{c.description}</div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm text-gray-500">{driversForContract.length} chofer(es)</div>
-                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openAddForContract(cid || ""); }}>
+                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); openAddForContract(cid); }}>
                         Agregar
                       </Button>
                     </div>
@@ -273,10 +276,14 @@ export default function Drivers() {
         title={editingDriver ? "Editar Chofer" : "Agregar Chofer"}
       >
         <DriverForm
-          driver={editingDriver}
+          driver={editingDriver ?? (createPrefill as any) ?? undefined}
           contracts={contracts}
-          onSubmit={handleSubmit}
-          onCancel={() => setIsModalOpen(false)}
+          onSubmit={(data) => {
+            // clear prefill after submit
+            setCreatePrefill(null);
+            handleSubmit(data);
+          }}
+          onCancel={() => { setIsModalOpen(false); setCreatePrefill(null); }}
         />
       </FormModal>
     </div>
