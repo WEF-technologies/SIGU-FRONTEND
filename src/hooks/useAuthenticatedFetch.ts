@@ -1,35 +1,48 @@
-
 import { useAuth } from '@/contexts/AuthContext';
 import { useCallback } from 'react';
 
 export const useAuthenticatedFetch = () => {
-  const { token, logout } = useAuth();
+  const { token, logout, refreshToken } = useAuth();
 
   const authenticatedFetch = useCallback(
     async (url: string, options: RequestInit = {}) => {
-      const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
+      const makeRequest = async (tokenToUse?: string | null) => {
+        const headers = {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        } as Record<string, string>;
+
+        const authToken = tokenToUse ?? token;
+        if (authToken) {
+          headers['Authorization'] = `Bearer ${authToken}`;
+        }
+
+        return fetch(url, {
+          ...options,
+          headers,
+        });
       };
 
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+      let response = await makeRequest();
 
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      // Si recibimos un 401, significa que el token expiró
       if (response.status === 401) {
-        logout();
-        throw new Error('Sesión expirada');
+        const newToken = await refreshToken();
+        if (!newToken) {
+          logout();
+          throw new Error('Sesión expirada');
+        }
+
+        response = await makeRequest(newToken);
+
+        if (response.status === 401) {
+          logout();
+          throw new Error('Sesión expirada');
+        }
       }
 
       return response;
     },
-    [token, logout]
+    [token, refreshToken, logout]
   );
 
   return authenticatedFetch;
