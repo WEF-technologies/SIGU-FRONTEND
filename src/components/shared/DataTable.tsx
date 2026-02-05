@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface Column<T> {
+export interface Column<T> {
   key: keyof T | 'actions';
   header: string;
   render?: (value: any, item: T) => ReactNode;
