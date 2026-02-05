@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Edit, Trash2, Plus } from "lucide-react";
 import { SearchFilter } from "./SearchFilter";
@@ -12,18 +12,18 @@ import {
 } from "@/components/ui/table";
 
 export interface Column<T> {
-  key: keyof T | 'actions';
+  key: keyof T | "actions";
   header: string;
   render?: (value: any, item: T) => ReactNode;
 }
 
-interface DataTableProps<T> {
+interface DataTableProps<T extends { id: string }> {
   data: T[];
   columns: Column<T>[];
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
   onAdd?: () => void;
-  title: string;
+  title?: string;
   addButtonText?: string;
   isLoading?: boolean;
   searchPlaceholder?: string;
@@ -37,7 +37,7 @@ export function DataTable<T extends { id: string }>({
   onEdit,
   onDelete,
   onAdd,
-  title,
+  title = "",
   addButtonText = "Agregar",
   isLoading = false,
   searchPlaceholder = "Buscar...",
@@ -46,14 +46,19 @@ export function DataTable<T extends { id: string }>({
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredData = searchField && searchTerm 
-    ? data.filter(item => 
-        String(item[searchField]).toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : data;
+  // Filtrado de búsqueda memoizado
+  const filteredData = useMemo(() => {
+    if (!searchField || !searchTerm) return data;
+    return data.filter((item) =>
+      String(item[searchField])
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+    );
+  }, [data, searchField, searchTerm]);
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-primary-900">{title}</h2>
         <div className="flex items-center gap-4">
@@ -65,18 +70,19 @@ export function DataTable<T extends { id: string }>({
             />
           )}
           {onAdd && !hideAddButton && (
-            <Button 
-              onClick={onAdd} 
-              className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm"
+            <Button
+              onClick={onAdd}
+              className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
             >
-              <Plus className="w-4 h-4 mr-2" />
-              <span className="text-white">{addButtonText}</span>
+              <Plus className="w-4 h-4" />
+              {addButtonText}
             </Button>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-lg border border-secondary-medium shadow-sm">
+      {/* Tabla */}
+      <div className="bg-white rounded-lg border border-secondary-medium shadow-sm overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary-light">
@@ -93,33 +99,22 @@ export function DataTable<T extends { id: string }>({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="text-center py-8 text-secondary-dark"
-                >
+                <TableCell colSpan={columns.length} className="text-center py-8 text-secondary-dark">
                   Cargando...
                 </TableCell>
               </TableRow>
             ) : filteredData.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="text-center py-8 text-secondary-dark"
-                >
+                <TableCell colSpan={columns.length} className="text-center py-8 text-secondary-dark">
                   {searchTerm ? "No se encontraron resultados" : "No hay datos disponibles"}
                 </TableCell>
               </TableRow>
             ) : (
               filteredData.map((item) => (
-                <TableRow
-                  key={item.id}
-                  className="hover:bg-secondary-light transition-colors"
-                >
+                <TableRow key={item.id} className="hover:bg-secondary-light transition-colors">
                   {columns.map((column) => (
                     <TableCell key={String(column.key)} className="py-4">
-                      {column.render ? (
-                        column.render(item[column.key as keyof T], item)
-                      ) : column.key === 'actions' ? (
+                      {column.key === "actions" ? (
                         <div className="flex gap-2">
                           {onEdit && (
                             <Button
@@ -142,8 +137,10 @@ export function DataTable<T extends { id: string }>({
                             </Button>
                           )}
                         </div>
+                      ) : column.render ? (
+                        column.render(item[column.key as keyof T], item)
                       ) : (
-                        String(item[column.key as keyof T] || '-')
+                        String(item[column.key as keyof T] ?? "-")
                       )}
                     </TableCell>
                   ))}

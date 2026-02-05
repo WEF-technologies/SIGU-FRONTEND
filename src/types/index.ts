@@ -11,14 +11,14 @@ export interface Vehicle extends BaseEntity {
   year: number;
   plate_number: string;
   status: 'available' | 'maintenance' | 'out_of_service';
-
-  kilometers?: number;
-
   current_maintenance_type?: 'M1' | 'M2' | 'M3' | 'M4';
+  current_kilometers?: number;
+  kilometers?: number; // Backend uses 'kilometers' field
   location?: string;
   last_m3_date?: string;
   next_m3_kilometers?: number;
 }
+
 export interface NextM3Item {
   vehicle_plate: string;
   last_m3_date?: string;
@@ -60,25 +60,17 @@ export interface Trip extends BaseEntity {
   route_id: string;
   vehicle_id: string;
   driver_id: string;
-
   start_date: string;
-  end_date?: string | null;
-
-  start_kilometers?: number | null;
-  end_kilometers?: number | null;
-
-  total_kilometers?: number | null;
-
-  applied_kilometers?: boolean;
-
+  end_date?: string;
+  start_kilometers: number;
+  end_kilometers?: number;
+  total_kilometers?: number;
   status: 'in_progress' | 'completed' | 'cancelled';
-  observations?: string | null;
-
+  observations?: string;
   route?: Route;
   vehicle?: Vehicle;
   driver?: Driver;
 }
-
 
 export interface Shift extends BaseEntity {
   contract_id: string;
