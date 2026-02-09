@@ -7,7 +7,8 @@ import { Trip, Route, Vehicle, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = BASE_URL.endsWith('/') ? BASE_URL : BASE_URL + '/';
 
 export default function Trips() {
   const { toast } = useToast();
