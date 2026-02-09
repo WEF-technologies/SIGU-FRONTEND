@@ -62,9 +62,10 @@ export interface Trip extends BaseEntity {
   driver_id: string;
   start_date: string;
   end_date?: string;
-  start_kilometers: number;
+  start_kilometers?: number;
   end_kilometers?: number;
   total_kilometers?: number;
+  applied_kilometers?: boolean;
   status: 'in_progress' | 'completed' | 'cancelled';
   observations?: string;
   route?: Route;
