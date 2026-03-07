@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Maintenance as MaintenanceType, Vehicle, MaintenanceAlert } from "@/types";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
@@ -8,20 +8,34 @@ const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 export function useMaintenance() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+
+  /**
+   * Ref que siempre apunta a la versión más reciente de authenticatedFetch.
+   * Esto evita que el useEffect principal se re-ejecute cada vez que el
+   * token se renueva (lo que causaba un "reinicio de pantalla" innecesario).
+   */
+  const fetchRef = useRef(authenticatedFetch);
+  fetchRef.current = authenticatedFetch;
+
   const [maintenance, setMaintenance] = useState<MaintenanceType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [alerts, setAlerts] = useState<MaintenanceAlert[]>([]);
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(
-    () => new Set(JSON.parse(localStorage.getItem('dismissedMaintenanceAlerts') || '[]'))
-  );
 
-  const fetchAlerts = async () => {
+  /**
+   * Los dismissed se leen directamente del localStorage al filtrar alerts,
+   * sin guardarlos en estado de React para no re-disparar el useEffect.
+   */
+  const getDismissedAlerts = (): Set<string> =>
+    new Set(JSON.parse(localStorage.getItem('dismissedMaintenanceAlerts') || '[]'));
+
+  const fetchAlerts = useCallback(async () => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/alerts`);
+      const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/alerts`);
       if (response.ok) {
         const alertsData = await response.json();
-        const filteredAlerts = Array.isArray(alertsData) 
-          ? alertsData.filter(alert => !dismissedAlerts.has(`${alert.vehicle_plate}-${alert.type}`))
+        const dismissed = getDismissedAlerts();
+        const filteredAlerts = Array.isArray(alertsData)
+          ? alertsData.filter(alert => !dismissed.has(`${alert.vehicle_plate}-${alert.type}`))
           : [];
         setAlerts(filteredAlerts);
       } else {
@@ -31,47 +45,38 @@ export function useMaintenance() {
       console.error('Error fetching alerts:', error);
       setAlerts([]);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // fetchRef es estable; getDismissedAlerts lee localStorage directamente
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log('Fetching maintenance data...');
-        const maintenanceResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenances/`);
-        console.log('Maintenance response status:', maintenanceResponse.status);
+        const maintenanceResponse = await fetchRef.current(`${API_URL}/api/v1/maintenances/`);
         let maintenanceData: MaintenanceType[] = [];
         if (maintenanceResponse.ok) {
           maintenanceData = await maintenanceResponse.json();
-          console.log('Maintenance data received:', maintenanceData);
           setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
         } else {
-          console.log('Maintenance fetch failed:', maintenanceResponse.status);
           setMaintenance([]);
         }
 
-        console.log('Fetching vehicles data...');
-        const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
         console.log('Vehicles response status:', vehiclesResponse.status);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
-          console.log('Vehicles data received:', vehiclesData);
-          
           const mappedVehicles = vehiclesData.map((vehicle: any) => ({
             ...vehicle,
             current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-            // Preservar todos los campos calculados del backend
             next_m3_kilometers: vehicle.next_m3_kilometers,
             last_m3_date: vehicle.last_m3_date,
             last_m3_kilometers: vehicle.last_m3_kilometers
           }));
-          
+
           setVehicles(Array.isArray(mappedVehicles) ? mappedVehicles : []);
         } else {
-          console.log('Vehicles fetch failed:', vehiclesResponse.status);
           setVehicles([]);
         }
 
-        // Fetch maintenance alerts
         await fetchAlerts();
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -81,22 +86,25 @@ export function useMaintenance() {
     };
 
     fetchData();
-  }, [authenticatedFetch, dismissedAlerts]);
+  // Solo se ejecuta al montar el componente.
+  // fetchRef y fetchAlerts son estables y no necesitan ser deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Expose a function to refresh vehicles (useful to avoid full page reloads)
+  const mapVehicle = (vehicle: any) => ({
+    ...vehicle,
+    current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+    next_m3_kilometers: vehicle.next_m3_kilometers,
+    last_m3_date: vehicle.last_m3_date,
+    last_m3_kilometers: vehicle.last_m3_kilometers,
+  });
+
   const refreshVehicles = async () => {
     try {
-      const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+      const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
       if (vehiclesResponse.ok) {
         const vehiclesData = await vehiclesResponse.json();
-        const mappedVehicles = vehiclesData.map((vehicle: any) => ({
-          ...vehicle,
-          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-          next_m3_kilometers: vehicle.next_m3_kilometers,
-          last_m3_date: vehicle.last_m3_date,
-          last_m3_kilometers: vehicle.last_m3_kilometers
-        }));
-        setVehicles(Array.isArray(mappedVehicles) ? mappedVehicles : []);
+        setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
       } else {
         setVehicles([]);
       }
@@ -106,17 +114,9 @@ export function useMaintenance() {
     }
   };
 
-  // Update or insert a single vehicle in the local state (used after PUT/POST responses)
   const updateVehicleInState = (updatedVehicle: any) => {
     try {
-      const mapped = {
-        ...updatedVehicle,
-        current_kilometers: updatedVehicle.kilometers || updatedVehicle.current_kilometers || 0,
-        next_m3_kilometers: updatedVehicle.next_m3_kilometers,
-        last_m3_date: updatedVehicle.last_m3_date,
-        last_m3_kilometers: updatedVehicle.last_m3_kilometers
-      };
-
+      const mapped = mapVehicle(updatedVehicle);
       setVehicles(prev => {
         const exists = prev.some(v => v.id === mapped.id || v.plate_number === mapped.plate_number);
         if (exists) {
@@ -127,6 +127,11 @@ export function useMaintenance() {
     } catch (error) {
       console.error('Error updating vehicle in state:', error);
     }
+  };
+
+  /** Elimina un vehículo del estado local sin necesidad de refetch. */
+  const removeVehicleFromState = (plateNumber: string) => {
+    setVehicles(prev => prev.filter(v => v.plate_number !== plateNumber));
   };
 
   const createMaintenance = async (formData: any) => {
@@ -142,34 +147,20 @@ export function useMaintenance() {
       spare_part_description: formData.spare_part_description || null
     };
 
-    console.log('Submitting maintenance data:', submitData);
-
-    const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/`, {
+    const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(submitData),
     });
     
-    console.log('POST response status:', response.status);
-    
     if (response.ok) {
       const newMaintenance = await response.json();
-      console.log('Created maintenance:', newMaintenance);
-      
       setMaintenance([...maintenance, newMaintenance]);
-      
-      // Refresh vehicles and alerts
-      const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+
+      const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
       if (vehiclesResponse.ok) {
         const vehiclesData = await vehiclesResponse.json();
-        const mappedVehicles = vehiclesData.map((vehicle: any) => ({
-          ...vehicle,
-          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-          next_m3_kilometers: vehicle.next_m3_kilometers,
-          last_m3_date: vehicle.last_m3_date,
-          last_m3_kilometers: vehicle.last_m3_kilometers
-        }));
-        setVehicles(mappedVehicles);
+        setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
       }
       
       await fetchAlerts();
@@ -180,13 +171,7 @@ export function useMaintenance() {
       });
       return true;
     } else {
-      const errorData = await response.text();
-      console.error('POST error response:', errorData);
-      toast({
-        title: "Error",
-        description: "Error al crear el mantenimiento.",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Error al crear el mantenimiento.", variant: "destructive" });
       return false;
     }
   };
@@ -204,83 +189,47 @@ export function useMaintenance() {
       spare_part_description: formData.spare_part_description || null
     };
 
-    console.log('Updating maintenance data:', submitData);
-
-    const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/${id}`, {
+    const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(submitData),
     });
-    
-    console.log('PUT response status:', response.status);
-    
+
     if (response.ok) {
       const updated = await response.json();
-      console.log('Updated maintenance:', updated);
-      
       setMaintenance(maintenance.map(m => m.id === id ? updated : m));
-      
-      // Refresh vehicles and alerts
-      const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+
+      const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
       if (vehiclesResponse.ok) {
         const vehiclesData = await vehiclesResponse.json();
-        const mappedVehicles = vehiclesData.map((vehicle: any) => ({
-          ...vehicle,
-          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-          next_m3_kilometers: vehicle.next_m3_kilometers,
-          last_m3_date: vehicle.last_m3_date,
-          last_m3_kilometers: vehicle.last_m3_kilometers
-        }));
-        setVehicles(mappedVehicles);
+        setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
       }
-      
+
       await fetchAlerts();
-      
-      toast({
-        title: "Mantenimiento actualizado",
-        description: `El mantenimiento ${formData.type} ha sido actualizado correctamente.`,
-      });
+      toast({ title: "Mantenimiento actualizado", description: `El mantenimiento ${formData.type} ha sido actualizado.` });
       return true;
     } else {
-      const errorData = await response.text();
-      console.error('PUT error response:', errorData);
-      toast({
-        title: "Error",
-        description: "Error al actualizar el mantenimiento.",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Error al actualizar el mantenimiento.", variant: "destructive" });
       return false;
     }
   };
 
   const deleteMaintenance = async (maintenanceItem: MaintenanceType) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/maintenances/${maintenanceItem.id}`, {
+      const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${maintenanceItem.id}`, {
         method: "DELETE",
       });
       if (response.ok) {
         setMaintenance(maintenance.filter(m => m.id !== maintenanceItem.id));
-        
-        // Refresh vehicles and alerts
-        const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+
+        const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
-        const mappedVehicles = vehiclesData.map((vehicle: any) => ({
-          ...vehicle,
-          current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-          next_m3_kilometers: vehicle.next_m3_kilometers,
-          last_m3_date: vehicle.last_m3_date,
-          last_m3_kilometers: vehicle.last_m3_kilometers
-        }));
-        setVehicles(mappedVehicles);
-      }
-      
-      await fetchAlerts();
-        
-        toast({
-          title: "Mantenimiento eliminado",
-          description: "El registro de mantenimiento ha sido eliminado correctamente.",
-        });
+          setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
+        }
+
+        await fetchAlerts();
+        toast({ title: "Mantenimiento eliminado", description: "El registro ha sido eliminado correctamente." });
       }
     } catch (error) {
       console.error('Error deleting maintenance:', error);
@@ -289,11 +238,12 @@ export function useMaintenance() {
 
   const dismissAlert = (alert: MaintenanceAlert) => {
     const alertKey = `${alert.vehicle_plate}-${alert.type}`;
-    const newDismissedAlerts = new Set(dismissedAlerts);
-    newDismissedAlerts.add(alertKey);
-    setDismissedAlerts(newDismissedAlerts);
-    localStorage.setItem('dismissedMaintenanceAlerts', JSON.stringify([...newDismissedAlerts]));
-    setAlerts(alerts.filter(a => `${a.vehicle_plate}-${a.type}` !== alertKey));
+    // Actualizar localStorage directamente (sin estado de React)
+    const current = getDismissedAlerts();
+    current.add(alertKey);
+    localStorage.setItem('dismissedMaintenanceAlerts', JSON.stringify([...current]));
+    // Filtrar solo el estado local de alerts sin refetch
+    setAlerts(prev => prev.filter(a => `${a.vehicle_plate}-${a.type}` !== alertKey));
   };
 
   /**
@@ -312,7 +262,7 @@ export function useMaintenance() {
   ) => {
     const results = await Promise.all(
       baselines.map((b) =>
-        authenticatedFetch(`${API_URL}/api/v1/maintenances/`, {
+        fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -356,6 +306,7 @@ export function useMaintenance() {
     alerts,
     refreshVehicles,
     updateVehicleInState,
+    removeVehicleFromState,
     createMaintenance,
     updateMaintenance,
     deleteMaintenance,
