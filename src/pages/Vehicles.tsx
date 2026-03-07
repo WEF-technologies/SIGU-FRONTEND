@@ -40,7 +40,7 @@ const today = new Date().toISOString().split("T")[0];
 export default function Vehicles() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
-  const { vehicles, refreshVehicles, updateVehicleInState, createBaselineMaintenances } = useMaintenance();
+  const { vehicles, refreshVehicles, updateVehicleInState, removeVehicleFromState, createBaselineMaintenances } = useMaintenance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<ModalStep>("vehicle");
@@ -127,8 +127,9 @@ export default function Vehicles() {
         method: "DELETE",
       });
       if (response.ok) {
+        // Eliminar del estado local directamente — sin refetch completo
+        removeVehicleFromState(vehicle.plate_number);
         toast({ title: "Vehículo eliminado", description: `${vehicle.plate_number} ha sido eliminado.` });
-        await refreshVehicles();
       }
     } catch (error) {
       console.error("Error deleting vehicle:", error);

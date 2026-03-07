@@ -3,6 +3,7 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
 
@@ -44,14 +45,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restaurar sesión (sin timers, sin exp)
+  /**
+   * Singleton del refresh en vuelo.
+   * Si varias llamadas paralelas reciben 401 al mismo tiempo, todas
+   * esperan este mismo Promise en lugar de lanzar refreshes independientes
+   * que colisionarían (el backend invalida el refresh_token anterior al
+   * emitir uno nuevo, lo que provoca que los refreshes #2, #3... fallen
+   * y llamen a logout() aunque la sesión fuera válida).
+   */
+  const pendingRefreshRef = useRef<Promise<string | null> | null>(null);
+
+  // Restaurar sesión desde localStorage
   useEffect(() => {
     const savedToken = localStorage.getItem('authToken');
     const savedUser = localStorage.getItem('authUser');
 
     if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
+      try {
+        setToken(savedToken);
+        setUser(JSON.parse(savedUser));
+      } catch {
+        // JSON corrupto: limpiar
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('authUser');
+        localStorage.removeItem('refreshToken');
+      }
     }
 
     setIsLoading(false);
@@ -107,52 +125,71 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  //  Refresh token (solo se usa desde useAuthenticatedFetch)
-  const refreshToken = async (): Promise<string | null> => {
-    try {
-      const storedRefreshToken = localStorage.getItem('refreshToken');
-      if (!storedRefreshToken) return null;
-
-      const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: storedRefreshToken }),
-      });
-
-      if (!response.ok) {
-        logout();
-        return null;
-      }
-
-      const data = await response.json();
-      const {
-        access_token: newAccessToken,
-        refresh_token: newRefreshToken,
-      } = data;
-
-      if (!newAccessToken) {
-        logout();
-        return null;
-      }
-
-      setToken(newAccessToken);
-      localStorage.setItem('authToken', newAccessToken);
-
-      if (newRefreshToken) {
-        localStorage.setItem('refreshToken', newRefreshToken);
-      }
-
-      return newAccessToken;
-    } catch {
-      logout();
-      return null;
+  /**
+   * Refresca el access token con protección ante llamadas concurrentes.
+   * Si ya hay un refresh en vuelo, devuelve el mismo Promise para que
+   * todos los callers esperen el mismo resultado.
+   */
+  const refreshToken = (): Promise<string | null> => {
+    if (pendingRefreshRef.current) {
+      return pendingRefreshRef.current;
     }
+
+    const doRefresh = async (): Promise<string | null> => {
+      try {
+        const storedRefreshToken = localStorage.getItem('refreshToken');
+        if (!storedRefreshToken) {
+          logout();
+          return null;
+        }
+
+        const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: storedRefreshToken }),
+        });
+
+        if (!response.ok) {
+          logout();
+          return null;
+        }
+
+        const data = await response.json();
+        const {
+          access_token: newAccessToken,
+          refresh_token: newRefreshToken,
+        } = data;
+
+        if (!newAccessToken) {
+          logout();
+          return null;
+        }
+
+        setToken(newAccessToken);
+        localStorage.setItem('authToken', newAccessToken);
+
+        if (newRefreshToken) {
+          localStorage.setItem('refreshToken', newRefreshToken);
+        }
+
+        return newAccessToken;
+      } catch {
+        logout();
+        return null;
+      } finally {
+        // Liberar el singleton cuando se resuelva (con éxito o error)
+        pendingRefreshRef.current = null;
+      }
+    };
+
+    pendingRefreshRef.current = doRefresh();
+    return pendingRefreshRef.current;
   };
 
-  //  Logout
   const logout = () => {
     setToken(null);
     setUser(null);
+    pendingRefreshRef.current = null;
     localStorage.removeItem('authToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('authUser');
