@@ -296,6 +296,60 @@ export function useMaintenance() {
     setAlerts(alerts.filter(a => `${a.vehicle_plate}-${a.type}` !== alertKey));
   };
 
+  /**
+   * Crea registros de mantenimiento base para un vehículo recién registrado.
+   * Recibe un arreglo de { plate_number, type, kilometers, date } y los envía al backend.
+   * Esto evita que el sistema genere decenas de alertas falsas al registrar una unidad
+   * con kilómetros existentes sin historial previo.
+   */
+  const createBaselineMaintenances = async (
+    baselines: Array<{
+      plate_number: string;
+      type: string;
+      kilometers: number;
+      date: string;
+    }>
+  ) => {
+    const results = await Promise.all(
+      baselines.map((b) =>
+        authenticatedFetch(`${API_URL}/api/v1/maintenances/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plate_number: b.plate_number,
+            type: b.type,
+            kilometers: b.kilometers,
+            date: b.date,
+            description: `Baseline inicial — registro de último mantenimiento ${b.type.toUpperCase()} al ingresar la unidad al sistema`,
+            location: null,
+            performed_by: null,
+            spare_part_id: null,
+            spare_part_description: null,
+          }),
+        })
+      )
+    );
+
+    const allOk = results.every((r) => r.ok);
+
+    if (allOk) {
+      // Refrescar alerts para que el backend recalcule desde el nuevo baseline
+      await fetchAlerts();
+      toast({
+        title: "Baseline configurado",
+        description: "El historial de mantenimiento inicial ha sido registrado. Las alertas ahora reflejan el estado real del vehículo.",
+      });
+    } else {
+      toast({
+        title: "Error parcial en baseline",
+        description: "Algunos registros de baseline no se pudieron crear. Revisa los mantenimientos del vehículo.",
+        variant: "destructive",
+      });
+    }
+
+    return allOk;
+  };
+
   return {
     maintenance,
     vehicles,
@@ -306,6 +360,7 @@ export function useMaintenance() {
     updateMaintenance,
     deleteMaintenance,
     fetchAlerts,
-    dismissAlert
+    dismissAlert,
+    createBaselineMaintenances,
   };
 }
