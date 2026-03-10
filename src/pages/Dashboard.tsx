@@ -15,6 +15,7 @@ import {
   ChevronRight,
   CheckCircle,
   Clock,
+  IdCard,
 } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
@@ -156,21 +157,28 @@ export default function Dashboard() {
 
       {/* ─── BANNER ALERTAS CRÍTICAS GLOBALES ────────────────────────── */}
       {(criticalAlerts.length > 0 || criticalDriverAlerts.length > 0) && (
-        <div className="rounded-xl border-2 border-red-400 bg-red-600 text-white p-5 flex items-start gap-4 shadow-lg">
-          <Siren className="h-8 w-8 shrink-0 mt-0.5 animate-pulse" />
+        <div className="rounded-lg border border-red-300 bg-red-600 text-white p-4 flex items-center gap-4 shadow-md">
+          <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/15 shrink-0">
+            <Siren className="h-5 w-5 animate-pulse" />
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xl font-bold leading-tight">Requiere atención inmediata</p>
-            <div className="mt-1 flex flex-wrap gap-3 text-sm text-red-100">
+            <p className="font-bold text-base leading-tight">Atención inmediata requerida</p>
+            <div className="mt-1 flex flex-wrap gap-4 text-sm text-red-100">
               {criticalAlerts.length > 0 && (
-                <span>
-                  🔧 <strong className="text-white">{criticalAlerts.length}</strong> mantenimiento
-                  {criticalAlerts.length !== 1 ? "s" : ""} vencido{criticalAlerts.length !== 1 ? "s" : ""}
+                <span className="flex items-center gap-1.5">
+                  <Wrench className="h-3.5 w-3.5 text-red-200" />
+                  <strong className="text-white">{criticalAlerts.length}</strong>
+                  {" "}mantenimiento{criticalAlerts.length !== 1 ? "s" : ""} vencido{criticalAlerts.length !== 1 ? "s" : ""}
                 </span>
               )}
+              {criticalAlerts.length > 0 && criticalDriverAlerts.length > 0 && (
+                <span className="text-red-300">|</span>
+              )}
               {criticalDriverAlerts.length > 0 && (
-                <span>
-                  🧑‍✈️ <strong className="text-white">{criticalDriverAlerts.length}</strong> chofer
-                  {criticalDriverAlerts.length !== 1 ? "es" : ""} con documentos vencidos
+                <span className="flex items-center gap-1.5">
+                  <IdCard className="h-3.5 w-3.5 text-red-200" />
+                  <strong className="text-white">{criticalDriverAlerts.length}</strong>
+                  {" "}chofer{criticalDriverAlerts.length !== 1 ? "es" : ""} con documentos vencidos
                 </span>
               )}
             </div>
@@ -178,10 +186,10 @@ export default function Dashboard() {
           <Button
             variant="outline"
             size="sm"
-            className="bg-white/10 border-white/30 text-white hover:bg-white/20 shrink-0"
+            className="bg-white/10 border-white/30 text-white hover:bg-white/20 shrink-0 text-xs"
             onClick={() => navigate("/mantenimiento")}
           >
-            Ver alertas <ChevronRight className="w-4 h-4 ml-1" />
+            Revisar <ChevronRight className="w-3.5 h-3.5 ml-1" />
           </Button>
         </div>
       )}
