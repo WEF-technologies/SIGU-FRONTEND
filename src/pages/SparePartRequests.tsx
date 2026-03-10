@@ -12,7 +12,6 @@ import {
   XCircle,
   Plus,
   Clock,
-  ClipboardList,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
@@ -38,27 +37,23 @@ export default function SparePartRequests() {
   const [selectedRequest, setSelectedRequest] = useState<SparePartRequest | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchRequests = async () => {
-    setIsLoading(true);
-    try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`);
-      if (response.ok) {
-        const data = await response.json();
-        setRequests(Array.isArray(data) ? data : []);
-      } else {
-        setRequests([]);
-      }
-    } catch (error) {
-      console.error("Error fetching requests:", error);
-      setRequests([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
+    const fetchRequests = async () => {
+      try {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`);
+        if (response.ok) {
+          const data = await response.json();
+          setRequests(Array.isArray(data) ? data : []);
+        } else {
+          setRequests([]);
+        }
+      } catch (error) {
+        console.error("Error fetching requests:", error);
+        setRequests([]);
+      }
+    };
+
     fetchRequests();
   }, [authenticatedFetch]);
 
@@ -287,7 +282,6 @@ export default function SparePartRequests() {
         searchField="code"
         searchPlaceholder="Buscar por código..."
         hideAddButton={true}
-        isLoading={isLoading}
       />
 
       {/* Modal detalle */}
