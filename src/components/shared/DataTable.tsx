@@ -115,28 +115,33 @@ export function DataTable<T extends { id: string }>({
                   {columns.map((column) => (
                     <TableCell key={String(column.key)} className="py-4">
                       {column.key === "actions" ? (
-                        <div className="flex gap-2">
-                          {onEdit && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onEdit(item)}
-                              className="border-primary-200 text-primary hover:bg-primary-50"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                          )}
-                          {onDelete && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onDelete(item)}
-                              className="border-red-200 text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
+                        // Render personalizado tiene prioridad sobre los botones por defecto
+                        column.render ? (
+                          column.render(null, item)
+                        ) : (
+                          <div className="flex gap-2">
+                            {onEdit && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onEdit(item)}
+                                className="border-primary-200 text-primary hover:bg-primary-50"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            )}
+                            {onDelete && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onDelete(item)}
+                                className="border-red-200 text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                        )
                       ) : column.render ? (
                         column.render(item[column.key as keyof T], item)
                       ) : (
