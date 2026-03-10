@@ -65,13 +65,20 @@ export function AppSidebar() {
     >
       <div className="p-4 border-b border-secondary-medium">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Car className="w-5 h-5 text-white" />
+          {/* Monograma SM con los colores del logo */}
+          <div className="w-9 h-9 rounded-lg bg-[#1d6b2d] flex items-center justify-center shrink-0 select-none">
+            <span className="text-white font-black text-sm leading-none tracking-tight">
+              S<span className="text-[#8dc63f]">M</span>
+            </span>
           </div>
           {!collapsed && (
-            <div>
-              <h2 className="font-bold text-lg text-primary">Servimont</h2>
-              <p className="text-xs text-secondary-dark">Sistema de Gestión</p>
+            <div className="min-w-0">
+              <h2 className="font-black text-sm leading-tight tracking-wide">
+                <span className="text-[#1d6b2d]">SERVI-</span>
+                <span className="text-[#808080]">MONT</span>
+              </h2>
+              <p className="text-[10px] font-semibold text-[#8dc63f] leading-tight">M2D C.A.</p>
+              <p className="text-[9px] text-secondary-dark leading-tight">Sistema de Gestión</p>
             </div>
           )}
         </div>
