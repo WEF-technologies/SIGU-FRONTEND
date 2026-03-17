@@ -28,17 +28,40 @@ export function MaintenanceFormModal({
 }: MaintenanceFormModalProps) {
   const authenticatedFetch = useAuthenticatedFetch();
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
-  const [formData, setFormData] = useState({
-    plate_number: editingMaintenance?.vehicle_plate || "",
-    description: editingMaintenance?.description || "",
-    type: (editingMaintenance?.type || "m2+") as MaintenanceTypeKey,
-    date: editingMaintenance?.date || new Date().toISOString().split('T')[0],
-    kilometers: editingMaintenance?.kilometers || 0,
-    location: editingMaintenance?.location || "",
-    performed_by: editingMaintenance?.performed_by || "",
-    spare_part_id: editingMaintenance?.spare_part_id || "none",
-    spare_part_description: editingMaintenance?.spare_part_description || ""
+
+  const emptyForm = () => ({
+    plate_number: "",
+    description: "",
+    type: "m2+" as MaintenanceTypeKey,
+    date: new Date().toISOString().split('T')[0],
+    kilometers: 0,
+    location: "",
+    performed_by: "",
+    spare_part_id: "none",
+    spare_part_description: ""
   });
+
+  const [formData, setFormData] = useState(emptyForm());
+
+  // Repoblar el formulario cada vez que se abre el modal o cambia el registro editado
+  useEffect(() => {
+    if (!isOpen) return;
+    if (editingMaintenance) {
+      setFormData({
+        plate_number: editingMaintenance.vehicle_plate || "",
+        description: editingMaintenance.description || "",
+        type: (editingMaintenance.type || "m2+") as MaintenanceTypeKey,
+        date: editingMaintenance.date || new Date().toISOString().split('T')[0],
+        kilometers: editingMaintenance.kilometers || 0,
+        location: editingMaintenance.location || "",
+        performed_by: editingMaintenance.performed_by || "",
+        spare_part_id: editingMaintenance.spare_part_id || "none",
+        spare_part_description: editingMaintenance.spare_part_description || ""
+      });
+    } else {
+      setFormData(emptyForm());
+    }
+  }, [isOpen, editingMaintenance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const fetchSpareParts = async () => {
@@ -60,19 +83,7 @@ export function MaintenanceFormModal({
     }
   }, [isOpen, authenticatedFetch]);
 
-  const resetForm = () => {
-    setFormData({
-      plate_number: "",
-      description: "",
-      type: "m2+",
-      date: new Date().toISOString().split('T')[0],
-      kilometers: 0,
-      location: "",
-      performed_by: "",
-      spare_part_id: "none",
-      spare_part_description: ""
-    });
-  };
+  const resetForm = () => setFormData(emptyForm());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

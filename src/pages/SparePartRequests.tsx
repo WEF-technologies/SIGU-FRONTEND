@@ -44,7 +44,14 @@ export default function SparePartRequests() {
         const response = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`);
         if (response.ok) {
           const data = await response.json();
-          setRequests(Array.isArray(data) ? data : []);
+          const raw = Array.isArray(data) ? data : [];
+          // Normalizar _id → id y status a minúsculas por si el backend varía
+          const normalized = raw.map((item: any) => ({
+            ...item,
+            id: item.id ?? item._id ?? "",
+            status: (item.status ?? "pending").toLowerCase(),
+          }));
+          setRequests(normalized);
         } else {
           setRequests([]);
         }
