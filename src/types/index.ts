@@ -16,6 +16,7 @@ export interface Vehicle extends BaseEntity {
   kilometers?: number; // Backend uses 'kilometers' field
   location?: string;
   last_m3_date?: string;
+  last_m3_kilometers?: number;
   next_m3_kilometers?: number;
 }
 

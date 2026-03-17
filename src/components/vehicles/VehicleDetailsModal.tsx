@@ -73,35 +73,34 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     return <Badge className={config.className}>{config.text}</Badge>;
   };
 
-  // Calcular información M3 usando los datos del vehículo
+  /**
+   * Km efectivo: usa el mayor entre el km almacenado del vehículo y el km
+   * del último M3 registrado. Evita mostrar "Faltan" inflado cuando el campo
+   * current_kilometers del vehículo está desactualizado respecto al historial.
+   */
+  const effectiveCurrentKm = Math.max(
+    vehicle.current_kilometers || vehicle.kilometers || 0,
+    vehicle.last_m3_kilometers || 0
+  );
+
   const calculateM3Progress = () => {
-    const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
     const nextM3Km = vehicle.next_m3_kilometers;
-    
-    if (!currentKm || !nextM3Km) {
-      return 0;
-    }
-    
-    // Asumimos un intervalo M3 de 7000km para el cálculo de progreso
+    if (!effectiveCurrentKm || !nextM3Km) return 0;
     const M3_INTERVAL = 7000;
     const lastM3Km = nextM3Km - M3_INTERVAL;
-    const kmSinceLastM3 = currentKm - lastM3Km;
-    return Math.min((kmSinceLastM3 / M3_INTERVAL) * 100, 100);
+    const kmSinceLastM3 = effectiveCurrentKm - lastM3Km;
+    return Math.min(Math.max((kmSinceLastM3 / M3_INTERVAL) * 100, 0), 100);
   };
 
   const getM3Status = () => {
-    const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
     const nextM3Km = vehicle.next_m3_kilometers;
-    
-    if (!currentKm || !nextM3Km) {
+    if (!effectiveCurrentKm || !nextM3Km) {
       return { text: 'N/A', isOverdue: false };
     }
-    
-    const remaining = nextM3Km - currentKm;
+    const remaining = nextM3Km - effectiveCurrentKm;
     if (remaining <= 0) {
       return { text: 'Vencido', isOverdue: true };
     }
-    
     return { text: `${remaining.toLocaleString()} km`, isOverdue: false };
   };
 

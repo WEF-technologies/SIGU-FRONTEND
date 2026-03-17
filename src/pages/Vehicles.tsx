@@ -276,10 +276,15 @@ export default function Vehicles() {
                       <div className="flex items-center gap-1">
                         <Gauge className="w-4 h-4 text-gray-400" />
                         {(() => {
-                          const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+                          // Usar el mayor km conocido (evita "Faltan" inflado cuando
+                          // current_km está desactualizado respecto al último mantenimiento)
+                          const effectiveKm = Math.max(
+                            vehicle.current_kilometers || vehicle.kilometers || 0,
+                            vehicle.last_m3_kilometers || 0
+                          );
                           const nextM3Km = vehicle.next_m3_kilometers;
-                          if (currentKm && nextM3Km) {
-                            const remaining = nextM3Km - currentKm;
+                          if (effectiveKm && nextM3Km) {
+                            const remaining = nextM3Km - effectiveKm;
                             return remaining <= 0 ? (
                               <span className="text-red-600 font-semibold">Vencido</span>
                             ) : (
