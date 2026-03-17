@@ -49,25 +49,82 @@ export function useMaintenance() {
   const getDismissedAlerts = (): Set<string> =>
     new Set(JSON.parse(localStorage.getItem('dismissedMaintenanceAlerts') || '[]'));
 
-  const fetchAlerts = useCallback(async () => {
+  /**
+   * Calcula alertas M3 vencidas o próximas directamente desde los vehículos
+   * enriquecidos. Esto garantiza que siempre se muestren aunque el backend
+   * no las devuelva o hayan sido descartadas previamente en localStorage.
+   */
+  const computeLocalM3Alerts = (enrichedVehicles: Vehicle[]): MaintenanceAlert[] => {
+    return enrichedVehicles.flatMap((v) => {
+      const effectiveKm = Math.max(
+        v.current_kilometers || (v as any).kilometers || 0,
+        v.last_m3_kilometers || 0
+      );
+      const nextM3Km = v.next_m3_kilometers;
+      if (!effectiveKm || !nextM3Km) return [];
+      const remaining = nextM3Km - effectiveKm;
+      const M3_INTERVAL = 7000;
+      // Vencido: km >= próximo M3
+      if (remaining <= 0) {
+        return [{
+          vehicle_plate: v.plate_number,
+          type: 'm3',
+          last_km: v.last_m3_kilometers ?? null,
+          current_km: effectiveKm,
+          interval: M3_INTERVAL,
+          remaining_km: remaining,
+          status: 'due' as const,
+          severity: 3,
+        }];
+      }
+      // Próximo: menos del 15% del intervalo restante
+      if (remaining <= M3_INTERVAL * 0.15) {
+        return [{
+          vehicle_plate: v.plate_number,
+          type: 'm3',
+          last_km: v.last_m3_kilometers ?? null,
+          current_km: effectiveKm,
+          interval: M3_INTERVAL,
+          remaining_km: remaining,
+          status: 'near' as const,
+          severity: 2,
+        }];
+      }
+      return [];
+    });
+  };
+
+  /**
+   * Combina alertas del backend con las calculadas localmente.
+   * Las locales tienen precedencia para evitar duplicados.
+   */
+  const mergeAlerts = (backend: MaintenanceAlert[], local: MaintenanceAlert[]): MaintenanceAlert[] => {
+    const seen = new Set(local.map((a) => `${a.vehicle_plate}-${a.type}`));
+    const deduped = backend.filter((a) => !seen.has(`${a.vehicle_plate}-${a.type}`));
+    return [...local, ...deduped];
+  };
+
+  const fetchAlerts = useCallback(async (enrichedVehicles?: Vehicle[]) => {
     try {
       const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/alerts`);
+      const dismissed = getDismissedAlerts();
+      let backendAlerts: MaintenanceAlert[] = [];
       if (response.ok) {
         const alertsData = await response.json();
-        const dismissed = getDismissedAlerts();
-        const filteredAlerts = Array.isArray(alertsData)
-          ? alertsData.filter(alert => !dismissed.has(`${alert.vehicle_plate}-${alert.type}`))
+        backendAlerts = Array.isArray(alertsData)
+          ? alertsData.filter(a => !dismissed.has(`${a.vehicle_plate}-${a.type}`))
           : [];
-        setAlerts(filteredAlerts);
-      } else {
-        setAlerts([]);
       }
+      // Combinar con alertas calculadas localmente (siempre visibles, sin filtro dismissed)
+      const currentVehicles = enrichedVehicles ?? vehicles;
+      const localAlerts = computeLocalM3Alerts(currentVehicles);
+      setAlerts(mergeAlerts(backendAlerts, localAlerts));
     } catch (error) {
       console.error('Error fetching alerts:', error);
       setAlerts([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // fetchRef es estable; getDismissedAlerts lee localStorage directamente
+  }, []); // fetchRef y vehicles son accedidos por ref/closure estable
 
   useEffect(() => {
     const fetchData = async () => {
@@ -89,11 +146,11 @@ export function useMaintenance() {
             (v: any) => enrichWithM3(v, maintenanceData)
           );
           setVehicles(mapped);
+          await fetchAlerts(mapped);
         } else {
           setVehicles([]);
+          await fetchAlerts([]);
         }
-
-        await fetchAlerts();
       } catch (error) {
         console.error('Error fetching data:', error);
         setMaintenance([]);
@@ -112,11 +169,11 @@ export function useMaintenance() {
     const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
     if (vehiclesResponse.ok) {
       const vehiclesData = await vehiclesResponse.json();
-      setVehicles(
-        (Array.isArray(vehiclesData) ? vehiclesData : []).map((v: any) =>
-          enrichWithM3(v, currentMaintenances)
-        )
+      const mapped = (Array.isArray(vehiclesData) ? vehiclesData : []).map((v: any) =>
+        enrichWithM3(v, currentMaintenances)
       );
+      setVehicles(mapped);
+      await fetchAlerts(mapped);
     }
   };
 
@@ -167,8 +224,7 @@ export function useMaintenance() {
       const newMaintenance = await response.json();
       const updatedList = [...maintenance, newMaintenance];
       setMaintenance(updatedList);
-      await reloadVehicles(updatedList);
-      await fetchAlerts();
+      await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
 
       toast({
         title: "Mantenimiento registrado",
@@ -204,8 +260,7 @@ export function useMaintenance() {
       const updated = await response.json();
       const updatedList = maintenance.map(m => m.id === id ? updated : m);
       setMaintenance(updatedList);
-      await reloadVehicles(updatedList);
-      await fetchAlerts();
+      await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
       toast({ title: "Mantenimiento actualizado", description: `El mantenimiento ${formData.type} ha sido actualizado.` });
       return true;
     } else {
@@ -222,8 +277,7 @@ export function useMaintenance() {
       if (response.ok) {
         const updatedList = maintenance.filter(m => m.id !== maintenanceItem.id);
         setMaintenance(updatedList);
-        await reloadVehicles(updatedList);
-        await fetchAlerts();
+        await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
         toast({ title: "Mantenimiento eliminado", description: "El registro ha sido eliminado correctamente." });
       }
     } catch (error) {
