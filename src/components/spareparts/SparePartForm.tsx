@@ -36,6 +36,17 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
         compatible_vehicles: sparePart.compatible_vehicles || [],
         unit_price: sparePart.unit_price || 0,
       });
+    } else {
+      // Resetear al abrir el formulario para un nuevo repuesto
+      setFormData({
+        code: "",
+        description: "",
+        quantity: 0,
+        company_location: "",
+        store_location: "",
+        compatible_vehicles: [],
+        unit_price: 0,
+      });
     }
   }, [sparePart]);
 

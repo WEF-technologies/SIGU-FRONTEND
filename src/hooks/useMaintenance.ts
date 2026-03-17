@@ -5,6 +5,27 @@ import { useToast } from "@/hooks/use-toast";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
+/**
+ * Enriquece un vehículo con los datos de M3 calculados a partir del historial
+ * de mantenimiento ya disponible. Garantiza que "Último M3" y "Próximo M3"
+ * sean siempre consistentes con los registros reales.
+ */
+function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
+  const m3List = maintenances
+    .filter((m) => m.vehicle_plate === vehicle.plate_number && m.type === "m3")
+    .sort((a, b) => (b.kilometers ?? 0) - (a.kilometers ?? 0));
+  const lastM3 = m3List[0];
+  return {
+    ...vehicle,
+    current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+    last_m3_date: vehicle.last_m3_date ?? lastM3?.date ?? null,
+    last_m3_kilometers: vehicle.last_m3_kilometers ?? lastM3?.kilometers ?? null,
+    next_m3_kilometers:
+      vehicle.next_m3_kilometers ??
+      (lastM3?.kilometers != null ? lastM3.kilometers + 7000 : null),
+  };
+}
+
 export function useMaintenance() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
@@ -61,18 +82,13 @@ export function useMaintenance() {
         }
 
         const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
-        console.log('Vehicles response status:', vehiclesResponse.status);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
-          const mappedVehicles = vehiclesData.map((vehicle: any) => ({
-            ...vehicle,
-            current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-            next_m3_kilometers: vehicle.next_m3_kilometers,
-            last_m3_date: vehicle.last_m3_date,
-            last_m3_kilometers: vehicle.last_m3_kilometers
-          }));
-
-          setVehicles(Array.isArray(mappedVehicles) ? mappedVehicles : []);
+          // Enriquecer con M3 usando los datos de mantenimiento recién cargados
+          const mapped = (Array.isArray(vehiclesData) ? vehiclesData : []).map(
+            (v: any) => enrichWithM3(v, maintenanceData)
+          );
+          setVehicles(mapped);
         } else {
           setVehicles([]);
         }
@@ -91,32 +107,26 @@ export function useMaintenance() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const mapVehicle = (vehicle: any) => ({
-    ...vehicle,
-    current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
-    next_m3_kilometers: vehicle.next_m3_kilometers,
-    last_m3_date: vehicle.last_m3_date,
-    last_m3_kilometers: vehicle.last_m3_kilometers,
-  });
+  /** Rehidrata vehículos desde el backend usando la lista de mantenimientos proporcionada. */
+  const reloadVehicles = async (currentMaintenances: MaintenanceType[]) => {
+    const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
+    if (vehiclesResponse.ok) {
+      const vehiclesData = await vehiclesResponse.json();
+      setVehicles(
+        (Array.isArray(vehiclesData) ? vehiclesData : []).map((v: any) =>
+          enrichWithM3(v, currentMaintenances)
+        )
+      );
+    }
+  };
 
   const refreshVehicles = async () => {
-    try {
-      const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
-      if (vehiclesResponse.ok) {
-        const vehiclesData = await vehiclesResponse.json();
-        setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
-      } else {
-        setVehicles([]);
-      }
-    } catch (error) {
-      console.error('Error refreshing vehicles:', error);
-      setVehicles([]);
-    }
+    await reloadVehicles(maintenance);
   };
 
   const updateVehicleInState = (updatedVehicle: any) => {
     try {
-      const mapped = mapVehicle(updatedVehicle);
+      const mapped = enrichWithM3(updatedVehicle, maintenance);
       setVehicles(prev => {
         const exists = prev.some(v => v.id === mapped.id || v.plate_number === mapped.plate_number);
         if (exists) {
@@ -152,19 +162,14 @@ export function useMaintenance() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(submitData),
     });
-    
+
     if (response.ok) {
       const newMaintenance = await response.json();
-      setMaintenance([...maintenance, newMaintenance]);
-
-      const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
-      if (vehiclesResponse.ok) {
-        const vehiclesData = await vehiclesResponse.json();
-        setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
-      }
-      
+      const updatedList = [...maintenance, newMaintenance];
+      setMaintenance(updatedList);
+      await reloadVehicles(updatedList);
       await fetchAlerts();
-      
+
       toast({
         title: "Mantenimiento registrado",
         description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
@@ -197,14 +202,9 @@ export function useMaintenance() {
 
     if (response.ok) {
       const updated = await response.json();
-      setMaintenance(maintenance.map(m => m.id === id ? updated : m));
-
-      const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
-      if (vehiclesResponse.ok) {
-        const vehiclesData = await vehiclesResponse.json();
-        setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
-      }
-
+      const updatedList = maintenance.map(m => m.id === id ? updated : m);
+      setMaintenance(updatedList);
+      await reloadVehicles(updatedList);
       await fetchAlerts();
       toast({ title: "Mantenimiento actualizado", description: `El mantenimiento ${formData.type} ha sido actualizado.` });
       return true;
@@ -220,14 +220,9 @@ export function useMaintenance() {
         method: "DELETE",
       });
       if (response.ok) {
-        setMaintenance(maintenance.filter(m => m.id !== maintenanceItem.id));
-
-        const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
-        if (vehiclesResponse.ok) {
-          const vehiclesData = await vehiclesResponse.json();
-          setVehicles(Array.isArray(vehiclesData) ? vehiclesData.map(mapVehicle) : []);
-        }
-
+        const updatedList = maintenance.filter(m => m.id !== maintenanceItem.id);
+        setMaintenance(updatedList);
+        await reloadVehicles(updatedList);
         await fetchAlerts();
         toast({ title: "Mantenimiento eliminado", description: "El registro ha sido eliminado correctamente." });
       }
