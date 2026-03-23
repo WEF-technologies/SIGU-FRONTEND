@@ -67,13 +67,15 @@ interface MaintenanceRowProps {
 }
 
 function MaintenanceRow({ m, isLast, onEdit, onDelete, onView }: MaintenanceRowProps) {
-  const typeConfig = maintenanceTypeConfig[m.type];
+  const typeConfig = maintenanceTypeConfig[m.type as keyof typeof maintenanceTypeConfig];
+  const typeColor = typeConfig?.color ?? "text-gray-500 border-gray-400";
+  const typeLabel = typeConfig?.label?.split("(")[0]?.trim() ?? m.type?.toUpperCase() ?? "—";
   return (
     <div className={`flex gap-4 ${!isLast ? "pb-4 border-b border-gray-100" : ""}`}>
       {/* Timeline indicator */}
       <div className="flex flex-col items-center shrink-0 pt-1">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-xs font-bold ${typeConfig?.color.replace("text-", "border-").replace("border-", "border-")} bg-white`}>
-          <span className={typeConfig?.color.split(" ")[0]}>{m.type.toUpperCase()}</span>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-xs font-bold ${typeColor.replace("text-", "border-").split(" ")[0]} bg-white`}>
+          <span className={typeColor.split(" ")[0]}>{m.type?.toUpperCase() ?? "?"}</span>
         </div>
         {!isLast && <div className="w-0.5 flex-1 bg-gray-200 mt-1" />}
       </div>
@@ -83,8 +85,8 @@ function MaintenanceRow({ m, isLast, onEdit, onDelete, onView }: MaintenanceRowP
         {/* Header row */}
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
-            <Badge variant="outline" className={`text-xs font-semibold ${typeConfig?.color}`}>
-              {typeConfig?.label.split("(")[0].trim()}
+            <Badge variant="outline" className={`text-xs font-semibold ${typeColor}`}>
+              {typeLabel}
             </Badge>
             <span className="text-xs text-gray-500 flex items-center gap-1">
               <Calendar className="w-3 h-3" /> {formatDate(m.date)}
