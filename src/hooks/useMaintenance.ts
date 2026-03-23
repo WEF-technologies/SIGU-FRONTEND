@@ -6,15 +6,17 @@ import { useToast } from "@/hooks/use-toast";
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 /**
- * Enriquece un vehículo con los datos de M3 calculados a partir del historial
- * de mantenimiento ya disponible. Garantiza que "Último M3" y "Próximo M3"
- * sean siempre consistentes con los registros reales.
+ * Enriquece un vehículo con datos de M3. El backend mantiene last_m3_date y
+ * next_m3_kilometers automáticamente al registrar mantenimientos tipo "m3",
+ * por lo que se usan como fuente primaria. Se calculan desde el historial
+ * local sólo como fallback cuando el backend devuelve null.
  */
 function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
-  const m3List = maintenances
+  // Fallback: último M3 del historial ordenado por fecha descendente
+  const lastM3 = maintenances
     .filter((m) => m.vehicle_plate === vehicle.plate_number && m.type === "m3")
-    .sort((a, b) => (b.kilometers ?? 0) - (a.kilometers ?? 0));
-  const lastM3 = m3List[0];
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
   return {
     ...vehicle,
     current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
@@ -54,6 +56,10 @@ export function useMaintenance() {
    * enriquecidos. Esto garantiza que siempre se muestren aunque el backend
    * no las devuelva o hayan sido descartadas previamente en localStorage.
    */
+  // Umbral "near" alineado con el backend (near_threshold default = 500 km)
+  const M3_NEAR_THRESHOLD = 500;
+  const M3_INTERVAL = 7000;
+
   const computeLocalM3Alerts = (enrichedVehicles: Vehicle[]): MaintenanceAlert[] => {
     return enrichedVehicles.flatMap((v) => {
       const effectiveKm = Math.max(
@@ -63,7 +69,6 @@ export function useMaintenance() {
       const nextM3Km = v.next_m3_kilometers;
       if (!effectiveKm || !nextM3Km) return [];
       const remaining = nextM3Km - effectiveKm;
-      const M3_INTERVAL = 7000;
       // Vencido: km >= próximo M3
       if (remaining <= 0) {
         return [{
@@ -77,8 +82,8 @@ export function useMaintenance() {
           severity: 3,
         }];
       }
-      // Próximo: menos del 15% del intervalo restante
-      if (remaining <= M3_INTERVAL * 0.15) {
+      // Próximo: ≤ 500 km restantes (alineado con near_threshold del backend)
+      if (remaining <= M3_NEAR_THRESHOLD) {
         return [{
           vehicle_plate: v.plate_number,
           type: 'm3',
