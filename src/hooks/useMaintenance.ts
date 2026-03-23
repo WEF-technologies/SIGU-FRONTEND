@@ -201,59 +201,61 @@ export function useMaintenance() {
     setVehicles(prev => prev.filter(v => v.plate_number !== plateNumber));
   };
 
-  const createMaintenance = async (formData: any) => {
-    const submitData = {
-      plate_number: formData.plate_number,
-      description: formData.description,
-      type: formData.type,
-      date: formData.date,
-      kilometers: formData.kilometers || null,
-      location: formData.location || null,
-      performed_by: formData.performed_by || null,
-      spare_part_id: formData.spare_part_id || null,
-      spare_part_description: formData.spare_part_description || null
-    };
+  /** Construye el body para POST/PUT de mantenimiento. Envía tanto plate_number
+   *  como vehicle_plate para cubrir distintas versiones del backend. */
+  const buildMaintenancePayload = (formData: any) => ({
+    plate_number: formData.plate_number,
+    vehicle_plate: formData.plate_number,  // alias que puede esperar el backend
+    description: formData.description,
+    type: formData.type,
+    date: formData.date,
+    kilometers: formData.kilometers || null,
+    location: formData.location || null,
+    performed_by: formData.performed_by || null,
+    spare_part_id: formData.spare_part_id || null,
+    spare_part_description: formData.spare_part_description || null,
+  });
 
+  /** Extrae el mensaje de error legible de una respuesta HTTP fallida. */
+  const extractErrorMessage = async (response: Response): Promise<string> => {
+    try {
+      const body = await response.json();
+      return body.detail ?? body.message ?? body.error ?? JSON.stringify(body);
+    } catch {
+      return `Error ${response.status}`;
+    }
+  };
+
+  const createMaintenance = async (formData: any) => {
     const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(submitData),
+      body: JSON.stringify(buildMaintenancePayload(formData)),
     });
 
     if (response.ok) {
       const newMaintenance = await response.json();
       const updatedList = [...maintenance, newMaintenance];
       setMaintenance(updatedList);
-      await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
-
+      await reloadVehicles(updatedList);
       toast({
         title: "Mantenimiento registrado",
         description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
       });
       return true;
     } else {
-      toast({ title: "Error", description: "Error al crear el mantenimiento.", variant: "destructive" });
+      const msg = await extractErrorMessage(response);
+      console.error("Error al crear mantenimiento:", msg);
+      toast({ title: "Error al registrar", description: msg, variant: "destructive" });
       return false;
     }
   };
 
   const updateMaintenance = async (id: string, formData: any) => {
-    const submitData = {
-      plate_number: formData.plate_number,
-      description: formData.description,
-      type: formData.type,
-      date: formData.date,
-      kilometers: formData.kilometers || null,
-      location: formData.location || null,
-      performed_by: formData.performed_by || null,
-      spare_part_id: formData.spare_part_id || null,
-      spare_part_description: formData.spare_part_description || null
-    };
-
     const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(submitData),
+      body: JSON.stringify(buildMaintenancePayload(formData)),
     });
 
     if (response.ok) {
@@ -264,7 +266,9 @@ export function useMaintenance() {
       toast({ title: "Mantenimiento actualizado", description: `El mantenimiento ${formData.type} ha sido actualizado.` });
       return true;
     } else {
-      toast({ title: "Error", description: "Error al actualizar el mantenimiento.", variant: "destructive" });
+      const msg = await extractErrorMessage(response);
+      console.error("Error al actualizar mantenimiento:", msg);
+      toast({ title: "Error al actualizar", description: msg, variant: "destructive" });
       return false;
     }
   };
