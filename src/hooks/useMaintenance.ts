@@ -201,18 +201,16 @@ export function useMaintenance() {
     setVehicles(prev => prev.filter(v => v.plate_number !== plateNumber));
   };
 
-  /** Construye el body para POST/PUT de mantenimiento. Envía tanto plate_number
-   *  como vehicle_plate para cubrir distintas versiones del backend. */
+  /** Construye el body para POST/PUT de mantenimiento. */
   const buildMaintenancePayload = (formData: any) => ({
     plate_number: formData.plate_number,
-    vehicle_plate: formData.plate_number,  // alias que puede esperar el backend
     description: formData.description,
     type: formData.type,
     date: formData.date,
     kilometers: formData.kilometers || null,
     location: formData.location || null,
     performed_by: formData.performed_by || null,
-    spare_part_id: formData.spare_part_id || null,
+    spare_part_id: formData.spare_part_id && formData.spare_part_id !== "none" ? formData.spare_part_id : null,
     spare_part_description: formData.spare_part_description || null,
   });
 
