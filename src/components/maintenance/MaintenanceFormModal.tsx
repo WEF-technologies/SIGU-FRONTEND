@@ -113,7 +113,7 @@ export function MaintenanceFormModal({
     <FormModal
       isOpen={isOpen}
       onClose={handleClose}
-      title={editingMaintenance ? "Editar Mantenimiento" : "Registrar Mantenimiento"}
+      title={editingMaintenance?.id ? "Editar Mantenimiento" : "Registrar Mantenimiento"}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -265,7 +265,7 @@ export function MaintenanceFormModal({
             Cancelar
           </Button>
           <Button type="submit" className="bg-primary hover:bg-primary-600">
-            {editingMaintenance ? "Actualizar Mantenimiento" : "Registrar Mantenimiento"}
+            {editingMaintenance?.id ? "Actualizar Mantenimiento" : "Registrar Mantenimiento"}
           </Button>
         </div>
       </form>
