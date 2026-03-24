@@ -230,10 +230,12 @@ export function useMaintenance() {
   };
 
   const createMaintenance = async (formData: any) => {
+    const payload = buildMaintenancePayload(formData);
+    console.log('[createMaintenance] payload →', JSON.stringify(payload, null, 2));
     const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildMaintenancePayload(formData)),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
@@ -247,9 +249,16 @@ export function useMaintenance() {
       });
       return true;
     } else {
-      const msg = await extractErrorMessage(response);
-      console.error("Error al crear mantenimiento:", msg);
-      toast({ title: "Error al registrar", description: msg, variant: "destructive" });
+      const rawBody = await response.text();
+      console.error('[createMaintenance] error status:', response.status, '| body:', rawBody);
+      let msg: string;
+      try {
+        const body = JSON.parse(rawBody);
+        msg = body.detail ?? body.message ?? body.error ?? rawBody;
+      } catch {
+        msg = rawBody || `Error ${response.status}`;
+      }
+      toast({ title: `Error ${response.status} al registrar`, description: msg, variant: "destructive" });
       return false;
     }
   };
