@@ -99,9 +99,9 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Ruta */}
       <div>
-        <Label>Ruta</Label>
+        <Label htmlFor="route_id">Ruta</Label>
         <Select value={formData.route_id} onValueChange={(v) => setFormData({ ...formData, route_id: v })}>
-          <SelectTrigger><SelectValue placeholder="Seleccionar ruta" /></SelectTrigger>
+          <SelectTrigger id="route_id"><SelectValue placeholder="Seleccionar ruta" /></SelectTrigger>
           <SelectContent>
             {routes.map((r) => (
               <SelectItem key={r.id} value={r.id}>
@@ -118,9 +118,9 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
       {/* Vehículo y Conductor */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label>Vehículo</Label>
+          <Label htmlFor="vehicle_id">Vehículo</Label>
           <Select value={formData.vehicle_id} onValueChange={handleVehicleChange}>
-            <SelectTrigger><SelectValue placeholder="Seleccionar vehículo" /></SelectTrigger>
+            <SelectTrigger id="vehicle_id"><SelectValue placeholder="Seleccionar vehículo" /></SelectTrigger>
             <SelectContent>
               {vehicles.map((v) => (
                 <SelectItem key={v.id} value={v.id}>
@@ -134,9 +134,9 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
           </Select>
         </div>
         <div>
-          <Label>Conductor</Label>
+          <Label htmlFor="driver_id">Conductor</Label>
           <Select value={formData.driver_id} onValueChange={(v) => setFormData({ ...formData, driver_id: v })}>
-            <SelectTrigger><SelectValue placeholder="Seleccionar conductor" /></SelectTrigger>
+            <SelectTrigger id="driver_id"><SelectValue placeholder="Seleccionar conductor" /></SelectTrigger>
             <SelectContent>
               {drivers.map((d) => (
                 <SelectItem key={d.id} value={d.id}>
@@ -154,12 +154,12 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
       {/* Fechas */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label>Fecha de Inicio</Label>
-          <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required />
+          <Label htmlFor="start_date">Fecha de Inicio</Label>
+          <Input id="start_date" type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required />
         </div>
         <div>
-          <Label>Fecha de Fin (Opcional)</Label>
-          <Input type="date" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} />
+          <Label htmlFor="end_date">Fecha de Fin (Opcional)</Label>
+          <Input id="end_date" type="date" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} />
         </div>
       </div>
 

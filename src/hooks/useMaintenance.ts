@@ -6,15 +6,17 @@ import { useToast } from "@/hooks/use-toast";
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
 /**
- * Enriquece un vehículo con los datos de M3 calculados a partir del historial
- * de mantenimiento ya disponible. Garantiza que "Último M3" y "Próximo M3"
- * sean siempre consistentes con los registros reales.
+ * Enriquece un vehículo con datos de M3. El backend mantiene last_m3_date y
+ * next_m3_kilometers automáticamente al registrar mantenimientos tipo "m3",
+ * por lo que se usan como fuente primaria. Se calculan desde el historial
+ * local sólo como fallback cuando el backend devuelve null.
  */
 function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
-  const m3List = maintenances
+  // Fallback: último M3 del historial ordenado por fecha descendente
+  const lastM3 = maintenances
     .filter((m) => m.vehicle_plate === vehicle.plate_number && m.type === "m3")
-    .sort((a, b) => (b.kilometers ?? 0) - (a.kilometers ?? 0));
-  const lastM3 = m3List[0];
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
   return {
     ...vehicle,
     current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
@@ -54,6 +56,10 @@ export function useMaintenance() {
    * enriquecidos. Esto garantiza que siempre se muestren aunque el backend
    * no las devuelva o hayan sido descartadas previamente en localStorage.
    */
+  // Umbral "near" alineado con el backend (near_threshold default = 500 km)
+  const M3_NEAR_THRESHOLD = 500;
+  const M3_INTERVAL = 7000;
+
   const computeLocalM3Alerts = (enrichedVehicles: Vehicle[]): MaintenanceAlert[] => {
     return enrichedVehicles.flatMap((v) => {
       const effectiveKm = Math.max(
@@ -63,7 +69,6 @@ export function useMaintenance() {
       const nextM3Km = v.next_m3_kilometers;
       if (!effectiveKm || !nextM3Km) return [];
       const remaining = nextM3Km - effectiveKm;
-      const M3_INTERVAL = 7000;
       // Vencido: km >= próximo M3
       if (remaining <= 0) {
         return [{
@@ -77,8 +82,8 @@ export function useMaintenance() {
           severity: 3,
         }];
       }
-      // Próximo: menos del 15% del intervalo restante
-      if (remaining <= M3_INTERVAL * 0.15) {
+      // Próximo: ≤ 500 km restantes (alineado con near_threshold del backend)
+      if (remaining <= M3_NEAR_THRESHOLD) {
         return [{
           vehicle_plate: v.plate_number,
           type: 'm3',
@@ -201,18 +206,16 @@ export function useMaintenance() {
     setVehicles(prev => prev.filter(v => v.plate_number !== plateNumber));
   };
 
-  /** Construye el body para POST/PUT de mantenimiento. Envía tanto plate_number
-   *  como vehicle_plate para cubrir distintas versiones del backend. */
+  /** Construye el body para POST/PUT de mantenimiento. */
   const buildMaintenancePayload = (formData: any) => ({
     plate_number: formData.plate_number,
-    vehicle_plate: formData.plate_number,  // alias que puede esperar el backend
     description: formData.description,
     type: formData.type,
     date: formData.date,
     kilometers: formData.kilometers || null,
     location: formData.location || null,
     performed_by: formData.performed_by || null,
-    spare_part_id: formData.spare_part_id || null,
+    spare_part_id: formData.spare_part_id && formData.spare_part_id !== "none" ? formData.spare_part_id : null,
     spare_part_description: formData.spare_part_description || null,
   });
 
@@ -227,10 +230,12 @@ export function useMaintenance() {
   };
 
   const createMaintenance = async (formData: any) => {
+    const payload = buildMaintenancePayload(formData);
+    console.log('[createMaintenance] payload →', JSON.stringify(payload, null, 2));
     const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildMaintenancePayload(formData)),
+      body: JSON.stringify(payload),
     });
 
     if (response.ok) {
@@ -244,9 +249,16 @@ export function useMaintenance() {
       });
       return true;
     } else {
-      const msg = await extractErrorMessage(response);
-      console.error("Error al crear mantenimiento:", msg);
-      toast({ title: "Error al registrar", description: msg, variant: "destructive" });
+      const rawBody = await response.text();
+      console.error('[createMaintenance] error status:', response.status, '| body:', rawBody);
+      let msg: string;
+      try {
+        const body = JSON.parse(rawBody);
+        msg = body.detail ?? body.message ?? body.error ?? rawBody;
+      } catch {
+        msg = rawBody || `Error ${response.status}`;
+      }
+      toast({ title: `Error ${response.status} al registrar`, description: msg, variant: "destructive" });
       return false;
     }
   };

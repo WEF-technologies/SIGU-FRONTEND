@@ -125,7 +125,7 @@ export function MaintenanceFormModal({
               setFormData({...formData, plate_number: value});
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger id="plate_number">
               <SelectValue placeholder="Seleccione un vehículo" />
             </SelectTrigger>
             <SelectContent>
@@ -144,7 +144,7 @@ export function MaintenanceFormModal({
             value={formData.type}
             onValueChange={(value: MaintenanceTypeKey) => setFormData({...formData, type: value})}
           >
-            <SelectTrigger>
+            <SelectTrigger id="type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -204,13 +204,13 @@ export function MaintenanceFormModal({
             onValueChange={(value) => {
               const selectedPart = value === "none" ? null : spareParts.find(p => p.id === value);
               setFormData({
-                ...formData, 
+                ...formData,
                 spare_part_id: value,
                 spare_part_description: selectedPart ? selectedPart.description : ""
               });
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger id="spare_part_id">
               <SelectValue placeholder="Seleccione un repuesto" />
             </SelectTrigger>
             <SelectContent>
