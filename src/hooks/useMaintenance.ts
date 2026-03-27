@@ -231,12 +231,22 @@ export function useMaintenance() {
 
   const createMaintenance = async (formData: any) => {
     const payload = buildMaintenancePayload(formData);
-    console.log('[createMaintenance] payload →', JSON.stringify(payload, null, 2));
-    const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let response: Response;
+    try {
+      response = await fetchRef.current(`${API_URL}/api/v1/maintenances/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (networkErr) {
+      console.error('[createMaintenance] network/CORS error:', networkErr, '| payload:', payload);
+      toast({
+        title: "Error de red al registrar",
+        description: "No se pudo conectar con el servidor. Verifica tu conexión o contacta al administrador.",
+        variant: "destructive",
+      });
+      return false;
+    }
 
     if (response.ok) {
       const newMaintenance = await response.json();
@@ -249,8 +259,8 @@ export function useMaintenance() {
       });
       return true;
     } else {
-      const rawBody = await response.text();
-      console.error('[createMaintenance] error status:', response.status, '| body:', rawBody);
+      const rawBody = await response.text().catch(() => "");
+      console.error('[createMaintenance] error status:', response.status, '| body:', rawBody, '| payload:', payload);
       let msg: string;
       try {
         const body = JSON.parse(rawBody);
