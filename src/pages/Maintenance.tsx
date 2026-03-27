@@ -353,7 +353,7 @@ export default function Maintenance() {
   return (
     <div className="animate-fade-in space-y-4">
       {/* ── Alerts ───────────────────────────────────────────────────── */}
-      <MaintenanceAlerts alerts={alerts} onDismiss={dismissAlert} />
+      <MaintenanceAlerts alerts={alerts} onDismiss={dismissAlert} vehicles={vehicles} />
 
       {/* ── Header bar ───────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

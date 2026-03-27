@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MaintenanceAlert } from "@/types";
+import { MaintenanceAlert, Vehicle } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ interface MaintenanceAlertsProps {
   onDismiss?: (alert: MaintenanceAlert) => void;
   /** Si es true, solo muestra las críticas/próximas (para el Dashboard) */
   compact?: boolean;
+  vehicles?: Vehicle[];
 }
 
 interface VehicleAlertGroup {
@@ -126,10 +127,12 @@ function VehicleGroup({
   group,
   defaultOpen,
   onDismiss,
+  vehicleLabel,
 }: {
   group: VehicleAlertGroup;
   defaultOpen: boolean;
   onDismiss?: (a: MaintenanceAlert) => void;
+  vehicleLabel?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const criticalCount = group.alerts.filter((a) => a.severity >= 3).length;
@@ -148,8 +151,13 @@ function VehicleGroup({
           ) : (
             <ChevronRight className="h-4 w-4 text-gray-500 shrink-0" />
           )}
-          <span className="font-bold text-base">{group.plate}</span>
-          <Badge className={`text-xs font-bold px-2 py-0.5 ${severityBadgeClass(group.worstSeverity)}`}>
+          <div className="min-w-0">
+            <span className="font-bold text-base">{group.plate}</span>
+            {vehicleLabel && (
+              <span className="ml-2 text-sm text-gray-500 font-normal">{vehicleLabel}</span>
+            )}
+          </div>
+          <Badge className={`text-xs font-bold px-2 py-0.5 shrink-0 ${severityBadgeClass(group.worstSeverity)}`}>
             {severityLabel(group.worstSeverity)}
           </Badge>
         </div>
@@ -184,7 +192,8 @@ function VehicleGroup({
   );
 }
 
-export function MaintenanceAlerts({ alerts, onDismiss, compact = false }: MaintenanceAlertsProps) {
+export function MaintenanceAlerts({ alerts, onDismiss, compact = false, vehicles = [] }: MaintenanceAlertsProps) {
+  const vehicleMap = new Map(vehicles.map(v => [v.plate_number, `${v.brand} ${v.model}`]));
   const [showAll, setShowAll] = useState(false);
 
   const criticalAlerts = alerts.filter((a) => a.severity >= 3);
@@ -258,6 +267,7 @@ export function MaintenanceAlerts({ alerts, onDismiss, compact = false }: Mainte
               group={g}
               defaultOpen={true}
               onDismiss={onDismiss}
+              vehicleLabel={vehicleMap.get(g.plate)}
             />
           ))}
         </div>
@@ -276,6 +286,7 @@ export function MaintenanceAlerts({ alerts, onDismiss, compact = false }: Mainte
               group={g}
               defaultOpen={criticalGroups.length === 0}
               onDismiss={onDismiss}
+              vehicleLabel={vehicleMap.get(g.plate)}
             />
           ))}
         </div>
@@ -295,7 +306,7 @@ export function MaintenanceAlerts({ alerts, onDismiss, compact = false }: Mainte
           {showAll && (
             <div className="space-y-2">
               {okGroups.map((g) => (
-                <VehicleGroup key={g.plate} group={g} defaultOpen={false} onDismiss={onDismiss} />
+                <VehicleGroup key={g.plate} group={g} defaultOpen={false} onDismiss={onDismiss} vehicleLabel={vehicleMap.get(g.plate)} />
               ))}
             </div>
           )}
