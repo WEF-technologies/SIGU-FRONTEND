@@ -48,7 +48,7 @@ interface MaintenanceRecord {
 export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
-  const { alerts, dismissAlert } = useMaintenance();
+  const { alerts, dismissAlert, vehicles } = useMaintenance();
   const [driverAlerts, setDriverAlerts] = useState<DriverAlert[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
@@ -340,6 +340,7 @@ export default function Dashboard() {
             alerts={alerts}
             onDismiss={dismissAlert}
             compact={true}
+            vehicles={vehicles}
           />
         </CardContent>
       </Card>

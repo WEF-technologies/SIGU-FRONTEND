@@ -190,7 +190,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                 <div>
                   <Label className="text-sm text-gray-600 flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    Ubicación
+                    Status
                   </Label>
                   <p className="font-medium">{vehicle.location || vehicle.status}</p>
                 </div>
@@ -247,7 +247,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                         <TableHead>Fecha</TableHead>
                         <TableHead>Kilometraje</TableHead>
                         <TableHead>Descripción</TableHead>
-                        <TableHead>Ubicación</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead>Realizado por</TableHead>
                       </TableRow>
                     </TableHeader>
