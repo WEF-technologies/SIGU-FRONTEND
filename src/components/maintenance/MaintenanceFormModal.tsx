@@ -7,9 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Maintenance as MaintenanceType, Vehicle, SparePart } from "@/types";
 import { maintenanceTypeConfig, MaintenanceTypeKey } from "@/constants/maintenanceTypes";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+
+const DESC_MAX = 255;
 
 interface MaintenanceFormModalProps {
   isOpen: boolean;
@@ -19,15 +25,16 @@ interface MaintenanceFormModalProps {
   onSubmit: (formData: any) => Promise<boolean>;
 }
 
-export function MaintenanceFormModal({ 
-  isOpen, 
-  onClose, 
-  editingMaintenance, 
-  vehicles, 
-  onSubmit 
+export function MaintenanceFormModal({
+  isOpen,
+  onClose,
+  editingMaintenance,
+  vehicles,
+  onSubmit
 }: MaintenanceFormModalProps) {
   const authenticatedFetch = useAuthenticatedFetch();
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
+  const [vehicleOpen, setVehicleOpen] = useState(false);
 
   const emptyForm = () => ({
     plate_number: "",
@@ -83,20 +90,26 @@ export function MaintenanceFormModal({
     }
   }, [isOpen, authenticatedFetch]);
 
-  const resetForm = () => setFormData(emptyForm());
+  const resetForm = () => {
+    setFormData(emptyForm());
+    setVehicleOpen(false);
+  };
+
+  const descOver = formData.description.length > DESC_MAX;
+  const spareDescOver = formData.spare_part_description.length > DESC_MAX;
+  const canSubmit = !descOver && !spareDescOver;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.plate_number) {
-      return;
-    }
+    if (!formData.plate_number) return;
+    if (!canSubmit) return;
 
     const submitData = {
       ...formData,
       spare_part_id: formData.spare_part_id === "none" ? null : formData.spare_part_id
     };
-    
+
     const success = await onSubmit(submitData);
     if (success) {
       onClose();
@@ -109,6 +122,8 @@ export function MaintenanceFormModal({
     resetForm();
   };
 
+  const selectedVehicle = vehicles.find(v => v.plate_number === formData.plate_number);
+
   return (
     <FormModal
       isOpen={isOpen}
@@ -116,26 +131,54 @@ export function MaintenanceFormModal({
       title={editingMaintenance?.id ? "Editar Mantenimiento" : "Registrar Mantenimiento"}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* ── Vehículo (combobox con búsqueda) ── */}
         <div>
           <Label htmlFor="plate_number">Vehículo</Label>
-          <Select
-            value={formData.plate_number}
-            onValueChange={(value) => {
-              console.log('Selected vehicle plate:', value);
-              setFormData({...formData, plate_number: value});
-            }}
-          >
-            <SelectTrigger id="plate_number">
-              <SelectValue placeholder="Seleccione un vehículo" />
-            </SelectTrigger>
-            <SelectContent>
-              {vehicles.map((vehicle) => (
-                <SelectItem key={vehicle.id} value={vehicle.plate_number}>
-                  {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                id="plate_number"
+                variant="outline"
+                role="combobox"
+                aria-expanded={vehicleOpen}
+                className="w-full justify-between font-normal"
+              >
+                {selectedVehicle
+                  ? `${selectedVehicle.plate_number} — ${selectedVehicle.brand} ${selectedVehicle.model}`
+                  : "Seleccione un vehículo"}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full p-0" style={{ minWidth: "var(--radix-popover-trigger-width)" }}>
+              <Command>
+                <CommandInput placeholder="Buscar por placa, marca o modelo..." />
+                <CommandList>
+                  <CommandEmpty>No se encontró ningún vehículo.</CommandEmpty>
+                  <CommandGroup>
+                    {vehicles.map((vehicle) => (
+                      <CommandItem
+                        key={vehicle.id}
+                        value={`${vehicle.plate_number} ${vehicle.brand} ${vehicle.model}`}
+                        onSelect={() => {
+                          setFormData({ ...formData, plate_number: vehicle.plate_number });
+                          setVehicleOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            formData.plate_number === vehicle.plate_number ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        <span className="font-medium">{vehicle.plate_number}</span>
+                        <span className="ml-2 text-muted-foreground">{vehicle.brand} {vehicle.model}</span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div>
@@ -160,8 +203,14 @@ export function MaintenanceFormModal({
           </Select>
         </div>
 
+        {/* ── Descripción con contador ── */}
         <div>
-          <Label htmlFor="description">Descripción del Mantenimiento</Label>
+          <div className="flex justify-between items-baseline mb-1">
+            <Label htmlFor="description">Descripción del Mantenimiento</Label>
+            <span className={cn("text-xs", descOver ? "text-destructive font-medium" : "text-muted-foreground")}>
+              {formData.description.length}/{DESC_MAX}
+            </span>
+          </div>
           <Textarea
             id="description"
             value={formData.description}
@@ -169,7 +218,13 @@ export function MaintenanceFormModal({
             placeholder="Describa detalladamente el mantenimiento realizado"
             required
             rows={3}
+            className={cn(descOver && "border-destructive focus-visible:ring-destructive")}
           />
+          {descOver && (
+            <p className="text-xs text-destructive mt-1">
+              La descripción supera los {DESC_MAX} caracteres permitidos ({formData.description.length - DESC_MAX} de exceso).
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -183,7 +238,7 @@ export function MaintenanceFormModal({
               required
             />
           </div>
-          
+
           <div>
             <Label htmlFor="kilometers">Kilómetros Actuales</Label>
             <Input
@@ -224,14 +279,28 @@ export function MaintenanceFormModal({
           </Select>
         </div>
 
+        {/* ── Descripción del repuesto con contador ── */}
         <div>
-          <Label htmlFor="spare_part_description">Descripción del Repuesto</Label>
+          <div className="flex justify-between items-baseline mb-1">
+            <Label htmlFor="spare_part_description">Descripción del Repuesto</Label>
+            {formData.spare_part_description.length > 0 && (
+              <span className={cn("text-xs", spareDescOver ? "text-destructive font-medium" : "text-muted-foreground")}>
+                {formData.spare_part_description.length}/{DESC_MAX}
+              </span>
+            )}
+          </div>
           <Input
             id="spare_part_description"
             value={formData.spare_part_description}
             onChange={(e) => setFormData({...formData, spare_part_description: e.target.value})}
             placeholder="Descripción manual del repuesto utilizado"
+            className={cn(spareDescOver && "border-destructive focus-visible:ring-destructive")}
           />
+          {spareDescOver && (
+            <p className="text-xs text-destructive mt-1">
+              Supera los {DESC_MAX} caracteres ({formData.spare_part_description.length - DESC_MAX} de exceso).
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -264,7 +333,11 @@ export function MaintenanceFormModal({
           >
             Cancelar
           </Button>
-          <Button type="submit" className="bg-primary hover:bg-primary-600">
+          <Button
+            type="submit"
+            className="bg-primary hover:bg-primary-600"
+            disabled={!canSubmit}
+          >
             {editingMaintenance?.id ? "Actualizar Mantenimiento" : "Registrar Mantenimiento"}
           </Button>
         </div>
