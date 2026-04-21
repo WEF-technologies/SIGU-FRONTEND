@@ -10,11 +10,13 @@ import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit, Plus, Calendar, Gauge, MapPin, Wrench, Package } from "lucide-react";
+import { Edit, Plus, Calendar, Gauge, MapPin, Wrench, Package, Download, Loader2 } from "lucide-react";
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useToast } from "@/hooks/use-toast";
+import { maintenancesApi, ApiRequestError } from "@/services/maintenancesApi";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -29,9 +31,11 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const [editingKm, setEditingKm] = useState(false);
   const [kmValue, setKmValue] = useState("");
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
+  const [isDownloadingReport, setIsDownloadingReport] = useState(false);
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const { maintenance, vehicles, createMaintenance } = useMaintenance();
   const authenticatedFetch = useAuthenticatedFetch();
+  const { toast } = useToast();
 
   // Filtrar mantenimientos para este vehículo específico
   const vehicleMaintenances = maintenance.filter(m => m.vehicle_plate === vehicle?.plate_number);
@@ -120,6 +124,61 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
       setShowMaintenanceForm(false);
     }
     return success;
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
+  };
+
+  const getDownloadErrorMessage = (error: unknown): string => {
+    if (error instanceof ApiRequestError) {
+      if (error.status === 401) {
+        return "Tu sesión venció o no es válida. Inicia sesión nuevamente para descargar el historial.";
+      }
+      if (error.status === 403) {
+        return "No tienes permisos para descargar el historial de este vehículo.";
+      }
+      if (error.status === 404) {
+        return "No se encontró historial de mantenimiento para esta placa.";
+      }
+      return error.message || "No se pudo descargar el historial PDF.";
+    }
+
+    if (error instanceof Error && error.message === "Sesión expirada") {
+      return "Tu sesión expiró. Inicia sesión nuevamente para continuar.";
+    }
+
+    return "No se pudo descargar el historial PDF. Intenta nuevamente.";
+  };
+
+  const handleDownloadMaintenanceReport = async () => {
+    if (!vehicle?.plate_number) return;
+
+    try {
+      setIsDownloadingReport(true);
+      const { blob, filename } = await maintenancesApi.downloadVehicleReport(vehicle.plate_number);
+      downloadBlob(blob, filename);
+      toast({
+        title: "Descarga completada",
+        description: `Se descargó el historial PDF de ${vehicle.plate_number}.`,
+      });
+    } catch (error) {
+      console.error("Error downloading vehicle report:", error);
+      toast({
+        title: "Error al descargar historial",
+        description: getDownloadErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloadingReport(false);
+    }
   };
 
   return (
@@ -229,14 +288,29 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
               <TabsContent value="maintenance" className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="font-medium">Historial de Mantenimientos ({vehicleMaintenances.length})</h3>
-                  <Button 
-                    size="sm" 
-                    className="bg-primary"
-                    onClick={() => setShowMaintenanceForm(true)}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Registrar Mantenimiento
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleDownloadMaintenanceReport}
+                      disabled={isDownloadingReport}
+                    >
+                      {isDownloadingReport ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4 mr-2" />
+                      )}
+                      {isDownloadingReport ? "Descargando..." : "Descargar historial PDF"}
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      className="bg-primary"
+                      onClick={() => setShowMaintenanceForm(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Registrar Mantenimiento
+                    </Button>
+                  </div>
                 </div>
 
                 <Card>

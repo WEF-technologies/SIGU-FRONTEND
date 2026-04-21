@@ -15,7 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
-import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info } from "lucide-react";
+import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
+import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -50,6 +51,7 @@ export default function Vehicles() {
   const [newVehiclePlate, setNewVehiclePlate] = useState("");
   const [baselineData, setBaselineData] = useState<BaselineData>({});
   const [isSavingBaseline, setIsSavingBaseline] = useState(false);
+  const [downloadingPlate, setDownloadingPlate] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<VehicleFilters>({
     plate: "",
@@ -150,6 +152,51 @@ export default function Vehicles() {
       }
     } catch (error) {
       console.error("Error updating kilometers:", error);
+    }
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
+  };
+
+  const getDownloadErrorMessage = (error: unknown): string => {
+    if (error instanceof ApiRequestError) {
+      if (error.status === 401) return "Tu sesión venció o no es válida. Inicia sesión nuevamente.";
+      if (error.status === 403) return "No tienes permisos para descargar este historial.";
+      if (error.status === 404) return "No se encontró historial de mantenimiento para este vehículo.";
+      return error.message || "No se pudo descargar el historial PDF.";
+    }
+    if (error instanceof Error && error.message === "Sesión expirada") {
+      return "Tu sesión expiró. Inicia sesión nuevamente para continuar.";
+    }
+    return "Ocurrió un error al descargar el historial PDF.";
+  };
+
+  const handleDownloadVehicleReport = async (vehicle: Vehicle) => {
+    try {
+      setDownloadingPlate(vehicle.plate_number);
+      const { blob, filename } = await maintenancesApi.downloadVehicleReport(vehicle.plate_number);
+      downloadBlob(blob, filename);
+      toast({
+        title: "Descarga completada",
+        description: `Se descargó el historial PDF de ${vehicle.plate_number}.`,
+      });
+    } catch (error) {
+      console.error("Error downloading vehicle report:", error);
+      toast({
+        title: "Error al descargar historial",
+        description: getDownloadErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDownloadingPlate(null);
     }
   };
 
@@ -297,6 +344,20 @@ export default function Vehicles() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadVehicleReport(vehicle)}
+                          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                          title="Descargar historial PDF"
+                          disabled={downloadingPlate === vehicle.plate_number}
+                        >
+                          {downloadingPlate === vehicle.plate_number ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleViewDetails(vehicle)} className="border-blue-200 text-blue-600 hover:bg-blue-50" title="Ver detalles">
                           <Eye className="w-4 h-4" />
                         </Button>
