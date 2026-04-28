@@ -38,7 +38,7 @@ interface AuthProviderProps {
 }
 
 const API_URL =
-  import.meta.env.VITE_API_URL || 'https://sigu-back.vercel.app';
+  import.meta.env.VITE_API_URL ?? "";
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);

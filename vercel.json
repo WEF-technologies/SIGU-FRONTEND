@@ -3,6 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://sigu-back.vercel.app/api/$1"
+    },
     { "handle": "filesystem" },
     { "src": "/.*", "dest": "/index.html" }
   ]

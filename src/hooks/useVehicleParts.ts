@@ -3,7 +3,7 @@ import { VehiclePart, PartAlert, Vehicle } from '@/types';
 import { useAuthenticatedFetch } from './useAuthenticatedFetch';
 import { toast } from 'sonner';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://sigu-back.vercel.app';
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 export const useVehicleParts = () => {
   const [parts, setParts] = useState<VehiclePart[]>([]);

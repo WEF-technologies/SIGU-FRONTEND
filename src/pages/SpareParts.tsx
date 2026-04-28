@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 // ─── Tarjeta de repuesto en vista "Por Repuesto" ──────────────────────────────
 function SparePartCard({

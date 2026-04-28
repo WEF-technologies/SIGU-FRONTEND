@@ -1,7 +1,7 @@
 
 import { Contract, Vehicle, User, Route, Shift } from '@/types';
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL || 'https://sigu-back.vercel.app'}/api/v1`;
+const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
 // Configuración base para las peticiones
 const apiConfig = {

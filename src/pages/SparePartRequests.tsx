@@ -16,7 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 interface SparePartRequest {
   id: string;
