@@ -16,6 +16,7 @@ import SpareParts from "./pages/SpareParts";
 import SparePartRequests from "./pages/SparePartRequests";
 import Maintenance from "./pages/Maintenance";
 import Trips from "./pages/Trips";
+import Tools from "./pages/Tools";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
                 <Route path="/repuestos" element={<SpareParts />} />
                 <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
                 <Route path="/mantenimiento" element={<Maintenance />} />
+                <Route path="/herramientas" element={<Tools />} />
                 <Route path="/viajes" element={<Trips />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />

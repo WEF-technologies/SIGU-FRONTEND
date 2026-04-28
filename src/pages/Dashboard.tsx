@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Car,
   UserCheck,
@@ -16,12 +17,13 @@ import {
   CheckCircle,
   Clock,
   IdCard,
+  Hammer,
 } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
-import { DriverAlert } from "@/types";
+import { DriverAlert, ToolAlert } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
 
@@ -50,6 +52,8 @@ export default function Dashboard() {
   const authenticatedFetch = useAuthenticatedFetch();
   const { alerts, dismissAlert, vehicles } = useMaintenance();
   const [driverAlerts, setDriverAlerts] = useState<DriverAlert[]>([]);
+  const [toolAlerts, setToolAlerts] = useState<ToolAlert[]>([]);
+  const [toolAlertQuickFilter, setToolAlertQuickFilter] = useState<"all" | "critical" | "warning">("all");
   const [stats, setStats] = useState<DashboardStats>({
     totalVehicles: 0,
     activeVehicles: 0,
@@ -112,6 +116,16 @@ export default function Dashboard() {
           }
         } catch {}
 
+        try {
+          const toolAlertsResponse = await authenticatedFetch(
+            `${API_URL}/api/v1/tools/alerts?near_days=30&include_ok=false`
+          );
+          if (toolAlertsResponse.ok) {
+            const toolsAlertsData = await toolAlertsResponse.json();
+            setToolAlerts(Array.isArray(toolsAlertsData) ? toolsAlertsData : []);
+          }
+        } catch {}
+
         setStats({
           totalVehicles,
           activeVehicles,
@@ -136,17 +150,18 @@ export default function Dashboard() {
   const criticalDriverAlerts = driverAlerts.filter(
     (d) => d.status_license === "due" || d.status_defensive === "due"
   );
+  const criticalToolAlerts = toolAlerts.filter((a) => a.severity === "critical");
+  const warningToolAlerts = toolAlerts.filter((a) => a.severity === "warning");
+  const sortedToolAlerts = [...toolAlerts].sort((a, b) => {
+    const weight = { critical: 0, warning: 1, normal: 2 };
+    return weight[a.severity] - weight[b.severity];
+  });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-3 text-gray-600">Cargando dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  const filteredToolAlerts = sortedToolAlerts.filter((alert) => {
+    if (toolAlertQuickFilter === "critical") return alert.severity === "critical";
+    if (toolAlertQuickFilter === "warning") return alert.severity === "warning";
+    return true;
+  });
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -156,7 +171,7 @@ export default function Dashboard() {
       </div>
 
       {/* ─── BANNER ALERTAS CRÍTICAS GLOBALES ────────────────────────── */}
-      {(criticalAlerts.length > 0 || criticalDriverAlerts.length > 0) && (
+      {!isLoading && (criticalAlerts.length > 0 || criticalDriverAlerts.length > 0) && (
         <div className="rounded-lg border border-red-300 bg-red-600 text-white p-4 flex items-center gap-4 shadow-md">
           <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/15 shrink-0">
             <Siren className="h-5 w-5 animate-pulse" />
@@ -195,7 +210,7 @@ export default function Dashboard() {
       )}
 
       {/* ─── STATS ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Vehículos */}
         <Card
           className="border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5"
@@ -208,8 +223,17 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary-900">{stats.totalVehicles}</div>
-            <p className="text-xs text-secondary-dark mt-1">{stats.activeVehicles} operativos</p>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-primary-900">{stats.totalVehicles}</div>
+                <p className="text-xs text-secondary-dark mt-1">{stats.activeVehicles} operativos</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -225,9 +249,18 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary-900">{stats.totalDrivers}</div>
-            <p className="text-xs text-secondary-dark mt-1">Personal conductor</p>
-            {criticalDriverAlerts.length > 0 && (
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-primary-900">{stats.totalDrivers}</div>
+                <p className="text-xs text-secondary-dark mt-1">Personal conductor</p>
+              </>
+            )}
+            {!isLoading && criticalDriverAlerts.length > 0 && (
               <Badge className="mt-1 bg-red-100 text-red-700 text-xs">
                 {criticalDriverAlerts.length} doc. vencido{criticalDriverAlerts.length !== 1 ? "s" : ""}
               </Badge>
@@ -247,8 +280,17 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary-900">{stats.activeContracts}</div>
-            <p className="text-xs text-secondary-dark mt-1">En ejecución</p>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-primary-900">{stats.activeContracts}</div>
+                <p className="text-xs text-secondary-dark mt-1">En ejecución</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -272,26 +314,85 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary-900">{stats.totalMaintenances}</div>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              {stats.urgentMaintenances > 0 && (
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            ) : (
+              <div className="text-2xl font-bold text-primary-900">{stats.totalMaintenances}</div>
+            )}
+            {!isLoading && (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {stats.urgentMaintenances > 0 && (
                 <Badge className="bg-red-100 text-red-700 text-xs">
                   <AlertTriangle className="w-3 h-3 mr-1" />
                   {stats.urgentMaintenances} vencido{stats.urgentMaintenances !== 1 ? "s" : ""}
                 </Badge>
-              )}
-              {stats.nearMaintenances > 0 && (
+                )}
+                {stats.nearMaintenances > 0 && (
                 <Badge className="bg-amber-100 text-amber-700 text-xs">
                   <Clock className="w-3 h-3 mr-1" />
                   {stats.nearMaintenances} próximo{stats.nearMaintenances !== 1 ? "s" : ""}
                 </Badge>
-              )}
-              {stats.urgentMaintenances === 0 && stats.nearMaintenances === 0 && (
+                )}
+                {stats.urgentMaintenances === 0 && stats.nearMaintenances === 0 && (
                 <span className="text-xs text-green-600 flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Todo al día
                 </span>
-              )}
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Herramientas */}
+        <Card
+          className={`border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5 ${
+            criticalToolAlerts.length > 0 ? "border-red-300 bg-red-50/30" : ""
+          }`}
+          onClick={() => navigate("/herramientas")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-secondary-dark">Herramientas</CardTitle>
+            <div
+              className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                criticalToolAlerts.length > 0 ? "bg-red-100" : "bg-indigo-50"
+              }`}
+            >
+              <Hammer className={`w-5 h-5 ${criticalToolAlerts.length > 0 ? "text-red-600" : "text-indigo-600"}`} />
             </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-16" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            ) : (
+              <div className="text-2xl font-bold text-primary-900">{toolAlerts.length}</div>
+            )}
+            {!isLoading && (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {criticalToolAlerts.length > 0 && (
+                <Badge className="bg-red-100 text-red-700 text-xs">
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  {criticalToolAlerts.length} crítica{criticalToolAlerts.length !== 1 ? "s" : ""}
+                </Badge>
+                )}
+                {warningToolAlerts.length > 0 && (
+                <Badge className="bg-amber-100 text-amber-700 text-xs">
+                  <Clock className="w-3 h-3 mr-1" />
+                  {warningToolAlerts.length} advertencia{warningToolAlerts.length !== 1 ? "s" : ""}
+                </Badge>
+                )}
+                {toolAlerts.length === 0 && (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <CheckCircle className="w-3 h-3" /> Todo al día
+                </span>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -336,12 +437,130 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <MaintenanceAlerts
-            alerts={alerts}
-            onDismiss={dismissAlert}
-            compact={true}
-            vehicles={vehicles}
-          />
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          ) : (
+            <MaintenanceAlerts
+              alerts={alerts}
+              onDismiss={dismissAlert}
+              compact={true}
+              vehicles={vehicles}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── ALERTAS DE HERRAMIENTAS ─────────────────────────────────── */}
+      <Card className={`border-secondary-medium ${criticalToolAlerts.length > 0 ? "border-red-300 shadow-red-100 shadow-md" : ""}`}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
+              {criticalToolAlerts.length > 0 ? (
+                <Siren className="w-5 h-5 text-red-600 animate-pulse" />
+              ) : warningToolAlerts.length > 0 ? (
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              )}
+              Alertas de Herramientas
+              {toolAlerts.length > 0 && (
+                <Badge className={criticalToolAlerts.length > 0 ? "bg-red-600 text-white" : "bg-amber-500 text-white"}>
+                  {toolAlerts.length}
+                </Badge>
+              )}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 rounded-md border border-secondary-medium p-1">
+                <button
+                  className={`px-2 py-1 text-xs rounded ${toolAlertQuickFilter === "all" ? "bg-primary text-white" : "text-secondary-dark hover:bg-secondary-light"}`}
+                  onClick={() => setToolAlertQuickFilter("all")}
+                >
+                  Todas
+                </button>
+                <button
+                  className={`px-2 py-1 text-xs rounded ${toolAlertQuickFilter === "critical" ? "bg-red-600 text-white" : "text-secondary-dark hover:bg-secondary-light"}`}
+                  onClick={() => setToolAlertQuickFilter("critical")}
+                >
+                  Críticas
+                </button>
+                <button
+                  className={`px-2 py-1 text-xs rounded ${toolAlertQuickFilter === "warning" ? "bg-amber-500 text-white" : "text-secondary-dark hover:bg-secondary-light"}`}
+                  onClick={() => setToolAlertQuickFilter("warning")}
+                >
+                  Próximas
+                </button>
+              </div>
+              <button
+                className="text-sm text-primary hover:underline flex items-center gap-1"
+                onClick={() => navigate("/herramientas")}
+              >
+                Ver todas <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          ) : filteredToolAlerts.length === 0 ? (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
+              No hay alertas para el filtro seleccionado.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredToolAlerts.slice(0, 5).map((toolAlert) => {
+                const severityClass =
+                  toolAlert.severity === "critical"
+                    ? "bg-red-100 text-red-700"
+                    : toolAlert.severity === "warning"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-blue-100 text-blue-700";
+
+                const statusText =
+                  toolAlert.alert_status === "expired"
+                    ? "Vencida"
+                    : toolAlert.alert_status === "near"
+                    ? "Próxima"
+                    : "OK";
+
+                return (
+                  <div
+                    key={`${toolAlert.tool_id}-${toolAlert.code}`}
+                    className="flex items-center justify-between rounded-md border border-secondary-medium px-3 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-primary-900">
+                        {toolAlert.code} - {toolAlert.name}
+                      </p>
+                      <p className="text-xs text-secondary-dark">
+                        {toolAlert.category} · {toolAlert.location}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-gray-100 text-gray-700">{statusText}</Badge>
+                      <Badge className={severityClass}>{toolAlert.severity}</Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => navigate(`/herramientas?toolId=${toolAlert.tool_id}`)}
+                      >
+                        Abrir
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -367,8 +586,16 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <DriverAlerts alerts={driverAlerts.slice(0, 5)} />
-          {driverAlerts.length > 5 && (
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          ) : (
+            <DriverAlerts alerts={driverAlerts.slice(0, 5)} />
+          )}
+          {!isLoading && driverAlerts.length > 5 && (
             <button
               className="mt-3 text-sm text-primary hover:underline"
               onClick={() => navigate("/choferes")}
@@ -394,13 +621,20 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-secondary-dark">
-              <MapPin className="w-10 h-10 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No hay rutas activas registradas</p>
-              <button className="mt-2 text-primary hover:underline text-sm" onClick={() => navigate("/rutas")}>
-                Gestionar rutas
-              </button>
-            </div>
+            {isLoading ? (
+              <div className="space-y-2 py-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : (
+              <div className="text-center py-8 text-secondary-dark">
+                <MapPin className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                <p className="text-sm">No hay rutas activas registradas</p>
+                <button className="mt-2 text-primary hover:underline text-sm" onClick={() => navigate("/rutas")}>
+                  Gestionar rutas
+                </button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -416,7 +650,13 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentMaintenances.length > 0 ? (
+              {isLoading ? (
+                <>
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </>
+              ) : recentMaintenances.length > 0 ? (
                 recentMaintenances.map((item, index) => (
                   <div
                     key={index}

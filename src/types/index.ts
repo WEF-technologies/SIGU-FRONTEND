@@ -177,5 +177,62 @@ export interface PartAlert {
   status_date: 'ok' | 'near' | 'due' | 'missing';
 }
 
+export type ToolStatus = 'disponible' | 'en_uso' | 'en_mantenimiento' | 'retirada';
+export type ToolAlertStatus = 'expired' | 'near' | 'ok';
+export type ToolAlertSeverity = 'critical' | 'warning' | 'normal';
+
+export interface Tool extends BaseEntity {
+  code: string;
+  name: string;
+  category: string;
+  location: string;
+  status: ToolStatus;
+  assigned_to?: string;
+  purchase_date?: string;
+  expiry_date?: string;
+  notes?: string;
+}
+
+export interface ToolPayload {
+  code: string;
+  name: string;
+  category: string;
+  location: string;
+  status: ToolStatus;
+  assigned_to?: string;
+  purchase_date?: string;
+  expiry_date?: string;
+  notes?: string;
+}
+
+export interface ToolFilters {
+  category?: string;
+  location?: string;
+  status?: ToolStatus | 'all';
+  assigned_to?: string;
+}
+
+export interface ToolAlertFilters {
+  near_days?: number;
+  include_ok?: boolean;
+  category?: string;
+  location?: string;
+  status?: ToolStatus | 'all';
+}
+
+export interface ToolAlert {
+  tool_id: string;
+  code: string;
+  name: string;
+  category: string;
+  location: string;
+  status: ToolStatus;
+  assigned_to?: string;
+  expiry_date?: string;
+  days_to_expiry?: number;
+  alert_status: ToolAlertStatus;
+  severity: ToolAlertSeverity;
+}
+
 export type MaintenanceType = 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';
