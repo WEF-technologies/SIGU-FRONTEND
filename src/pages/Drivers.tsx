@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export default function Drivers() {
   const { toast } = useToast();

@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Gauge, AlertTriangle } from "lucide-react";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 const API_URL = BASE_URL.endsWith("/") ? BASE_URL : BASE_URL + "/";
 
 export default function Trips() {

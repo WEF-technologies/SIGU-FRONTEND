@@ -18,7 +18,7 @@ import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 type ModalStep = "vehicle" | "baseline";
 

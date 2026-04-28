@@ -2,7 +2,7 @@
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export interface User {
   id: string;

@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      "/api": {
+        target: "https://sigu-back.vercel.app",
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [
     react(),

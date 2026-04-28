@@ -12,7 +12,7 @@ import { RouteActions } from "@/components/routes/RouteActions";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import ContractRoutesModal from "@/components/routes/ContractRoutesModal";
 
-const API_URL = import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export default function Routes() {
   const [routes, setRoutes] = useState<Route[]>([]);

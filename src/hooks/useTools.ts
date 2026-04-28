@@ -3,7 +3,7 @@ import { Tool, ToolAlert, ToolFilters, ToolAlertFilters, ToolPayload } from "@/t
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 
-const API_BASE_URL = `${import.meta.env.VITE_API_URL || "https://sigu-back.vercel.app"}/api/v1`;
+const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
 const normalizeValue = (value?: string) => {
   const trimmed = value?.trim();
