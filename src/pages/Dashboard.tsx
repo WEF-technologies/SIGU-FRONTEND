@@ -71,30 +71,56 @@ export default function Dashboard() {
       try {
         setIsLoading(true);
 
-        const vehiclesResponse = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        const [
+          vehiclesResult,
+          driversResult,
+          contractsResult,
+          maintenancesResult,
+          driverAlertsResult,
+          toolAlertsResult,
+        ] = await Promise.allSettled([
+          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
+          authenticatedFetch(`${API_URL}/api/v1/drivers/`),
+          authenticatedFetch(`${API_URL}/api/v1/contracts/`),
+          authenticatedFetch(`${API_URL}/api/v1/maintenances/`),
+          authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`),
+          authenticatedFetch(`${API_URL}/api/v1/tools/alerts?near_days=30&include_ok=false`),
+        ]);
+
         let vehicles = [];
-        if (vehiclesResponse.ok) vehicles = await vehiclesResponse.json();
+        if (vehiclesResult.status === "fulfilled" && vehiclesResult.value.ok) {
+          vehicles = await vehiclesResult.value.json();
+        }
 
         let drivers = [];
-        try {
-          const driversResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/`);
-          if (driversResponse.ok) drivers = await driversResponse.json();
-        } catch {}
+        if (driversResult.status === "fulfilled" && driversResult.value.ok) {
+          drivers = await driversResult.value.json();
+        }
 
         let contracts = [];
-        try {
-          const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
-          if (contractsResponse.ok) contracts = await contractsResponse.json();
-        } catch {}
+        if (contractsResult.status === "fulfilled" && contractsResult.value.ok) {
+          contracts = await contractsResult.value.json();
+        }
 
         let maintenances = [];
-        try {
-          const maintenancesResponse = await authenticatedFetch(`${API_URL}/api/v1/maintenances/`);
-          if (maintenancesResponse.ok) {
-            maintenances = await maintenancesResponse.json();
-            setRecentMaintenances(maintenances.slice(0, 3));
-          }
-        } catch {}
+        if (maintenancesResult.status === "fulfilled" && maintenancesResult.value.ok) {
+          maintenances = await maintenancesResult.value.json();
+        }
+        setRecentMaintenances(maintenances.slice(0, 3));
+
+        if (driverAlertsResult.status === "fulfilled" && driverAlertsResult.value.ok) {
+          const driverAlertsData = await driverAlertsResult.value.json();
+          setDriverAlerts(Array.isArray(driverAlertsData) ? driverAlertsData : []);
+        } else {
+          setDriverAlerts([]);
+        }
+
+        if (toolAlertsResult.status === "fulfilled" && toolAlertsResult.value.ok) {
+          const toolsAlertsData = await toolAlertsResult.value.json();
+          setToolAlerts(Array.isArray(toolsAlertsData) ? toolsAlertsData : []);
+        } else {
+          setToolAlerts([]);
+        }
 
         const totalVehicles = vehicles.length;
         const activeVehicles = vehicles.filter(
@@ -107,24 +133,6 @@ export default function Dashboard() {
 
         const urgentMaintenances = alerts.filter((a) => a.severity >= 3).length;
         const nearMaintenances = alerts.filter((a) => a.severity === 2).length;
-
-        try {
-          const driverAlertsResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`);
-          if (driverAlertsResponse.ok) {
-            const driverAlertsData = await driverAlertsResponse.json();
-            setDriverAlerts(Array.isArray(driverAlertsData) ? driverAlertsData : []);
-          }
-        } catch {}
-
-        try {
-          const toolAlertsResponse = await authenticatedFetch(
-            `${API_URL}/api/v1/tools/alerts?near_days=30&include_ok=false`
-          );
-          if (toolAlertsResponse.ok) {
-            const toolsAlertsData = await toolAlertsResponse.json();
-            setToolAlerts(Array.isArray(toolsAlertsData) ? toolsAlertsData : []);
-          }
-        } catch {}
 
         setStats({
           totalVehicles,
@@ -143,7 +151,7 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
-  }, [authenticatedFetch, alerts]);
+  }, [authenticatedFetch]);
 
   const criticalAlerts = alerts.filter((a) => a.severity >= 3);
   const nearAlerts = alerts.filter((a) => a.severity === 2);
