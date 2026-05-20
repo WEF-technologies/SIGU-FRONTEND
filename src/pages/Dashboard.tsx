@@ -23,7 +23,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
-import { DriverAlert, ToolAlert } from "@/types";
+import { Contract, DriverAlert, Route, ToolAlert } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -47,6 +47,11 @@ interface MaintenanceRecord {
   performed_by?: string;
 }
 
+type RouteRecord = Route & {
+  route_id?: string;
+  contract_description?: string;
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
@@ -64,9 +69,13 @@ export default function Dashboard() {
     nearMaintenances: 0,
   });
   const [recentMaintenances, setRecentMaintenances] = useState<MaintenanceRecord[]>([]);
+  const [activeRoutes, setActiveRoutes] = useState<RouteRecord[]>([]);
+  const [routesLoading, setRoutesLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchDashboardData = async () => {
       try {
         setIsLoading(true);
@@ -76,15 +85,11 @@ export default function Dashboard() {
           driversResult,
           contractsResult,
           maintenancesResult,
-          driverAlertsResult,
-          toolAlertsResult,
         ] = await Promise.allSettled([
           authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
           authenticatedFetch(`${API_URL}/api/v1/drivers/`),
           authenticatedFetch(`${API_URL}/api/v1/contracts/`),
           authenticatedFetch(`${API_URL}/api/v1/maintenances/`),
-          authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`),
-          authenticatedFetch(`${API_URL}/api/v1/tools/alerts?near_days=30&include_ok=false`),
         ]);
 
         let vehicles = [];
@@ -106,20 +111,8 @@ export default function Dashboard() {
         if (maintenancesResult.status === "fulfilled" && maintenancesResult.value.ok) {
           maintenances = await maintenancesResult.value.json();
         }
-        setRecentMaintenances(maintenances.slice(0, 3));
-
-        if (driverAlertsResult.status === "fulfilled" && driverAlertsResult.value.ok) {
-          const driverAlertsData = await driverAlertsResult.value.json();
-          setDriverAlerts(Array.isArray(driverAlertsData) ? driverAlertsData : []);
-        } else {
-          setDriverAlerts([]);
-        }
-
-        if (toolAlertsResult.status === "fulfilled" && toolAlertsResult.value.ok) {
-          const toolsAlertsData = await toolAlertsResult.value.json();
-          setToolAlerts(Array.isArray(toolsAlertsData) ? toolsAlertsData : []);
-        } else {
-          setToolAlerts([]);
+        if (isMounted) {
+          setRecentMaintenances(maintenances.slice(0, 3));
         }
 
         const totalVehicles = vehicles.length;
@@ -134,23 +127,101 @@ export default function Dashboard() {
         const urgentMaintenances = alerts.filter((a) => a.severity >= 3).length;
         const nearMaintenances = alerts.filter((a) => a.severity === 2).length;
 
-        setStats({
-          totalVehicles,
-          activeVehicles,
-          totalDrivers: drivers.length,
-          activeContracts: contracts.length,
-          totalMaintenances: maintenances.length,
-          urgentMaintenances,
-          nearMaintenances,
-        });
+        if (isMounted) {
+          setStats({
+            totalVehicles,
+            activeVehicles,
+            totalDrivers: drivers.length,
+            activeContracts: contracts.length,
+            totalMaintenances: maintenances.length,
+            urgentMaintenances,
+            nearMaintenances,
+          });
+        }
+
+        void (async () => {
+          try {
+            setRoutesLoading(true);
+            const routesResponse = await authenticatedFetch(`${API_URL}/api/v1/routes/`);
+            if (!isMounted) return;
+
+            if (!routesResponse.ok) {
+              setActiveRoutes([]);
+              return;
+            }
+
+            const routesData = await routesResponse.json();
+            const contractsById = new Map(
+              (Array.isArray(contracts) ? contracts : []).map((contract: Contract) => [contract.id, contract])
+            );
+
+            const normalizedRoutes = (Array.isArray(routesData) ? routesData : []).map((route: RouteRecord) => ({
+              ...route,
+              id: route.id || route.route_id,
+            }));
+
+            const activeRoutesData = normalizedRoutes.filter((route: RouteRecord) => {
+              const contractStatus =
+                route.contract?.status ||
+                contractsById.get(route.contract_id || route.contract?.id || "")?.status;
+              return (contractStatus || "active").toLowerCase() === "active";
+            });
+
+            setActiveRoutes(activeRoutesData.slice(0, 5));
+          } catch {
+            if (isMounted) setActiveRoutes([]);
+          } finally {
+            if (isMounted) setRoutesLoading(false);
+          }
+        })();
+
+        void (async () => {
+          try {
+            const driverAlertsResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`);
+            if (!isMounted) return;
+
+            if (driverAlertsResponse.ok) {
+              const driverAlertsData = await driverAlertsResponse.json();
+              setDriverAlerts(Array.isArray(driverAlertsData) ? driverAlertsData : []);
+            } else {
+              setDriverAlerts([]);
+            }
+          } catch {
+            if (isMounted) setDriverAlerts([]);
+          }
+        })();
+
+        void (async () => {
+          try {
+            const toolAlertsResponse = await authenticatedFetch(
+              `${API_URL}/api/v1/tools/alerts?near_days=30&include_ok=false`
+            );
+            if (!isMounted) return;
+
+            if (toolAlertsResponse.ok) {
+              const toolsAlertsData = await toolAlertsResponse.json();
+              setToolAlerts(Array.isArray(toolsAlertsData) ? toolsAlertsData : []);
+            } else {
+              setToolAlerts([]);
+            }
+          } catch {
+            if (isMounted) setToolAlerts([]);
+          }
+        })();
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchDashboardData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [authenticatedFetch]);
 
   const criticalAlerts = alerts.filter((a) => a.severity >= 3);
@@ -629,10 +700,27 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoading || routesLoading ? (
               <div className="space-y-2 py-4">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
+              </div>
+            ) : activeRoutes.length > 0 ? (
+              <div className="space-y-3">
+                {activeRoutes.map((route) => (
+                  <div
+                    key={route.id}
+                    className="flex items-center justify-between py-2 border-b border-secondary-medium last:border-b-0"
+                  >
+                    <div>
+                      <p className="font-medium text-primary-900 text-sm">{route.description}</p>
+                      <p className="text-xs text-secondary-dark">
+                        {route.from_location} → {route.to_location}
+                      </p>
+                    </div>
+                    <Badge className="bg-green-100 text-green-700 text-xs">Activa</Badge>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="text-center py-8 text-secondary-dark">
