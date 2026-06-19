@@ -30,6 +30,9 @@ const extractErrorMessage = async (response: Response, fallback: string) => {
   }
 };
 
+const isSessionExpiredError = (error: unknown) =>
+  error instanceof Error && error.message === "Sesión expirada";
+
 export const useTools = () => {
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
@@ -72,6 +75,10 @@ export const useTools = () => {
       setTools(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching tools:", error);
+      if (isSessionExpiredError(error)) {
+        setTools([]);
+        return;
+      }
       toast({ title: "Error", description: "No se pudo cargar la lista de herramientas.", variant: "destructive" });
       setTools([]);
     } finally {
@@ -111,6 +118,10 @@ export const useTools = () => {
       setAlerts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Error fetching tools alerts:", error);
+      if (isSessionExpiredError(error)) {
+        setAlerts([]);
+        return;
+      }
       toast({ title: "Error", description: "No se pudieron cargar las alertas de vencimiento.", variant: "destructive" });
       setAlerts([]);
     } finally {

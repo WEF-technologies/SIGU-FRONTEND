@@ -36,6 +36,11 @@ const formatExpiryText = (alert: ToolAlert) => {
   return `Vence en ${alert.days_to_expiry} días (${formattedDate})`;
 };
 
+const formatToolStatus = (status?: string) => {
+  if (!status) return "Sin estado";
+  return status.replaceAll("_", " ");
+};
+
 export function ToolAlerts({ alerts, isLoading = false }: ToolAlertsProps) {
   if (isLoading) {
     return (
@@ -99,7 +104,7 @@ export function ToolAlerts({ alerts, isLoading = false }: ToolAlertsProps) {
                       {alert.category} · {alert.location}
                     </p>
                     <p className="text-sm text-gray-600">
-                      Estado herramienta: {alert.status.replaceAll("_", " ")}
+                      Estado herramienta: {formatToolStatus(alert.status)}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">{formatExpiryText(alert)}</p>
                   </div>
