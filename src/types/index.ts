@@ -131,6 +131,104 @@ export interface MaintenanceAlert {
   severity: number;
 }
 
+export type FuelType = 'gasoil' | 'gasolina';
+export type FuelReadingUnit = 'liters' | 'percent';
+export type FuelStatusSource = 'fuel_log' | 'fuel_reading';
+export type FuelAnomalySeverity = 'warning' | 'critical';
+
+export interface FuelLog {
+  id: string;
+  vehicle_id: string;
+  fuel_type: FuelType;
+  liters: number;
+  total_cost: number;
+  fueled_at: string;
+  odometer_km?: number | null;
+  station?: string | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FuelReading {
+  id: string;
+  vehicle_id: string;
+  fuel_type: FuelType;
+  reading_value: number;
+  reading_unit: FuelReadingUnit;
+  observed_at: string;
+  odometer_km?: number | null;
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FuelVehicleStatus {
+  vehicle_id: string;
+  vehicle_plate: string;
+  as_of: string;
+  source: FuelStatusSource;
+  fuel_type: FuelType;
+  message: string;
+  liters?: number;
+  total_cost?: number;
+  reading_value?: number;
+  reading_unit?: FuelReadingUnit;
+  odometer_km?: number | null;
+  station?: string | null;
+  notes?: string | null;
+}
+
+export interface FuelConsumptionAnomaly {
+  vehicle_id: string;
+  vehicle_plate: string;
+  fuel_type: FuelType;
+  as_of: string;
+  observed_liters_per_100km: number;
+  baseline_liters_per_100km: number;
+  deviation_percent: number;
+  distance_km: number;
+  liters: number;
+  severity: FuelAnomalySeverity;
+}
+
+export interface FuelListFilters {
+  vehicle_id?: string;
+  fuel_type?: FuelType;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface FuelAnomalyFilters {
+  vehicle_id?: string;
+  fuel_type?: FuelType;
+  lookback?: number;
+  min_history?: number;
+  threshold_percent?: number;
+  min_distance_km?: number;
+}
+
+export interface CreateFuelLogPayload {
+  vehicle_id: string;
+  fuel_type: FuelType;
+  liters: number;
+  total_cost: number;
+  fueled_at: string;
+  odometer_km?: number;
+  station?: string;
+  notes?: string;
+}
+
+export interface CreateFuelReadingPayload {
+  vehicle_id: string;
+  fuel_type: FuelType;
+  reading_value: number;
+  reading_unit: FuelReadingUnit;
+  observed_at: string;
+  odometer_km?: number;
+  notes?: string;
+}
+
 export interface SparePart extends BaseEntity {
   code: string;
   description: string;

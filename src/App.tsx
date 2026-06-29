@@ -15,6 +15,7 @@ import Drivers from "./pages/Drivers";
 import SpareParts from "./pages/SpareParts";
 import SparePartRequests from "./pages/SparePartRequests";
 import Maintenance from "./pages/Maintenance";
+import FuelPage from "./pages/Fuel";
 import Trips from "./pages/Trips";
 import Tools from "./pages/Tools";
 import NotFound from "./pages/NotFound";
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/repuestos" element={<SpareParts />} />
                 <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
                 <Route path="/mantenimiento" element={<Maintenance />} />
+                <Route path="/combustible" element={<FuelPage />} />
                 <Route path="/herramientas" element={<Tools />} />
                 <Route path="/viajes" element={<Trips />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
