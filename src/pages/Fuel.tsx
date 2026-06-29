@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FuelLogForm } from "@/components/fuel/FuelLogForm";
 import { FuelReadingForm } from "@/components/fuel/FuelReadingForm";
 import { FormModal } from "@/components/shared/FormModal";
@@ -59,7 +59,7 @@ const formatShortDate = (isoDate: string) => {
   });
 };
 
-const NumberCell = ({ value, suffix = "" }: { value?: number | null; suffix?: string }) => {
+const NumberCell = memo(({ value, suffix = "" }: { value?: number | null; suffix?: string }) => {
   if (value === undefined || value === null) return <span className="text-gray-400">-</span>;
   return (
     <span>
@@ -67,9 +67,9 @@ const NumberCell = ({ value, suffix = "" }: { value?: number | null; suffix?: st
       {suffix}
     </span>
   );
-};
+});
 
-const EmptyState = ({
+const EmptyState = memo(({
   title,
   description,
   action,
@@ -88,9 +88,9 @@ const EmptyState = ({
       {action ? <div className="mt-4">{action}</div> : null}
     </Card>
   );
-};
+});
 
-const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void }) => {
+const ErrorState = memo(({ message, onRetry }: { message: string; onRetry: () => void }) => {
   return (
     <Card className="p-4 border-red-200 bg-red-50">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -105,9 +105,45 @@ const ErrorState = ({ message, onRetry }: { message: string; onRetry: () => void
       </div>
     </Card>
   );
-};
+});
 
-const StatusCard = ({
+const InitialDataLoader = memo(() => {
+  const dots = ["0ms", "120ms", "240ms"];
+
+  return (
+    <Card className="p-6 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-emerald-50/60">
+      <div className="flex flex-col items-center justify-center gap-4">
+        <div className="relative">
+          <div className="h-14 w-14 rounded-full border-4 border-primary/25 animate-pulse" />
+          <Droplets className="w-7 h-7 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce" />
+        </div>
+
+        <div className="text-center">
+          <p className="text-sm font-semibold text-primary-900">Cargando datos de combustible...</p>
+          <p className="text-xs text-gray-500">Estamos obteniendo unidades, cargas y lecturas.</p>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {dots.map((delay) => (
+            <span
+              key={delay}
+              className="h-2 w-2 rounded-full bg-primary animate-bounce"
+              style={{ animationDelay: delay }}
+            />
+          ))}
+        </div>
+
+        <div className="w-full max-w-3xl space-y-2 pt-2">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+        </div>
+      </div>
+    </Card>
+  );
+});
+
+const StatusCard = memo(({
   plate,
   source,
   asOf,
@@ -193,9 +229,9 @@ const StatusCard = ({
       <p className="text-sm text-gray-600 bg-gray-50 border border-gray-100 rounded-md p-2">{message}</p>
     </Card>
   );
-};
+});
 
-const LogsTable = ({ items }: { items: FuelLogRow[] }) => {
+const LogsTable = memo(({ items }: { items: FuelLogRow[] }) => {
   return (
     <div className="overflow-x-auto rounded-lg border border-secondary-medium bg-white">
       <table className="w-full min-w-[920px]">
@@ -236,9 +272,9 @@ const LogsTable = ({ items }: { items: FuelLogRow[] }) => {
       </table>
     </div>
   );
-};
+});
 
-const ReadingsTable = ({ items }: { items: FuelReadingRow[] }) => {
+const ReadingsTable = memo(({ items }: { items: FuelReadingRow[] }) => {
   return (
     <div className="overflow-x-auto rounded-lg border border-secondary-medium bg-white">
       <table className="w-full min-w-[920px]">
@@ -275,7 +311,7 @@ const ReadingsTable = ({ items }: { items: FuelReadingRow[] }) => {
       </table>
     </div>
   );
-};
+});
 
 export default function FuelPage() {
   const {
@@ -301,12 +337,15 @@ export default function FuelPage() {
     fetchAnomalies,
     fetchVehicleStatus,
     clearVehicleStatus,
+    refreshCoreData,
     refreshAll,
     defaultAnomalyFilters,
   } = useFuel();
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isReadingModalOpen, setIsReadingModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("logs");
+  const [hasFetchedAnomalies, setHasFetchedAnomalies] = useState(false);
 
   const [historyFilters, setHistoryFilters] = useState<{
     vehicle_id?: string;
@@ -319,6 +358,25 @@ export default function FuelPage() {
   const [statusFilters, setStatusFilters] = useState<{ vehicle_id?: string; fuel_type?: FuelType }>({});
 
   const [anomalyFilters, setAnomalyFilters] = useState<FuelAnomalyFilters>(defaultAnomalyFilters);
+  const deferredHistoryQuery = useDeferredValue(historyFilters.query);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const maybeFetchAnomalies = async () => {
+      if (activeTab !== "anomalies" || hasFetchedAnomalies) return;
+      await fetchAnomalies(defaultAnomalyFilters);
+      if (!cancelled) {
+        setHasFetchedAnomalies(true);
+      }
+    };
+
+    maybeFetchAnomalies();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, hasFetchedAnomalies, fetchAnomalies, defaultAnomalyFilters]);
 
   const vehicleMap = useMemo(() => {
     return new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
@@ -339,7 +397,7 @@ export default function FuelPage() {
   }, [readings, vehicleMap]);
 
   const filteredLogs = useMemo(() => {
-    const q = historyFilters.query.trim().toLowerCase();
+    const q = deferredHistoryQuery.trim().toLowerCase();
     if (!q) return enrichedLogs;
 
     return enrichedLogs.filter((item) => {
@@ -348,10 +406,10 @@ export default function FuelPage() {
       const notes = item.notes?.toLowerCase() || "";
       return plate.includes(q) || station.includes(q) || notes.includes(q);
     });
-  }, [enrichedLogs, historyFilters.query]);
+  }, [enrichedLogs, deferredHistoryQuery]);
 
   const filteredReadings = useMemo(() => {
-    const q = historyFilters.query.trim().toLowerCase();
+    const q = deferredHistoryQuery.trim().toLowerCase();
     if (!q) return enrichedReadings;
 
     return enrichedReadings.filter((item) => {
@@ -359,7 +417,7 @@ export default function FuelPage() {
       const notes = item.notes?.toLowerCase() || "";
       return plate.includes(q) || notes.includes(q);
     });
-  }, [enrichedReadings, historyFilters.query]);
+  }, [enrichedReadings, deferredHistoryQuery]);
 
   const selectedStatusVehicle = statusFilters.vehicle_id || "";
   const selectedStatus = selectedStatusVehicle ? statusByVehicle[selectedStatusVehicle] : null;
@@ -403,7 +461,25 @@ export default function FuelPage() {
   const clearAnomalyFilters = async () => {
     setAnomalyFilters(defaultAnomalyFilters);
     await fetchAnomalies(defaultAnomalyFilters);
+    setHasFetchedAnomalies(true);
   };
+
+  const handleRefresh = async () => {
+    if (hasFetchedAnomalies) {
+      await refreshAll();
+      return;
+    }
+
+    await refreshCoreData();
+  };
+
+  const showInitialLoader =
+    isLoadingVehicles &&
+    vehicles.length === 0 &&
+    isLoadingLogs &&
+    isLoadingReadings &&
+    logs.length === 0 &&
+    readings.length === 0;
 
   const statusSummary = useMemo(() => {
     const totalLogs = logs.length;
@@ -430,7 +506,7 @@ export default function FuelPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={refreshAll}>
+          <Button variant="outline" onClick={handleRefresh}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Actualizar
           </Button>
@@ -480,7 +556,9 @@ export default function FuelPage() {
         </Card>
       </div>
 
-      <Tabs defaultValue="logs" className="space-y-4">
+      {showInitialLoader ? <InitialDataLoader /> : null}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full lg:w-auto grid grid-cols-2 lg:grid-cols-4 h-auto">
           <TabsTrigger value="logs">Cargas</TabsTrigger>
           <TabsTrigger value="readings">Lecturas</TabsTrigger>
@@ -856,7 +934,14 @@ export default function FuelPage() {
               <Button variant="outline" onClick={clearAnomalyFilters}>
                 Limpiar
               </Button>
-              <Button onClick={applyAnomalyFilters}>Aplicar filtros</Button>
+              <Button
+                onClick={async () => {
+                  await applyAnomalyFilters();
+                  setHasFetchedAnomalies(true);
+                }}
+              >
+                Aplicar filtros
+              </Button>
             </div>
           </Card>
 
@@ -973,7 +1058,7 @@ export default function FuelPage() {
         />
       </FormModal>
 
-      {isLoadingVehicles && vehicles.length === 0 ? (
+      {!showInitialLoader && isLoadingVehicles && vehicles.length === 0 ? (
         <Card className="p-4">
           <p className="text-sm text-gray-500">Cargando catalogo de unidades...</p>
         </Card>
