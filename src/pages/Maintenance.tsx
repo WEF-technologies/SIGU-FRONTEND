@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Maintenance as MaintenanceType, Vehicle } from "@/types";
+import { PageDataLoader } from "@/components/shared/PageDataLoader";
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
@@ -269,6 +270,7 @@ function VehicleCard({
 export default function Maintenance() {
   const {
     maintenance, vehicles, alerts,
+    isLoadingData,
     createMaintenance, updateMaintenance, deleteMaintenance, dismissAlert,
   } = useMaintenance();
 
@@ -349,6 +351,20 @@ export default function Maintenance() {
     : prefilledPlate
     ? ({ vehicle_plate: prefilledPlate } as unknown as MaintenanceType)
     : null;
+
+  const showPageLoader = isLoadingData && maintenance.length === 0 && vehicles.length === 0;
+
+  if (showPageLoader) {
+    return (
+      <div className="animate-fade-in space-y-4">
+        <PageDataLoader
+          title="Cargando mantenimiento de unidades..."
+          description="Estamos obteniendo historial, estado M3 y alertas operativas."
+          icon={<Wrench className="w-7 h-7 animate-bounce" />}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-4">

@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
+import { PageDataLoader } from "@/components/shared/PageDataLoader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { VehicleFiltersComponent, VehicleFilters } from "@/components/vehicles/VehicleFilters";
 import { VehicleDetailsModal } from "@/components/vehicles/VehicleDetailsModal";
@@ -41,7 +42,14 @@ const today = new Date().toISOString().split("T")[0];
 export default function Vehicles() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
-  const { vehicles, refreshVehicles, updateVehicleInState, removeVehicleFromState, createBaselineMaintenances } = useMaintenance();
+  const {
+    vehicles,
+    isLoadingData,
+    refreshVehicles,
+    updateVehicleInState,
+    removeVehicleFromState,
+    createBaselineMaintenances,
+  } = useMaintenance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<ModalStep>("vehicle");
@@ -272,6 +280,20 @@ export default function Vehicles() {
       : editingVehicle
       ? "Editar Vehículo"
       : "Registrar Nuevo Vehículo";
+
+  const showPageLoader = isLoadingData && vehicles.length === 0;
+
+  if (showPageLoader) {
+    return (
+      <div className="animate-fade-in space-y-4">
+        <PageDataLoader
+          title="Cargando vehículos y mantenimiento..."
+          description="Estamos sincronizando unidades, kilometrajes y próximo M3."
+          icon={<Wrench className="w-7 h-7 animate-bounce" />}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in space-y-4">
