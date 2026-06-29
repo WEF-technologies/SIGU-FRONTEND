@@ -86,7 +86,7 @@ export const fuelApi = {
 
     return requestJson<FuelLog[]>(
       authenticatedFetch,
-      `${API_BASE_URL}/logs${query}`,
+      `${API_BASE_URL}/logs/${query}`,
       { method: "GET" },
       "No se pudo cargar el historial de cargas."
     );
@@ -104,7 +104,7 @@ export const fuelApi = {
   createLog: async (authenticatedFetch: AuthenticatedFetch, payload: CreateFuelLogPayload): Promise<FuelLog> => {
     return requestJson<FuelLog>(
       authenticatedFetch,
-      `${API_BASE_URL}/logs`,
+      `${API_BASE_URL}/logs/`,
       {
         method: "POST",
         body: JSON.stringify(payload),
@@ -126,7 +126,7 @@ export const fuelApi = {
 
     return requestJson<FuelReading[]>(
       authenticatedFetch,
-      `${API_BASE_URL}/readings${query}`,
+      `${API_BASE_URL}/readings/${query}`,
       { method: "GET" },
       "No se pudo cargar el historial de lecturas."
     );
@@ -147,7 +147,7 @@ export const fuelApi = {
   ): Promise<FuelReading> => {
     return requestJson<FuelReading>(
       authenticatedFetch,
-      `${API_BASE_URL}/readings`,
+      `${API_BASE_URL}/readings/`,
       {
         method: "POST",
         body: JSON.stringify(payload),
