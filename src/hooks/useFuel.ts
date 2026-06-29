@@ -332,18 +332,24 @@ export const useFuel = () => {
     }
   }, [fetchReadings, toast]);
 
-  const refreshAll = useCallback(async () => {
+  const refreshCoreData = useCallback(async () => {
     await Promise.all([
       fetchVehicles(),
       fetchLogs(lastLogFiltersRef.current),
       fetchReadings(lastReadingFiltersRef.current),
+    ]);
+  }, [fetchVehicles, fetchLogs, fetchReadings]);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([
+      refreshCoreData(),
       fetchAnomalies(lastAnomalyFiltersRef.current),
     ]);
-  }, [fetchVehicles, fetchLogs, fetchReadings, fetchAnomalies]);
+  }, [refreshCoreData, fetchAnomalies]);
 
   useEffect(() => {
-    refreshAll();
-  }, [refreshAll]);
+    refreshCoreData();
+  }, [refreshCoreData]);
 
   const isAnyLoading = useMemo(
     () => isLoadingVehicles || isLoadingLogs || isLoadingReadings || isLoadingAnomalies,
@@ -377,6 +383,7 @@ export const useFuel = () => {
     getReadingById,
     createLog,
     createReading,
+    refreshCoreData,
     refreshAll,
     defaultAnomalyFilters: DEFAULT_ANOMALY_FILTERS,
   };
