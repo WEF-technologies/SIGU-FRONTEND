@@ -43,6 +43,7 @@ export function useMaintenance() {
   const [maintenance, setMaintenance] = useState<MaintenanceType[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [alerts, setAlerts] = useState<MaintenanceAlert[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   /**
    * Los dismissed se leen directamente del localStorage al filtrar alerts,
@@ -132,38 +133,66 @@ export function useMaintenance() {
   }, []); // fetchRef y vehicles son accedidos por ref/closure estable
 
   useEffect(() => {
+    let isActive = true;
+
     const fetchData = async () => {
+      if (isActive) {
+        setIsLoadingData(true);
+      }
+
       try {
-        const maintenanceResponse = await fetchRef.current(`${API_URL}/api/v1/maintenances/`);
+        const [maintenanceResponse, vehiclesResponse] = await Promise.all([
+          fetchRef.current(`${API_URL}/api/v1/maintenances/`),
+          fetchRef.current(`${API_URL}/api/v1/vehicles/`),
+        ]);
+
         let maintenanceData: MaintenanceType[] = [];
         if (maintenanceResponse.ok) {
           maintenanceData = await maintenanceResponse.json();
-          setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
+          if (isActive) {
+            setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
+          }
         } else {
-          setMaintenance([]);
+          if (isActive) {
+            setMaintenance([]);
+          }
         }
 
-        const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
         if (vehiclesResponse.ok) {
           const vehiclesData = await vehiclesResponse.json();
           // Enriquecer con M3 usando los datos de mantenimiento recién cargados
           const mapped = (Array.isArray(vehiclesData) ? vehiclesData : []).map(
             (v: any) => enrichWithM3(v, maintenanceData)
           );
-          setVehicles(mapped);
-          await fetchAlerts(mapped);
+          if (isActive) {
+            setVehicles(mapped);
+            await fetchAlerts(mapped);
+          }
         } else {
-          setVehicles([]);
-          await fetchAlerts([]);
+          if (isActive) {
+            setVehicles([]);
+            await fetchAlerts([]);
+          }
         }
       } catch (error) {
         console.error('Error fetching data:', error);
-        setMaintenance([]);
-        setVehicles([]);
+        if (isActive) {
+          setMaintenance([]);
+          setVehicles([]);
+          setAlerts([]);
+        }
+      } finally {
+        if (isActive) {
+          setIsLoadingData(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      isActive = false;
+    };
   // Solo se ejecuta al montar el componente.
   // fetchRef y fetchAlerts son estables y no necesitan ser deps.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -379,6 +408,7 @@ export function useMaintenance() {
     maintenance,
     vehicles,
     alerts,
+    isLoadingData,
     refreshVehicles,
     updateVehicleInState,
     removeVehicleFromState,
