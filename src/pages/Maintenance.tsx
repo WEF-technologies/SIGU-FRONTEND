@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Car, Search, Plus, ChevronDown, ChevronRight,
   Edit, Trash2, Eye, MapPin, User, Wrench,
@@ -278,9 +279,15 @@ export default function Maintenance() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingMaintenance, setEditingMaintenance] = useState<MaintenanceType | null>(null);
   const [selectedMaintenance, setSelectedMaintenance] = useState<MaintenanceType | null>(null);
-  const [searchPlate, setSearchPlate] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [groupSort, setGroupSort] = useState<"recent" | "plate_asc" | "plate_desc" | "records_desc">("recent");
   // Pre-fill plate when adding from within a vehicle card
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
+
+  const vehiclesByPlate = useMemo(
+    () => new Map(vehicles.map((vehicle) => [vehicle.plate_number, vehicle])),
+    [vehicles]
+  );
 
   // ── Group maintenances by vehicle plate, sorted newest first ──────────────
   const grouped = useMemo(() => {
@@ -305,10 +312,65 @@ export default function Maintenance() {
 
   // ── Filter by search ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    if (!searchPlate.trim()) return grouped;
-    const term = searchPlate.trim().toLowerCase();
-    return grouped.filter(([plate]) => plate.toLowerCase().includes(term));
-  }, [grouped, searchPlate]);
+    const term = searchTerm.trim().toLowerCase();
+
+    const matches = !term
+      ? grouped
+      : grouped.filter(([plate, records]) => {
+          const vehicle = vehiclesByPlate.get(plate);
+
+          const vehicleText = [
+            plate,
+            vehicle?.brand ?? "",
+            vehicle?.model ?? "",
+            String(vehicle?.year ?? ""),
+            vehicle?.location ?? "",
+            vehicle?.status ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          const recordsText = records
+            .map((item) =>
+              [
+                item.type,
+                item.description ?? "",
+                item.location ?? "",
+                item.performed_by ?? "",
+                item.spare_part_description ?? "",
+                item.date,
+              ]
+                .join(" ")
+                .toLowerCase()
+            )
+            .join(" ");
+
+          return `${vehicleText} ${recordsText}`.includes(term);
+        });
+
+    const getLatestDate = (records: MaintenanceType[]) => new Date(records[0]?.date ?? 0).getTime();
+
+    return [...matches].sort(([plateA, recordsA], [plateB, recordsB]) => {
+      if (groupSort === "plate_asc") {
+        return plateA.localeCompare(plateB, "es", { sensitivity: "base" });
+      }
+
+      if (groupSort === "plate_desc") {
+        return plateB.localeCompare(plateA, "es", { sensitivity: "base" });
+      }
+
+      if (groupSort === "records_desc") {
+        const byCount = recordsB.length - recordsA.length;
+        if (byCount !== 0) return byCount;
+        return plateA.localeCompare(plateB, "es", { sensitivity: "base" });
+      }
+
+      const byRecent = getLatestDate(recordsB) - getLatestDate(recordsA);
+      if (byRecent !== 0) return byRecent;
+
+      return plateA.localeCompare(plateB, "es", { sensitivity: "base" });
+    });
+  }, [grouped, searchTerm, vehiclesByPlate, groupSort]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAdd = () => {
@@ -380,16 +442,36 @@ export default function Maintenance() {
             {maintenance.length} registro{maintenance.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <Input
-              placeholder="Buscar por placa..."
-              value={searchPlate}
-              onChange={(e) => setSearchPlate(e.target.value)}
+              placeholder="Buscar por unidad, descripción, repuesto o responsable..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9"
             />
           </div>
+
+          <div className="w-full sm:w-56">
+            <Select
+              value={groupSort}
+              onValueChange={(value) =>
+                setGroupSort(value as "recent" | "plate_asc" | "plate_desc" | "records_desc")
+              }
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Ordenar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Más recientes</SelectItem>
+                <SelectItem value="plate_asc">Placa A-Z</SelectItem>
+                <SelectItem value="plate_desc">Placa Z-A</SelectItem>
+                <SelectItem value="records_desc">Más registros</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Button onClick={handleAdd} className="bg-primary hover:bg-primary/90 text-white h-9 px-4 shrink-0">
             <Plus className="w-4 h-4 mr-1.5" />
             Registrar
@@ -402,9 +484,9 @@ export default function Maintenance() {
         <Card className="py-16 text-center text-gray-400 border-dashed">
           <Wrench className="w-12 h-12 mx-auto mb-3 opacity-25" />
           <p className="font-medium">
-            {searchPlate ? `No se encontraron registros para "${searchPlate}"` : "No hay mantenimientos registrados"}
+            {searchTerm ? `No se encontraron registros para "${searchTerm}"` : "No hay mantenimientos registrados"}
           </p>
-          {!searchPlate && (
+          {!searchTerm && (
             <Button onClick={handleAdd} variant="outline" className="mt-4 text-primary border-primary hover:bg-primary/5">
               <Plus className="w-4 h-4 mr-1.5" />
               Registrar primer mantenimiento
@@ -417,9 +499,9 @@ export default function Maintenance() {
             <VehicleCard
               key={plate}
               plate={plate}
-              vehicle={vehicles.find((v) => v.plate_number === plate)}
+              vehicle={vehiclesByPlate.get(plate)}
               maintenances={records}
-              defaultOpen={filtered.length === 1 || !!searchPlate}
+              defaultOpen={filtered.length === 1 || !!searchTerm}
               onAdd={handleAddForVehicle}
               onEdit={handleEdit}
               onDelete={handleDelete}

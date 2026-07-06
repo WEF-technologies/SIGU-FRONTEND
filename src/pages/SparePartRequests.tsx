@@ -286,8 +286,10 @@ export default function SparePartRequests() {
         data={requests}
         columns={columns}
         title=""
-        searchField="code"
-        searchPlaceholder="Buscar por código..."
+        searchFields={["code", "description", "requested_by", "notes", "status", "date"]}
+        searchPlaceholder="Buscar por código, descripción, solicitante o estado..."
+        defaultSort={{ key: "date", direction: "desc" }}
+        initialPageSize={20}
         hideAddButton={true}
       />
 

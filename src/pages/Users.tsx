@@ -52,8 +52,10 @@ export default function Users() {
         data={users}
         columns={columns}
         title="Gestión de Usuarios"
-        searchField="email"
-        searchPlaceholder="Buscar por email..."
+        searchFields={["email", "name", "lastname", "telephone", "document_type", "status"]}
+        searchPlaceholder="Buscar por nombre, email, documento o teléfono..."
+        defaultSort={{ key: "name", direction: "asc" }}
+        initialPageSize={20}
         hideAddButton={true}
       />
     </div>

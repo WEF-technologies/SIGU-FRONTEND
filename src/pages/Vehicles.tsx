@@ -62,17 +62,59 @@ export default function Vehicles() {
   const [downloadingPlate, setDownloadingPlate] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<VehicleFilters>({
+    query: "",
     plate: "",
     brandModel: "",
-    status: "",
+    status: "all",
     yearFrom: "",
     yearTo: "",
     maintenancePending: false,
+    sortBy: "maintenance_due",
   });
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
 
   const filteredVehicles = useMemo(() => {
-    return vehicles.filter((vehicle) => {
+    const statusLabels: Record<Vehicle["status"], string> = {
+      available: "operativa",
+      maintenance: "mantenimiento",
+      out_of_service: "inactiva",
+    };
+
+    const statusOrder: Record<Vehicle["status"], number> = {
+      available: 0,
+      maintenance: 1,
+      out_of_service: 2,
+    };
+
+    const getRemainingKm = (vehicle: Vehicle) => {
+      const effectiveKm = Math.max(
+        vehicle.current_kilometers || vehicle.kilometers || 0,
+        vehicle.last_m3_kilometers || 0
+      );
+      const nextM3Km = vehicle.next_m3_kilometers;
+      if (!effectiveKm || !nextM3Km) return null;
+      return nextM3Km - effectiveKm;
+    };
+
+    const query = filters.query.trim().toLowerCase();
+
+    const base = vehicles.filter((vehicle) => {
+      if (query) {
+        const searchable = [
+          vehicle.plate_number,
+          vehicle.brand,
+          vehicle.model,
+          String(vehicle.year),
+          vehicle.location || "",
+          statusLabels[vehicle.status],
+          vehicle.current_maintenance_type || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!searchable.includes(query)) return false;
+      }
+
       if (filters.plate && !vehicle.plate_number.toLowerCase().includes(filters.plate.toLowerCase())) return false;
       if (filters.brandModel) {
         const searchTerm = filters.brandModel.toLowerCase();
@@ -87,6 +129,42 @@ export default function Vehicles() {
         if (!(currentKm && nextM3Km && currentKm >= nextM3Km)) return false;
       }
       return true;
+    });
+
+    return [...base].sort((a, b) => {
+      if (filters.sortBy === "plate_asc") {
+        return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
+      }
+
+      if (filters.sortBy === "plate_desc") {
+        return b.plate_number.localeCompare(a.plate_number, "es", { sensitivity: "base" });
+      }
+
+      if (filters.sortBy === "year_desc") {
+        const byYear = b.year - a.year;
+        if (byYear !== 0) return byYear;
+        return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
+      }
+
+      if (filters.sortBy === "status") {
+        const byStatus = statusOrder[a.status] - statusOrder[b.status];
+        if (byStatus !== 0) return byStatus;
+        return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
+      }
+
+      const aRemaining = getRemainingKm(a);
+      const bRemaining = getRemainingKm(b);
+
+      if (aRemaining === null && bRemaining === null) {
+        return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
+      }
+      if (aRemaining === null) return 1;
+      if (bRemaining === null) return -1;
+
+      const byRemaining = aRemaining - bRemaining;
+      if (byRemaining !== 0) return byRemaining;
+
+      return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
     });
   }, [vehicles, filters]);
 
@@ -271,7 +349,16 @@ export default function Vehicles() {
   };
 
   const clearFilters = () => {
-    setFilters({ plate: "", brandModel: "", status: "", yearFrom: "", yearTo: "", maintenancePending: false });
+    setFilters({
+      query: "",
+      plate: "",
+      brandModel: "",
+      status: "all",
+      yearFrom: "",
+      yearTo: "",
+      maintenancePending: false,
+      sortBy: "maintenance_due",
+    });
   };
 
   const modalTitle =

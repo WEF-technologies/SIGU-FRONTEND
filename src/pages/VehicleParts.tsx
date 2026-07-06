@@ -65,8 +65,10 @@ export default function VehicleParts() {
         onAdd={handleAdd}
         title="Gestión de Partes de Vehículos"
         addButtonText="Agregar Parte"
-        searchField="vehicle_plate"
-        searchPlaceholder="Buscar por placa del vehículo..."
+        searchFields={["vehicle_plate", "type", "code", "position", "status", "serial_number", "notes"]}
+        searchPlaceholder="Buscar por placa, código, tipo, posición o serial..."
+        defaultSort={{ key: "installed_date", direction: "desc" }}
+        initialPageSize={20}
       />
 
       <VehiclePartFormModal

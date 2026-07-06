@@ -18,10 +18,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertTriangle,
+  BarChart3,
   Car,
   Droplets,
   Fuel,
   Gauge,
+  List,
   Plus,
   RefreshCw,
   Search,
@@ -32,6 +34,20 @@ import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType } from "@/types";
 
 type FuelLogRow = FuelLog & { vehicle_plate: string };
 type FuelReadingRow = FuelReading & { vehicle_plate: string };
+type ReadingSortMode = "plate_asc" | "latest_desc" | "level_desc";
+type ReadingsViewMode = "grouped" | "table";
+
+interface FuelReadingsGroup {
+  vehicleId: string;
+  vehiclePlate: string;
+  readings: FuelReadingRow[];
+  latest: FuelReadingRow;
+  latestTimestamp: number;
+  latestNormalized: number | null;
+  maxLitersReference: number;
+  primaryUnit: "percent" | "liters";
+  trendValues: number[];
+}
 
 const FUEL_TYPE_OPTIONS: Array<{ value: FuelType; label: string }> = [
   { value: "gasoil", label: "Gasoil" },
@@ -57,6 +73,24 @@ const formatShortDate = (isoDate: string) => {
     month: "short",
     day: "2-digit",
   });
+};
+
+const clamp = (value: number, min: number, max: number) => {
+  return Math.min(max, Math.max(min, value));
+};
+
+const formatReadingValue = (item: FuelReadingRow) => {
+  const suffix = item.reading_unit === "percent" ? "%" : " L";
+  return `${item.reading_value.toLocaleString(undefined, { maximumFractionDigits: 2 })}${suffix}`;
+};
+
+const getReadingNormalized = (item: FuelReadingRow, maxLitersReference: number): number | null => {
+  if (item.reading_unit === "percent") {
+    return clamp(item.reading_value, 0, 100) / 100;
+  }
+
+  if (maxLitersReference <= 0) return null;
+  return clamp(item.reading_value / maxLitersReference, 0, 1);
 };
 
 const NumberCell = memo(({ value, suffix = "" }: { value?: number | null; suffix?: string }) => {
@@ -313,6 +347,159 @@ const ReadingsTable = memo(({ items }: { items: FuelReadingRow[] }) => {
   );
 });
 
+const MiniSparkline = memo(({ values }: { values: number[] }) => {
+  if (values.length < 2) {
+    return <span className="text-xs text-gray-400">Sin tendencia suficiente</span>;
+  }
+
+  const points = values
+    .map((value, index) => {
+      const x = (index / (values.length - 1)) * 100;
+      const y = 100 - clamp(value, 0, 1) * 100;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  return (
+    <svg viewBox="0 0 100 100" className="w-full h-14" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="6" className="text-primary/70" />
+    </svg>
+  );
+});
+
+const ReadingsByVehicle = memo(({
+  groups,
+  onCreateReading,
+}: {
+  groups: FuelReadingsGroup[];
+  onCreateReading: () => void;
+}) => {
+  const topGroups = groups.slice(0, 8);
+
+  const getLevelTone = (normalized: number | null) => {
+    if (normalized === null) return "bg-gray-300";
+    if (normalized <= 0.25) return "bg-red-500";
+    if (normalized <= 0.5) return "bg-amber-500";
+    return "bg-emerald-500";
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-emerald-50/40">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-primary-900">Lecturas actuales por unidad</p>
+            <p className="text-xs text-gray-500">Vista rápida del nivel más reciente por vehículo.</p>
+          </div>
+          <Button variant="outline" className="w-full sm:w-auto" onClick={onCreateReading}>
+            <Plus className="w-4 h-4 mr-2" />
+            Registrar lectura
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {topGroups.map((group) => {
+            const level = group.latestNormalized !== null ? Math.round(group.latestNormalized * 100) : null;
+            const barWidth = level === null ? 6 : Math.max(6, level);
+
+            return (
+              <div key={`bar-${group.vehicleId}`} className="grid grid-cols-[88px_1fr_auto] items-center gap-2">
+                <span className="text-xs font-semibold text-gray-700">{group.vehiclePlate}</span>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className={`h-full ${getLevelTone(group.latestNormalized)}`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <span className="text-xs font-semibold text-gray-600 min-w-[42px] text-right">
+                  {level === null ? "s/d" : `${level}%`}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {groups.map((group) => {
+          const level = group.latestNormalized !== null ? Math.round(group.latestNormalized * 100) : null;
+          const levelTone = getLevelTone(group.latestNormalized);
+          const recentItems = group.readings.slice(0, 3);
+
+          return (
+            <Card key={group.vehicleId} className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Car className="w-4 h-4 text-primary shrink-0" />
+                  <p className="font-semibold text-primary-900 truncate">{group.vehiclePlate}</p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="outline" className="text-xs">
+                    {group.primaryUnit === "percent" ? "Lectura %" : "Lectura L"}
+                  </Badge>
+                  <Badge className="bg-slate-100 text-slate-700 text-xs">{group.readings.length} reg.</Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500">Última lectura</p>
+                  <p className="font-semibold text-primary-900">{formatReadingValue(group.latest)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Odómetro</p>
+                  <p className="font-semibold text-primary-900">
+                    <NumberCell value={group.latest.odometer_km} suffix=" km" />
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Actualizado</p>
+                  <p className="font-semibold text-primary-900">{formatShortDate(group.latest.observed_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Nivel relativo</p>
+                  <p className="font-semibold text-primary-900">{level === null ? "s/d" : `${level}%`}</p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div
+                    className={`h-full ${levelTone}`}
+                    style={{ width: `${Math.max(6, level ?? 6)}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-gray-500">
+                  {group.primaryUnit === "percent"
+                    ? "Escala de porcentaje del tanque"
+                    : `Escala relativa respecto al máximo observado (${group.maxLitersReference.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })} L)`}
+                </p>
+              </div>
+
+              <div className="rounded-md border border-gray-100 p-2 bg-gray-50">
+                <p className="text-xs text-gray-500 mb-1">Tendencia reciente</p>
+                <MiniSparkline values={group.trendValues} />
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500">Últimos movimientos</p>
+                {recentItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between text-xs border-b last:border-b-0 py-1">
+                    <span className="text-gray-600">{formatDateTime(item.observed_at)}</span>
+                    <span className="font-semibold text-primary-900">{formatReadingValue(item)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export default function FuelPage() {
   const {
     logs,
@@ -358,6 +545,8 @@ export default function FuelPage() {
   const [statusFilters, setStatusFilters] = useState<{ vehicle_id?: string; fuel_type?: FuelType }>({});
 
   const [anomalyFilters, setAnomalyFilters] = useState<FuelAnomalyFilters>(defaultAnomalyFilters);
+  const [readingSortMode, setReadingSortMode] = useState<ReadingSortMode>("plate_asc");
+  const [readingsViewMode, setReadingsViewMode] = useState<ReadingsViewMode>("grouped");
   const deferredHistoryQuery = useDeferredValue(historyFilters.query);
 
   useEffect(() => {
@@ -418,6 +607,105 @@ export default function FuelPage() {
       return plate.includes(q) || notes.includes(q);
     });
   }, [enrichedReadings, deferredHistoryQuery]);
+
+  const groupedReadings = useMemo<FuelReadingsGroup[]>(() => {
+    const grouped = new Map<string, FuelReadingRow[]>();
+
+    for (const item of filteredReadings) {
+      const current = grouped.get(item.vehicle_id) ?? [];
+      current.push(item);
+      grouped.set(item.vehicle_id, current);
+    }
+
+    const groups = Array.from(grouped.entries())
+      .map(([vehicleId, items]) => {
+        const sortedItems = [...items].sort(
+          (a, b) => new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
+        );
+        const latest = sortedItems[0];
+        if (!latest) return null;
+
+        const litersValues = sortedItems
+          .filter((reading) => reading.reading_unit === "liters")
+          .map((reading) => reading.reading_value);
+
+        const maxLitersReference = Math.max(
+          1,
+          ...litersValues,
+          latest.reading_unit === "liters" ? latest.reading_value : 0
+        );
+
+        const primaryUnit = latest.reading_unit;
+        const latestNormalized = getReadingNormalized(latest, maxLitersReference);
+
+        const trendValues = sortedItems
+          .filter((item) => item.reading_unit === primaryUnit)
+          .slice(0, 8)
+          .reverse()
+          .map((item) => getReadingNormalized(item, maxLitersReference))
+          .filter((value): value is number => value !== null);
+
+        return {
+          vehicleId,
+          vehiclePlate: latest.vehicle_plate,
+          readings: sortedItems,
+          latest,
+          latestTimestamp: new Date(latest.observed_at).getTime(),
+          latestNormalized,
+          maxLitersReference,
+          primaryUnit,
+          trendValues,
+        };
+      })
+      .filter((item): item is FuelReadingsGroup => item !== null);
+
+    return groups.sort((a, b) => {
+      if (readingSortMode === "plate_asc") {
+        return a.vehiclePlate.localeCompare(b.vehiclePlate, "es", { sensitivity: "base" });
+      }
+
+      if (readingSortMode === "latest_desc") {
+        return b.latestTimestamp - a.latestTimestamp;
+      }
+
+      const aLevel = a.latestNormalized ?? -1;
+      const bLevel = b.latestNormalized ?? -1;
+      if (aLevel !== bLevel) return bLevel - aLevel;
+
+      return b.latestTimestamp - a.latestTimestamp;
+    });
+  }, [filteredReadings, readingSortMode]);
+
+  const groupedReadingsSummary = useMemo(() => {
+    const now = Date.now();
+    let relativeLevelTotal = 0;
+    let relativeLevelCount = 0;
+    let lowLevelUnits = 0;
+    let updatedLast24h = 0;
+
+    for (const group of groupedReadings) {
+      if (group.latestTimestamp >= now - 24 * 60 * 60 * 1000) {
+        updatedLast24h += 1;
+      }
+
+      if (group.latestNormalized !== null) {
+        relativeLevelTotal += group.latestNormalized;
+        relativeLevelCount += 1;
+
+        if (group.latestNormalized <= 0.25) {
+          lowLevelUnits += 1;
+        }
+      }
+    }
+
+    return {
+      units: groupedReadings.length,
+      avgRelativeLevelPercent:
+        relativeLevelCount > 0 ? Math.round((relativeLevelTotal / relativeLevelCount) * 100) : null,
+      updatedLast24h,
+      lowLevelUnits,
+    };
+  }, [groupedReadings]);
 
   const selectedStatusVehicle = statusFilters.vehicle_id || "";
   const selectedStatus = selectedStatusVehicle ? statusByVehicle[selectedStatusVehicle] : null;
@@ -699,6 +987,75 @@ export default function FuelPage() {
         <TabsContent value="readings" className="space-y-4">
           {readingsError ? <ErrorState message={readingsError} onRetry={applyHistoryFilters} /> : null}
 
+          {!isLoadingReadings && filteredReadings.length > 0 ? (
+            <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-sky-50/40">
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Unidades con lecturas</p>
+                  <p className="text-xl font-bold text-primary-900">{groupedReadingsSummary.units}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Nivel relativo promedio</p>
+                  <p className="text-xl font-bold text-primary-900">
+                    {groupedReadingsSummary.avgRelativeLevelPercent === null
+                      ? "s/d"
+                      : `${groupedReadingsSummary.avgRelativeLevelPercent}%`}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Actualizadas en 24h</p>
+                  <p className="text-xl font-bold text-primary-900">{groupedReadingsSummary.updatedLast24h}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Unidades en nivel bajo</p>
+                  <p className="text-xl font-bold text-red-600">{groupedReadingsSummary.lowLevelUnits}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                <div className="w-full lg:w-64">
+                  <Label>Ordenar lecturas por unidad</Label>
+                  <Select
+                    value={readingSortMode}
+                    onValueChange={(value) =>
+                      setReadingSortMode(value as "plate_asc" | "latest_desc" | "level_desc")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Orden" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="plate_asc">Placa A-Z</SelectItem>
+                      <SelectItem value="latest_desc">Más recientes</SelectItem>
+                      <SelectItem value="level_desc">Mayor nivel relativo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={readingsViewMode === "grouped" ? "default" : "outline"}
+                    className={readingsViewMode === "grouped" ? "bg-primary text-white" : ""}
+                    onClick={() => setReadingsViewMode("grouped")}
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Vista por unidad
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={readingsViewMode === "table" ? "default" : "outline"}
+                    className={readingsViewMode === "table" ? "bg-primary text-white" : ""}
+                    onClick={() => setReadingsViewMode("table")}
+                  >
+                    <List className="w-4 h-4 mr-2" />
+                    Vista tabla
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ) : null}
+
           {isLoadingReadings ? (
             <Card className="p-4 space-y-3">
               <Skeleton className="h-8 w-full" />
@@ -717,7 +1074,14 @@ export default function FuelPage() {
               }
             />
           ) : (
-            <ReadingsTable items={filteredReadings} />
+            readingsViewMode === "grouped" ? (
+              <ReadingsByVehicle
+                groups={groupedReadings}
+                onCreateReading={() => setIsReadingModalOpen(true)}
+              />
+            ) : (
+              <ReadingsTable items={filteredReadings} />
+            )
           )}
         </TabsContent>
 

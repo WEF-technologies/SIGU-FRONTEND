@@ -9,12 +9,14 @@ import { Card } from "@/components/ui/card";
 import { Filter, X } from "lucide-react";
 
 export interface VehicleFilters {
+  query: string;
   plate: string;
   brandModel: string;
   status: string;
   yearFrom: string;
   yearTo: string;
   maintenancePending: boolean;
+  sortBy: "maintenance_due" | "plate_asc" | "plate_desc" | "year_desc" | "status";
 }
 
 interface VehicleFiltersProps {
@@ -30,9 +32,15 @@ export function VehicleFiltersComponent({ filters, onFiltersChange, onClearFilte
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const hasActiveFilters = Object.values(filters).some(value => 
-    typeof value === 'boolean' ? value : value !== ''
-  );
+  const hasActiveFilters =
+    filters.query.trim() !== "" ||
+    filters.plate.trim() !== "" ||
+    filters.brandModel.trim() !== "" ||
+    (filters.status !== "" && filters.status !== "all") ||
+    filters.yearFrom.trim() !== "" ||
+    filters.yearTo.trim() !== "" ||
+    filters.maintenancePending ||
+    filters.sortBy !== "maintenance_due";
 
   return (
     <Card className="p-4 mb-4">
@@ -70,6 +78,16 @@ export function VehicleFiltersComponent({ filters, onFiltersChange, onClearFilte
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div>
+          <Label htmlFor="query">Búsqueda global</Label>
+          <Input
+            id="query"
+            placeholder="Placa, marca, modelo, ubicación..."
+            value={filters.query}
+            onChange={(e) => updateFilter('query', e.target.value)}
+          />
+        </div>
+
+        <div>
           <Label htmlFor="plate">Placa</Label>
           <Input
             id="plate"
@@ -91,7 +109,7 @@ export function VehicleFiltersComponent({ filters, onFiltersChange, onClearFilte
 
         <div>
           <Label htmlFor="status">Estado</Label>
-          <Select value={filters.status} onValueChange={(value) => updateFilter('status', value)}>
+          <Select value={filters.status || "all"} onValueChange={(value) => updateFilter('status', value)}>
             <SelectTrigger>
               <SelectValue placeholder="Todos los estados" />
             </SelectTrigger>
@@ -100,6 +118,22 @@ export function VehicleFiltersComponent({ filters, onFiltersChange, onClearFilte
               <SelectItem value="available">Operativa</SelectItem>
               <SelectItem value="maintenance">En mantenimiento</SelectItem>
               <SelectItem value="out_of_service">Inactiva</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label htmlFor="sortBy">Ordenar por</Label>
+          <Select value={filters.sortBy} onValueChange={(value) => updateFilter('sortBy', value)}>
+            <SelectTrigger id="sortBy">
+              <SelectValue placeholder="Orden" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="maintenance_due">Próximo mantenimiento</SelectItem>
+              <SelectItem value="plate_asc">Placa A-Z</SelectItem>
+              <SelectItem value="plate_desc">Placa Z-A</SelectItem>
+              <SelectItem value="year_desc">Año más reciente</SelectItem>
+              <SelectItem value="status">Estado operativo</SelectItem>
             </SelectContent>
           </Select>
         </div>

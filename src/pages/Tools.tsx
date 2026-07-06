@@ -216,8 +216,10 @@ export default function Tools() {
         title="Control de Herramientas de Taller"
         addButtonText="Registrar herramienta"
         isLoading={isLoadingTools}
-        searchField="code"
-        searchPlaceholder="Buscar por código..."
+        searchFields={["code", "name", "category", "location", "assigned_to", "status"]}
+        searchPlaceholder="Buscar por código, nombre, categoría, ubicación o responsable..."
+        defaultSort={{ key: "name", direction: "asc" }}
+        initialPageSize={20}
       />
 
       <ToolFormModal

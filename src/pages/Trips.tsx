@@ -115,6 +115,10 @@ export default function Trips() {
     {
       key: "route_id",
       header: "Ruta",
+      sortValue: (trip) => {
+        const route = routesMap.get(trip.route_id);
+        return route ? `${route.from_location} ${route.to_location}` : trip.route_id;
+      },
       render: (_, trip) => {
         const route = routesMap.get(trip.route_id);
         return route ? `${route.from_location} → ${route.to_location}` : "N/A";
@@ -123,6 +127,10 @@ export default function Trips() {
     {
       key: "vehicle_id",
       header: "Vehículo",
+      sortValue: (trip) => {
+        const vehicle = vehiclesMap.get(trip.vehicle_id);
+        return vehicle ? `${vehicle.plate_number} ${vehicle.brand} ${vehicle.model}` : trip.vehicle_id;
+      },
       render: (_, trip) => {
         const vehicle = vehiclesMap.get(trip.vehicle_id);
         return vehicle ? `${vehicle.plate_number} (${vehicle.brand} ${vehicle.model})` : "N/A";
@@ -131,6 +139,10 @@ export default function Trips() {
     {
       key: "driver_id",
       header: "Conductor",
+      sortValue: (trip) => {
+        const driver = driversMap.get(trip.driver_id);
+        return driver ? `${driver.name} ${driver.last_name}` : trip.driver_id;
+      },
       render: (_, trip) => {
         const driver = driversMap.get(trip.driver_id);
         return driver ? `${driver.name} ${driver.last_name}` : "N/A";
@@ -149,6 +161,7 @@ export default function Trips() {
     {
       key: "total_kilometers",
       header: "Kilómetros",
+      sortValue: (trip) => trip.total_kilometers ?? ((trip.end_kilometers ?? 0) - (trip.start_kilometers ?? 0)),
       render: (_, trip) => {
         if (trip.total_kilometers) return `${trip.total_kilometers} km`;
         if (trip.end_kilometers && trip.start_kilometers)
@@ -159,6 +172,7 @@ export default function Trips() {
     {
       key: "applied_kilometers" as keyof Trip,
       header: "KM Aplicados",
+      sortable: false,
       render: (_, trip) => {
         if (trip.status !== "completed") return <span className="text-gray-400 text-xs">—</span>;
         if (trip.applied_kilometers === true) {
@@ -306,8 +320,23 @@ export default function Trips() {
         onDelete={handleDelete}
         title="Gestión de Viajes"
         addButtonText="Registrar Viaje"
-        searchField="observations"
-        searchPlaceholder="Buscar viaje..."
+        searchFields={["observations", "status", "start_date", "end_date"]}
+        searchAccessor={(trip) => {
+          const route = routesMap.get(trip.route_id);
+          const vehicle = vehiclesMap.get(trip.vehicle_id);
+          const driver = driversMap.get(trip.driver_id);
+
+          return [
+            route ? `${route.from_location} ${route.to_location} ${route.description ?? ""}` : "",
+            vehicle ? `${vehicle.plate_number} ${vehicle.brand} ${vehicle.model}` : "",
+            driver ? `${driver.name} ${driver.last_name}` : "",
+            trip.observations ?? "",
+            trip.status,
+          ].join(" ");
+        }}
+        searchPlaceholder="Buscar por unidad, ruta, conductor, estado u observación..."
+        defaultSort={{ key: "start_date", direction: "desc" }}
+        initialPageSize={20}
         isLoading={isLoading}
       />
 
