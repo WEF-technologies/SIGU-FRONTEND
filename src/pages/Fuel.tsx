@@ -30,15 +30,26 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useFuel } from "@/hooks/useFuel";
-import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType } from "@/types";
+import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType, Vehicle } from "@/types";
 
-type FuelLogRow = FuelLog & { vehicle_plate: string };
-type FuelReadingRow = FuelReading & { vehicle_plate: string };
+type FuelLogRow = FuelLog & {
+  vehicle_plate: string;
+  vehicle_label: string;
+  vehicle_search_text: string;
+};
+
+type FuelReadingRow = FuelReading & {
+  vehicle_plate: string;
+  vehicle_label: string;
+  vehicle_search_text: string;
+};
+
 type ReadingSortMode = "plate_asc" | "latest_desc" | "level_desc";
 type ReadingsViewMode = "grouped" | "table";
 
 interface FuelReadingsGroup {
   vehicleId: string;
+  vehicleLabel: string;
   vehiclePlate: string;
   readings: FuelReadingRow[];
   latest: FuelReadingRow;
@@ -56,6 +67,36 @@ const FUEL_TYPE_OPTIONS: Array<{ value: FuelType; label: string }> = [
 
 const getFuelTypeLabel = (fuelType: FuelType) =>
   fuelType === "gasoil" ? "Gasoil" : "Gasolina";
+
+const getVehicleDisplayLabel = (vehicle?: Vehicle, fallbackPlateOrId?: string) => {
+  if (!vehicle) return fallbackPlateOrId || "Unidad no identificada";
+
+  const descriptor = [vehicle.brand, vehicle.model, vehicle.year ? String(vehicle.year) : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (descriptor && vehicle.plate_number) {
+    return `${descriptor} (${vehicle.plate_number})`;
+  }
+
+  return descriptor || vehicle.plate_number || fallbackPlateOrId || "Unidad no identificada";
+};
+
+const getVehicleSearchText = (vehicle?: Vehicle, fallbackPlateOrId?: string) => {
+  if (!vehicle) return fallbackPlateOrId || "";
+
+  return [
+    vehicle.plate_number,
+    vehicle.brand,
+    vehicle.model,
+    vehicle.year ? String(vehicle.year) : "",
+    vehicle.location || "",
+    vehicle.status,
+  ]
+    .filter(Boolean)
+    .join(" ");
+};
 
 const formatDateTime = (isoDate: string) => {
   return new Date(isoDate).toLocaleString("es-VE", {
@@ -178,7 +219,7 @@ const InitialDataLoader = memo(() => {
 });
 
 const StatusCard = memo(({
-  plate,
+  unitLabel,
   source,
   asOf,
   fuelType,
@@ -189,7 +230,7 @@ const StatusCard = memo(({
   readingUnit,
   odometerKm,
 }: {
-  plate: string;
+  unitLabel: string;
   source: "fuel_log" | "fuel_reading";
   asOf: string;
   fuelType: FuelType;
@@ -207,7 +248,7 @@ const StatusCard = memo(({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Car className="w-4 h-4 text-primary" />
-          <span className="font-semibold text-primary-900">{plate}</span>
+          <span className="font-semibold text-primary-900">{unitLabel}</span>
         </div>
         <Badge variant="outline" className="text-xs">
           {sourceLabel}
@@ -285,7 +326,7 @@ const LogsTable = memo(({ items }: { items: FuelLogRow[] }) => {
           {items.map((item) => (
             <tr key={item.id} className="border-t hover:bg-secondary-light/60 transition-colors">
               <td className="px-3 py-2 text-sm">{formatDateTime(item.fueled_at)}</td>
-              <td className="px-3 py-2 text-sm font-medium">{item.vehicle_plate}</td>
+              <td className="px-3 py-2 text-sm font-medium" title={item.vehicle_label}>{item.vehicle_label}</td>
               <td className="px-3 py-2 text-sm">{getFuelTypeLabel(item.fuel_type)}</td>
               <td className="px-3 py-2 text-sm">
                 <NumberCell value={item.liters} suffix=" L" />
@@ -318,7 +359,7 @@ const ReadingsTable = memo(({ items }: { items: FuelReadingRow[] }) => {
             <th className="text-left px-3 py-2 text-xs font-semibold">Unidad</th>
             <th className="text-left px-3 py-2 text-xs font-semibold">Combustible</th>
             <th className="text-left px-3 py-2 text-xs font-semibold">Lectura</th>
-            <th className="text-left px-3 py-2 text-xs font-semibold">Unidad</th>
+            <th className="text-left px-3 py-2 text-xs font-semibold">Medida</th>
             <th className="text-left px-3 py-2 text-xs font-semibold">Odometro</th>
             <th className="text-left px-3 py-2 text-xs font-semibold">Notas</th>
           </tr>
@@ -327,7 +368,7 @@ const ReadingsTable = memo(({ items }: { items: FuelReadingRow[] }) => {
           {items.map((item) => (
             <tr key={item.id} className="border-t hover:bg-secondary-light/60 transition-colors">
               <td className="px-3 py-2 text-sm">{formatDateTime(item.observed_at)}</td>
-              <td className="px-3 py-2 text-sm font-medium">{item.vehicle_plate}</td>
+              <td className="px-3 py-2 text-sm font-medium" title={item.vehicle_label}>{item.vehicle_label}</td>
               <td className="px-3 py-2 text-sm">{getFuelTypeLabel(item.fuel_type)}</td>
               <td className="px-3 py-2 text-sm">
                 <NumberCell value={item.reading_value} />
@@ -404,7 +445,9 @@ const ReadingsByVehicle = memo(({
 
             return (
               <div key={`bar-${group.vehicleId}`} className="grid grid-cols-[88px_1fr_auto] items-center gap-2">
-                <span className="text-xs font-semibold text-gray-700">{group.vehiclePlate}</span>
+                <span className="text-xs font-semibold text-gray-700 truncate" title={group.vehicleLabel}>
+                  {group.vehicleLabel}
+                </span>
                 <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
                   <div
                     className={`h-full ${getLevelTone(group.latestNormalized)}`}
@@ -431,7 +474,9 @@ const ReadingsByVehicle = memo(({
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <Car className="w-4 h-4 text-primary shrink-0" />
-                  <p className="font-semibold text-primary-900 truncate">{group.vehiclePlate}</p>
+                  <p className="font-semibold text-primary-900 truncate" title={group.vehicleLabel}>
+                    {group.vehicleLabel}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="text-xs">
@@ -575,6 +620,8 @@ export default function FuelPage() {
     return logs.map((log) => ({
       ...log,
       vehicle_plate: vehicleMap.get(log.vehicle_id)?.plate_number || log.vehicle_id,
+      vehicle_label: getVehicleDisplayLabel(vehicleMap.get(log.vehicle_id), log.vehicle_id),
+      vehicle_search_text: getVehicleSearchText(vehicleMap.get(log.vehicle_id), log.vehicle_id),
     }));
   }, [logs, vehicleMap]);
 
@@ -582,6 +629,8 @@ export default function FuelPage() {
     return readings.map((reading) => ({
       ...reading,
       vehicle_plate: vehicleMap.get(reading.vehicle_id)?.plate_number || reading.vehicle_id,
+      vehicle_label: getVehicleDisplayLabel(vehicleMap.get(reading.vehicle_id), reading.vehicle_id),
+      vehicle_search_text: getVehicleSearchText(vehicleMap.get(reading.vehicle_id), reading.vehicle_id),
     }));
   }, [readings, vehicleMap]);
 
@@ -591,9 +640,11 @@ export default function FuelPage() {
 
     return enrichedLogs.filter((item) => {
       const plate = item.vehicle_plate?.toLowerCase() || "";
+      const unitLabel = item.vehicle_label?.toLowerCase() || "";
+      const vehicleText = item.vehicle_search_text?.toLowerCase() || "";
       const station = item.station?.toLowerCase() || "";
       const notes = item.notes?.toLowerCase() || "";
-      return plate.includes(q) || station.includes(q) || notes.includes(q);
+      return plate.includes(q) || unitLabel.includes(q) || vehicleText.includes(q) || station.includes(q) || notes.includes(q);
     });
   }, [enrichedLogs, deferredHistoryQuery]);
 
@@ -603,8 +654,10 @@ export default function FuelPage() {
 
     return enrichedReadings.filter((item) => {
       const plate = item.vehicle_plate?.toLowerCase() || "";
+      const unitLabel = item.vehicle_label?.toLowerCase() || "";
+      const vehicleText = item.vehicle_search_text?.toLowerCase() || "";
       const notes = item.notes?.toLowerCase() || "";
-      return plate.includes(q) || notes.includes(q);
+      return plate.includes(q) || unitLabel.includes(q) || vehicleText.includes(q) || notes.includes(q);
     });
   }, [enrichedReadings, deferredHistoryQuery]);
 
@@ -647,6 +700,7 @@ export default function FuelPage() {
 
         return {
           vehicleId,
+          vehicleLabel: latest.vehicle_label,
           vehiclePlate: latest.vehicle_plate,
           readings: sortedItems,
           latest,
@@ -872,7 +926,7 @@ export default function FuelPage() {
                   <SelectItem value="all">Todas</SelectItem>
                   {vehicles.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plate_number}
+                      {getVehicleDisplayLabel(vehicle)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -938,7 +992,7 @@ export default function FuelPage() {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <Input
                   className="pl-9"
-                  placeholder="Placa, notas, estacion..."
+                  placeholder="Unidad, placa, notas, estacion..."
                   value={historyFilters.query}
                   onChange={(event) =>
                     setHistoryFilters((prev) => ({
@@ -1104,7 +1158,7 @@ export default function FuelPage() {
                     <SelectItem value="all">Seleccionar...</SelectItem>
                     {vehicles.map((vehicle) => (
                       <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {vehicle.plate_number} - {vehicle.brand} {vehicle.model}
+                        {getVehicleDisplayLabel(vehicle)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1161,7 +1215,7 @@ export default function FuelPage() {
             <ErrorState message={selectedStatusError} onRetry={applyStatusFilter} />
           ) : selectedStatus ? (
             <StatusCard
-              plate={selectedStatus.vehicle_plate}
+              unitLabel={getVehicleDisplayLabel(vehicleMap.get(selectedStatus.vehicle_id), selectedStatus.vehicle_plate)}
               source={selectedStatus.source}
               asOf={selectedStatus.as_of}
               fuelType={selectedStatus.fuel_type}
@@ -1199,7 +1253,7 @@ export default function FuelPage() {
                     <SelectItem value="all">Todas</SelectItem>
                     {vehicles.map((vehicle) => (
                       <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {vehicle.plate_number}
+                        {getVehicleDisplayLabel(vehicle)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1341,7 +1395,9 @@ export default function FuelPage() {
                 <tbody>
                   {anomalies.map((anomaly) => (
                     <tr key={`${anomaly.vehicle_id}-${anomaly.as_of}-${anomaly.fuel_type}`} className="border-t">
-                      <td className="px-3 py-2 text-sm font-medium">{anomaly.vehicle_plate}</td>
+                      <td className="px-3 py-2 text-sm font-medium">
+                        {getVehicleDisplayLabel(vehicleMap.get(anomaly.vehicle_id), anomaly.vehicle_plate)}
+                      </td>
                       <td className="px-3 py-2 text-sm">{getFuelTypeLabel(anomaly.fuel_type)}</td>
                       <td className="px-3 py-2 text-sm">{formatShortDate(anomaly.as_of)}</td>
                       <td className="px-3 py-2 text-sm">
