@@ -20,6 +20,8 @@ import {
   AlertTriangle,
   BarChart3,
   Car,
+  ChevronDown,
+  ChevronRight,
   Droplets,
   Fuel,
   Gauge,
@@ -44,8 +46,21 @@ type FuelReadingRow = FuelReading & {
   vehicle_search_text: string;
 };
 
+type LogsSortMode = "plate_asc" | "latest_desc" | "liters_desc";
 type ReadingSortMode = "plate_asc" | "latest_desc" | "level_desc";
+type LogsViewMode = "grouped" | "table";
 type ReadingsViewMode = "grouped" | "table";
+
+interface FuelLogsGroup {
+  vehicleId: string;
+  vehicleLabel: string;
+  vehiclePlate: string;
+  logs: FuelLogRow[];
+  latest: FuelLogRow;
+  latestTimestamp: number;
+  totalLiters: number;
+  totalCost: number;
+}
 
 interface FuelReadingsGroup {
   vehicleId: string;
@@ -349,6 +364,171 @@ const LogsTable = memo(({ items }: { items: FuelLogRow[] }) => {
   );
 });
 
+const LogsByVehicle = memo(({
+  groups,
+  onCreateLog,
+}: {
+  groups: FuelLogsGroup[];
+  onCreateLog: () => void;
+}) => {
+  const [expandedVehicleIds, setExpandedVehicleIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setExpandedVehicleIds((prev) => {
+      const availableIds = new Set(groups.map((group) => group.vehicleId));
+      const persisted = prev.filter((id) => availableIds.has(id));
+      const fallback = groups.slice(0, Math.min(2, groups.length)).map((group) => group.vehicleId);
+      const next = persisted.length > 0 ? persisted : fallback;
+
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [groups]);
+
+  const topGroups = groups.slice(0, 8);
+  const maxTopLiters = Math.max(1, ...topGroups.map((group) => group.totalLiters));
+
+  const toggleVehicle = (vehicleId: string) => {
+    setExpandedVehicleIds((prev) =>
+      prev.includes(vehicleId) ? prev.filter((id) => id !== vehicleId) : [...prev, vehicleId]
+    );
+  };
+
+  const expandAll = () => {
+    setExpandedVehicleIds(groups.map((group) => group.vehicleId));
+  };
+
+  const collapseAll = () => {
+    setExpandedVehicleIds([]);
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-primary-900">Cargas recientes por unidad</p>
+            <p className="text-xs text-gray-500">Resumen rápido del último registro y volumen acumulado.</p>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button type="button" size="sm" variant="outline" onClick={expandAll}>
+              Expandir todo
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={collapseAll}>
+              Colapsar todo
+            </Button>
+            <Button variant="outline" className="w-full sm:w-auto" onClick={onCreateLog}>
+              <Plus className="w-4 h-4 mr-2" />
+              Registrar carga
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {topGroups.map((group) => {
+            const litersBar = Math.max(6, Math.round((group.totalLiters / maxTopLiters) * 100));
+
+            return (
+              <div key={`log-bar-${group.vehicleId}`} className="grid grid-cols-[88px_1fr_auto] items-center gap-2">
+                <span className="text-xs font-semibold text-gray-700 truncate" title={group.vehicleLabel}>
+                  {group.vehicleLabel}
+                </span>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-full bg-primary/70" style={{ width: `${litersBar}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-gray-600 min-w-[68px] text-right">
+                  {group.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 1 })} L
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        {groups.map((group) => {
+          const recentItems = group.logs.slice(0, 3);
+          const isExpanded = expandedVehicleIds.includes(group.vehicleId);
+
+          return (
+            <Card key={group.vehicleId} className="p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Car className="w-4 h-4 text-primary shrink-0" />
+                  <p className="font-semibold text-primary-900 truncate" title={group.vehicleLabel}>
+                    {group.vehicleLabel}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Badge className="bg-slate-100 text-slate-700 text-xs">{group.logs.length} reg.</Badge>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-gray-600"
+                    onClick={() => toggleVehicle(group.vehicleId)}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="w-4 h-4 mr-1" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 mr-1" />
+                    )}
+                    {isExpanded ? "Ocultar" : "Ver"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-500">Última carga</p>
+                  <p className="font-semibold text-primary-900">{formatShortDate(group.latest.fueled_at)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Litros acumulados</p>
+                  <p className="font-semibold text-primary-900">
+                    {group.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Costo acumulado</p>
+                  <p className="font-semibold text-primary-900">
+                    {group.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Último odómetro</p>
+                  <p className="font-semibold text-primary-900">
+                    <NumberCell value={group.latest.odometer_km} suffix=" km" />
+                  </p>
+                </div>
+              </div>
+
+              {isExpanded ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500">Últimos movimientos</p>
+                  {recentItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between text-xs border-b last:border-b-0 py-1 gap-3">
+                      <span className="text-gray-600 truncate">{formatDateTime(item.fueled_at)}</span>
+                      <span className="font-semibold text-primary-900 whitespace-nowrap">
+                        {item.liters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L · {item.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">Expandir para ver últimos movimientos de esta unidad.</p>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 const ReadingsTable = memo(({ items }: { items: FuelReadingRow[] }) => {
   return (
     <div className="overflow-x-auto rounded-lg border border-secondary-medium bg-white">
@@ -590,6 +770,8 @@ export default function FuelPage() {
   const [statusFilters, setStatusFilters] = useState<{ vehicle_id?: string; fuel_type?: FuelType }>({});
 
   const [anomalyFilters, setAnomalyFilters] = useState<FuelAnomalyFilters>(defaultAnomalyFilters);
+  const [logsSortMode, setLogsSortMode] = useState<LogsSortMode>("latest_desc");
+  const [logsViewMode, setLogsViewMode] = useState<LogsViewMode>("grouped");
   const [readingSortMode, setReadingSortMode] = useState<ReadingSortMode>("plate_asc");
   const [readingsViewMode, setReadingsViewMode] = useState<ReadingsViewMode>("grouped");
   const deferredHistoryQuery = useDeferredValue(historyFilters.query);
@@ -660,6 +842,56 @@ export default function FuelPage() {
       return plate.includes(q) || unitLabel.includes(q) || vehicleText.includes(q) || notes.includes(q);
     });
   }, [enrichedReadings, deferredHistoryQuery]);
+
+  const groupedLogs = useMemo<FuelLogsGroup[]>(() => {
+    const grouped = new Map<string, FuelLogRow[]>();
+
+    for (const item of filteredLogs) {
+      const current = grouped.get(item.vehicle_id) ?? [];
+      current.push(item);
+      grouped.set(item.vehicle_id, current);
+    }
+
+    const groups = Array.from(grouped.entries())
+      .map(([vehicleId, items]) => {
+        const sortedItems = [...items].sort(
+          (a, b) => new Date(b.fueled_at).getTime() - new Date(a.fueled_at).getTime()
+        );
+        const latest = sortedItems[0];
+        if (!latest) return null;
+
+        const totalLiters = sortedItems.reduce((acc, item) => acc + (item.liters ?? 0), 0);
+        const totalCost = sortedItems.reduce((acc, item) => acc + (item.total_cost ?? 0), 0);
+
+        return {
+          vehicleId,
+          vehicleLabel: latest.vehicle_label,
+          vehiclePlate: latest.vehicle_plate,
+          logs: sortedItems,
+          latest,
+          latestTimestamp: new Date(latest.fueled_at).getTime(),
+          totalLiters,
+          totalCost,
+        };
+      })
+      .filter((item): item is FuelLogsGroup => item !== null);
+
+    return groups.sort((a, b) => {
+      if (logsSortMode === "plate_asc") {
+        return a.vehiclePlate.localeCompare(b.vehiclePlate, "es", { sensitivity: "base" });
+      }
+
+      if (logsSortMode === "latest_desc") {
+        return b.latestTimestamp - a.latestTimestamp;
+      }
+
+      if (a.totalLiters !== b.totalLiters) {
+        return b.totalLiters - a.totalLiters;
+      }
+
+      return b.latestTimestamp - a.latestTimestamp;
+    });
+  }, [filteredLogs, logsSortMode]);
 
   const groupedReadings = useMemo<FuelReadingsGroup[]>(() => {
     const grouped = new Map<string, FuelReadingRow[]>();
@@ -760,6 +992,29 @@ export default function FuelPage() {
       lowLevelUnits,
     };
   }, [groupedReadings]);
+
+  const groupedLogsSummary = useMemo(() => {
+    const now = Date.now();
+    let totalLiters = 0;
+    let totalCost = 0;
+    let updatedLast7d = 0;
+
+    for (const group of groupedLogs) {
+      totalLiters += group.totalLiters;
+      totalCost += group.totalCost;
+
+      if (group.latestTimestamp >= now - 7 * 24 * 60 * 60 * 1000) {
+        updatedLast7d += 1;
+      }
+    }
+
+    return {
+      units: groupedLogs.length,
+      totalLiters,
+      totalCost,
+      updatedLast7d,
+    };
+  }, [groupedLogs]);
 
   const selectedStatusVehicle = statusFilters.vehicle_id || "";
   const selectedStatus = selectedStatusVehicle ? statusByVehicle[selectedStatusVehicle] : null;
@@ -1016,6 +1271,80 @@ export default function FuelPage() {
         <TabsContent value="logs" className="space-y-4">
           {logsError ? <ErrorState message={logsError} onRetry={applyHistoryFilters} /> : null}
 
+          {!isLoadingLogs && filteredLogs.length > 0 ? (
+            <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Unidades con cargas</p>
+                  <p className="text-xl font-bold text-primary-900">{groupedLogsSummary.units}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Litros acumulados</p>
+                  <p className="text-xl font-bold text-primary-900">
+                    {groupedLogsSummary.totalLiters.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                    L
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Costo acumulado</p>
+                  <p className="text-xl font-bold text-primary-900">
+                    {groupedLogsSummary.totalCost.toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <p className="text-xs text-gray-500">Actualizadas en 7 días</p>
+                  <p className="text-xl font-bold text-primary-900">{groupedLogsSummary.updatedLast7d}</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                <div className="w-full lg:w-64">
+                  <Label>Ordenar cargas por unidad</Label>
+                  <Select
+                    value={logsSortMode}
+                    onValueChange={(value) =>
+                      setLogsSortMode(value as "plate_asc" | "latest_desc" | "liters_desc")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Orden" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="latest_desc">Más recientes</SelectItem>
+                      <SelectItem value="liters_desc">Mayor volumen (L)</SelectItem>
+                      <SelectItem value="plate_asc">Placa A-Z</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={logsViewMode === "grouped" ? "default" : "outline"}
+                    className={logsViewMode === "grouped" ? "bg-primary text-white" : ""}
+                    onClick={() => setLogsViewMode("grouped")}
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Vista por unidad
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={logsViewMode === "table" ? "default" : "outline"}
+                    className={logsViewMode === "table" ? "bg-primary text-white" : ""}
+                    onClick={() => setLogsViewMode("table")}
+                  >
+                    <List className="w-4 h-4 mr-2" />
+                    Vista tabla
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ) : null}
+
           {isLoadingLogs ? (
             <Card className="p-4 space-y-3">
               <Skeleton className="h-8 w-full" />
@@ -1034,7 +1363,11 @@ export default function FuelPage() {
               }
             />
           ) : (
-            <LogsTable items={filteredLogs} />
+            logsViewMode === "grouped" ? (
+              <LogsByVehicle groups={groupedLogs} onCreateLog={() => setIsLogModalOpen(true)} />
+            ) : (
+              <LogsTable items={filteredLogs} />
+            )
           )}
         </TabsContent>
 
