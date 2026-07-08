@@ -90,7 +90,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const calculateM3Progress = () => {
     const nextM3Km = vehicle.next_m3_kilometers;
     if (!effectiveCurrentKm || !nextM3Km) return 0;
-    const M3_INTERVAL = 7000;
+    const M3_INTERVAL = 5000;
     const lastM3Km = nextM3Km - M3_INTERVAL;
     const kmSinceLastM3 = effectiveCurrentKm - lastM3Km;
     return Math.min(Math.max((kmSinceLastM3 / M3_INTERVAL) * 100, 0), 100);

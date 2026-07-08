@@ -7,10 +7,10 @@ export const maintenanceTypeConfig = {
     interval: 3500
   },
   "m3": {
-    label: "Mantenimiento M3 (7,000 km)", 
+    label: "Mantenimiento M3 (5,000 km)", 
     color: "text-blue-600 border-blue-600",
     description: "Revisión de frenos, suspensión y sistemas eléctricos",
-    interval: 7000
+    interval: 5000
   },
   "m3+": {
     label: "Mantenimiento M3+ (15,000 km)",

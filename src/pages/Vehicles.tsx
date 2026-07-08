@@ -21,6 +21,28 @@ import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
+const parseBackendErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const body = await response.json();
+
+    const detail = body?.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item: any) => item?.msg || item?.message || item?.detail)
+        .filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0);
+      if (messages.length > 0) return messages.join(" | ");
+    }
+
+    if (typeof body?.message === "string") return body.message;
+    if (typeof body?.error === "string") return body.error;
+
+    return fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 type ModalStep = "vehicle" | "baseline";
 
 const EMPTY_FORM = {
@@ -234,10 +256,23 @@ export default function Vehicles() {
         toast({ title: "Kilometraje actualizado" });
         await refreshVehicles();
       } else {
-        toast({ title: "Error al actualizar el kilometraje.", variant: "destructive" });
+        const message = await parseBackendErrorMessage(
+          response,
+          "No se pudo actualizar el kilometraje del vehículo."
+        );
+        toast({
+          title: response.status === 400 || response.status === 422 ? "Validación de kilometraje" : "Error al actualizar kilometraje",
+          description: message,
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error updating kilometers:", error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar al servidor para actualizar el kilometraje.",
+        variant: "destructive",
+      });
     }
   };
 

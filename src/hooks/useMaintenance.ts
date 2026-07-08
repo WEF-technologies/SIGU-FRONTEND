@@ -4,6 +4,41 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
+const M3_INTERVAL_KM = 5000;
+
+const stringifyValidationError = (detail: unknown): string => {
+  if (!detail) return "Error de validación.";
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const message = (item as any).msg ?? (item as any).message ?? (item as any).detail;
+          if (typeof message === "string") return message;
+        }
+        return null;
+      })
+      .filter((value): value is string => Boolean(value));
+
+    if (messages.length > 0) {
+      return messages.join(" | ");
+    }
+  }
+
+  if (typeof detail === "object") {
+    const maybe = (detail as any).msg ?? (detail as any).message ?? (detail as any).detail;
+    if (typeof maybe === "string") return maybe;
+  }
+
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return "Error de validación.";
+  }
+};
 
 /**
  * Enriquece un vehículo con datos de M3. El backend mantiene last_m3_date y
@@ -12,19 +47,35 @@ const API_URL = import.meta.env.VITE_API_URL ?? "";
  * local sólo como fallback cuando el backend devuelve null.
  */
 function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
-  // Fallback: último M3 del historial ordenado por fecha descendente
-  const lastM3 = maintenances
-    .filter((m) => m.vehicle_plate === vehicle.plate_number && m.type === "m3")
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  const vehicleMaintenances = maintenances.filter((m) => m.vehicle_plate === vehicle.plate_number);
+  const maxMaintenanceKm = Math.max(
+    0,
+    ...vehicleMaintenances.map((m) => m.kilometers ?? 0)
+  );
+
+  // Fallback: último M3 por mayor kilometraje (y fecha descendente como desempate)
+  const lastM3 = vehicleMaintenances
+    .filter((m) => m.type === "m3")
+    .sort((a, b) => {
+      const kmDiff = (b.kilometers ?? 0) - (a.kilometers ?? 0);
+      if (kmDiff !== 0) return kmDiff;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    })[0];
+
+  const effectiveCurrentKm = Math.max(
+    vehicle.kilometers || 0,
+    vehicle.current_kilometers || 0,
+    maxMaintenanceKm
+  );
 
   return {
     ...vehicle,
-    current_kilometers: vehicle.kilometers || vehicle.current_kilometers || 0,
+    current_kilometers: effectiveCurrentKm,
     last_m3_date: vehicle.last_m3_date ?? lastM3?.date ?? null,
     last_m3_kilometers: vehicle.last_m3_kilometers ?? lastM3?.kilometers ?? null,
     next_m3_kilometers:
       vehicle.next_m3_kilometers ??
-      (lastM3?.kilometers != null ? lastM3.kilometers + 7000 : null),
+      (lastM3?.kilometers != null ? lastM3.kilometers + M3_INTERVAL_KM : null),
   };
 }
 
@@ -59,7 +110,7 @@ export function useMaintenance() {
    */
   // Umbral "near" alineado con el backend (near_threshold default = 500 km)
   const M3_NEAR_THRESHOLD = 500;
-  const M3_INTERVAL = 7000;
+  const M3_INTERVAL = M3_INTERVAL_KM;
 
   const computeLocalM3Alerts = (enrichedVehicles: Vehicle[]): MaintenanceAlert[] => {
     return enrichedVehicles.flatMap((v) => {
@@ -252,7 +303,12 @@ export function useMaintenance() {
   const extractErrorMessage = async (response: Response): Promise<string> => {
     try {
       const body = await response.json();
-      return body.detail ?? body.message ?? body.error ?? JSON.stringify(body);
+      return (
+        stringifyValidationError(body.detail) ||
+        stringifyValidationError(body.message) ||
+        stringifyValidationError(body.error) ||
+        JSON.stringify(body)
+      );
     } catch {
       return `Error ${response.status}`;
     }
@@ -288,16 +344,13 @@ export function useMaintenance() {
       });
       return true;
     } else {
-      const rawBody = await response.text().catch(() => "");
-      console.error('[createMaintenance] error status:', response.status, '| body:', rawBody, '| payload:', payload);
-      let msg: string;
-      try {
-        const body = JSON.parse(rawBody);
-        msg = body.detail ?? body.message ?? body.error ?? rawBody;
-      } catch {
-        msg = rawBody || `Error ${response.status}`;
-      }
-      toast({ title: `Error ${response.status} al registrar`, description: msg, variant: "destructive" });
+      const msg = await extractErrorMessage(response);
+      console.error('[createMaintenance] error status:', response.status, '| detail:', msg, '| payload:', payload);
+      toast({
+        title: response.status === 400 || response.status === 422 ? "Validación de kilometraje" : `Error ${response.status} al registrar`,
+        description: msg,
+        variant: "destructive",
+      });
       return false;
     }
   };
@@ -319,7 +372,11 @@ export function useMaintenance() {
     } else {
       const msg = await extractErrorMessage(response);
       console.error("Error al actualizar mantenimiento:", msg);
-      toast({ title: "Error al actualizar", description: msg, variant: "destructive" });
+      toast({
+        title: response.status === 400 || response.status === 422 ? "Validación de kilometraje" : "Error al actualizar",
+        description: msg,
+        variant: "destructive",
+      });
       return false;
     }
   };

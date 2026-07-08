@@ -42,7 +42,7 @@ function M3StatusPill({ vehicle }: { vehicle?: Vehicle }) {
       </span>
     );
   }
-  if (remaining <= 1050) {
+  if (remaining <= 500) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
         <AlertTriangle className="w-3 h-3" />

@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Maintenance as MaintenanceType, Vehicle, SparePart } from "@/types";
 import { maintenanceTypeConfig, MaintenanceTypeKey } from "@/constants/maintenanceTypes";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useToast } from "@/hooks/use-toast";
 
 const DESC_MAX = 255;
 
@@ -33,6 +34,7 @@ export function MaintenanceFormModal({
   onSubmit
 }: MaintenanceFormModalProps) {
   const authenticatedFetch = useAuthenticatedFetch();
+  const { toast } = useToast();
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const [vehicleOpen, setVehicleOpen] = useState(false);
 
@@ -104,6 +106,14 @@ export function MaintenanceFormModal({
 
     if (!formData.plate_number) return;
     if (!canSubmit) return;
+    if (kilometersTooLow) {
+      toast({
+        title: "Validación de kilometraje",
+        description: `El kilometraje (${formData.kilometers.toLocaleString()} km) no puede ser menor al actual de la unidad (${referenceKilometers.toLocaleString()} km).`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     const submitData = {
       ...formData,
@@ -123,6 +133,16 @@ export function MaintenanceFormModal({
   };
 
   const selectedVehicle = vehicles.find(v => v.plate_number === formData.plate_number);
+  const referenceKilometers = selectedVehicle
+    ? Math.max(
+        selectedVehicle.current_kilometers || selectedVehicle.kilometers || 0,
+        selectedVehicle.last_m3_kilometers || 0
+      )
+    : 0;
+  const kilometersTooLow =
+    formData.kilometers > 0 &&
+    referenceKilometers > 0 &&
+    formData.kilometers < referenceKilometers;
 
   return (
     <FormModal
@@ -249,6 +269,16 @@ export function MaintenanceFormModal({
               onChange={(e) => setFormData({...formData, kilometers: parseInt(e.target.value) || 0})}
               placeholder="Kilómetros del vehículo"
             />
+            {referenceKilometers > 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Kilometraje registrado de la unidad: {referenceKilometers.toLocaleString()} km.
+              </p>
+            )}
+            {kilometersTooLow && (
+              <p className="mt-1 text-xs text-destructive">
+                El valor ingresado debe ser mayor o igual a {referenceKilometers.toLocaleString()} km.
+              </p>
+            )}
           </div>
         </div>
 
@@ -336,7 +366,7 @@ export function MaintenanceFormModal({
           <Button
             type="submit"
             className="bg-primary hover:bg-primary-600"
-            disabled={!canSubmit}
+            disabled={!canSubmit || kilometersTooLow}
           >
             {editingMaintenance?.id ? "Actualizar Mantenimiento" : "Registrar Mantenimiento"}
           </Button>
