@@ -288,12 +288,16 @@ export default function Maintenance() {
     () => new Map(vehicles.map((vehicle) => [vehicle.plate_number, vehicle])),
     [vehicles]
   );
+  const vehiclesById = useMemo(
+    () => new Map(vehicles.map((vehicle) => [vehicle.id, vehicle])),
+    [vehicles]
+  );
 
   // ── Group maintenances by vehicle plate, sorted newest first ──────────────
   const grouped = useMemo(() => {
     const map = new Map<string, MaintenanceType[]>();
     for (const m of maintenance) {
-      const plate = m.vehicle_plate ?? "Sin placa";
+      const plate = m.vehicle_plate ?? vehiclesById.get(m.vehicle_id)?.plate_number ?? "Sin placa";
       const list = map.get(plate) ?? [];
       list.push(m);
       map.set(plate, list);
@@ -308,7 +312,7 @@ export default function Maintenance() {
       const dateB = new Date(b[0]?.date ?? 0).getTime();
       return dateB - dateA;
     });
-  }, [maintenance]);
+  }, [maintenance, vehiclesById]);
 
   // ── Filter by search ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Vehicle, Maintenance, SparePart } from "@/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,19 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const { toast } = useToast();
 
   // Filtrar mantenimientos para este vehículo específico
-  const vehicleMaintenances = maintenance.filter(m => m.vehicle_plate === vehicle?.plate_number);
+  const vehicleMaintenances = useMemo(
+    () =>
+      maintenance
+        .filter((m) => {
+          if (!vehicle) return false;
+
+          const byPlate = m.vehicle_plate === vehicle.plate_number;
+          const byId = Boolean(vehicle.id) && m.vehicle_id === vehicle.id;
+          return byPlate || byId;
+        })
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [maintenance, vehicle]
+  );
 
   useEffect(() => {
     if (vehicle) {

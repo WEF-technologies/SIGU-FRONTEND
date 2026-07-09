@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Tool, ToolAlert, ToolFilters, ToolAlertFilters, ToolPayload } from "@/types";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
@@ -24,7 +25,7 @@ const buildQueryString = (params: Record<string, string | number | boolean | und
 const extractErrorMessage = async (response: Response, fallback: string) => {
   try {
     const payload = await response.json();
-    return payload?.message || payload?.detail || fallback;
+    return localizeApiErrorPayload(payload, fallback);
   } catch {
     return fallback;
   }

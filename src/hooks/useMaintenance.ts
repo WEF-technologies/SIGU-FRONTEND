@@ -2,43 +2,48 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Maintenance as MaintenanceType, Vehicle, MaintenanceAlert } from "@/types";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 const M3_INTERVAL_KM = 5000;
+const MAINTENANCE_PAGE_SIZE = 200;
+const MAX_MAINTENANCE_PAGES = 40;
 
-const stringifyValidationError = (detail: unknown): string => {
-  if (!detail) return "Error de validación.";
-
-  if (typeof detail === "string") return detail;
-
-  if (Array.isArray(detail)) {
-    const messages = detail
-      .map((item) => {
-        if (typeof item === "string") return item;
-        if (item && typeof item === "object") {
-          const message = (item as any).msg ?? (item as any).message ?? (item as any).detail;
-          if (typeof message === "string") return message;
-        }
-        return null;
-      })
-      .filter((value): value is string => Boolean(value));
-
-    if (messages.length > 0) {
-      return messages.join(" | ");
-    }
-  }
-
-  if (typeof detail === "object") {
-    const maybe = (detail as any).msg ?? (detail as any).message ?? (detail as any).detail;
-    if (typeof maybe === "string") return maybe;
-  }
-
-  try {
-    return JSON.stringify(detail);
-  } catch {
-    return "Error de validación.";
-  }
+const extractMaintenanceItems = (payload: any): any[] => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.maintenances)) return payload.maintenances;
+  return [];
 };
+
+const resolveMaintenancePlate = (entry: any, vehiclesById: Map<string, any>) => {
+  return (
+    entry?.vehicle_plate ||
+    entry?.plate_number ||
+    entry?.vehicle?.plate_number ||
+    (entry?.vehicle_id ? vehiclesById.get(entry.vehicle_id)?.plate_number : undefined) ||
+    undefined
+  );
+};
+
+const normalizeMaintenanceEntries = (entries: any[], vehiclesPool: any[]): MaintenanceType[] => {
+  const vehiclesById = new Map(
+    (Array.isArray(vehiclesPool) ? vehiclesPool : []).map((vehicle) => [vehicle.id, vehicle])
+  );
+
+  return entries.map((entry) => {
+    const resolvedPlate = resolveMaintenancePlate(entry, vehiclesById);
+    return {
+      ...entry,
+      vehicle_plate: resolvedPlate ?? entry?.vehicle_plate,
+    } as MaintenanceType;
+  });
+};
+
+const buildMaintenancePageUrl = (page: number) =>
+  `${API_URL}/api/v1/maintenances/?all=true&page=${page}&limit=${MAINTENANCE_PAGE_SIZE}&page_size=${MAINTENANCE_PAGE_SIZE}&per_page=${MAINTENANCE_PAGE_SIZE}&size=${MAINTENANCE_PAGE_SIZE}`;
 
 /**
  * Enriquece un vehículo con datos de M3. El backend mantiene last_m3_date y
@@ -47,7 +52,9 @@ const stringifyValidationError = (detail: unknown): string => {
  * local sólo como fallback cuando el backend devuelve null.
  */
 function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
-  const vehicleMaintenances = maintenances.filter((m) => m.vehicle_plate === vehicle.plate_number);
+  const vehicleMaintenances = maintenances.filter(
+    (m) => m.vehicle_plate === vehicle.plate_number || m.vehicle_id === vehicle.id
+  );
   const maxMaintenanceKm = Math.max(
     0,
     ...vehicleMaintenances.map((m) => m.kilometers ?? 0)
@@ -161,6 +168,83 @@ export function useMaintenance() {
     return [...local, ...deduped];
   };
 
+  const fetchMaintenanceRecords = useCallback(async (vehiclesData: any[]): Promise<MaintenanceType[]> => {
+    try {
+      const allItems: MaintenanceType[] = [];
+      const seenKeys = new Set<string>();
+      let nextUrl: string | null = buildMaintenancePageUrl(1);
+      let currentPage = 1;
+
+      while (nextUrl && currentPage <= MAX_MAINTENANCE_PAGES) {
+        const response = await fetchRef.current(nextUrl);
+
+        if (!response.ok) {
+          if (currentPage === 1) {
+            const fallbackResponse = await fetchRef.current(`${API_URL}/api/v1/maintenances/`);
+            if (!fallbackResponse.ok) return [];
+
+            const fallbackPayload = await fallbackResponse.json();
+            return normalizeMaintenanceEntries(extractMaintenanceItems(fallbackPayload), vehiclesData);
+          }
+          break;
+        }
+
+        const payload = await response.json();
+        const pageItems = normalizeMaintenanceEntries(extractMaintenanceItems(payload), vehiclesData);
+
+        if (pageItems.length === 0) break;
+
+        let added = 0;
+        for (const item of pageItems) {
+          const dedupeKey =
+            item.id || `${item.vehicle_id}-${item.date}-${item.type}-${item.kilometers ?? "na"}`;
+
+          if (seenKeys.has(dedupeKey)) continue;
+
+          seenKeys.add(dedupeKey);
+          allItems.push(item);
+          added += 1;
+        }
+
+        const nextFromPayload =
+          typeof (payload as any)?.next === "string" && (payload as any).next.length > 0
+            ? (payload as any).next
+            : null;
+
+        if (nextFromPayload) {
+          nextUrl = nextFromPayload;
+          currentPage += 1;
+          continue;
+        }
+
+        const totalPages =
+          Number((payload as any)?.total_pages) ||
+          Number((payload as any)?.pages) ||
+          Number((payload as any)?.last_page) ||
+          null;
+
+        if (totalPages && currentPage < totalPages) {
+          currentPage += 1;
+          nextUrl = buildMaintenancePageUrl(currentPage);
+          continue;
+        }
+
+        if (pageItems.length >= MAINTENANCE_PAGE_SIZE && added > 0) {
+          currentPage += 1;
+          nextUrl = buildMaintenancePageUrl(currentPage);
+          continue;
+        }
+
+        nextUrl = null;
+      }
+
+      return allItems;
+    } catch (error) {
+      console.error("Error fetching maintenance records:", error);
+      return [];
+    }
+  }, []);
+
   const fetchAlerts = useCallback(async (enrichedVehicles?: Vehicle[]) => {
     try {
       const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/alerts`);
@@ -192,29 +276,19 @@ export function useMaintenance() {
       }
 
       try {
-        const [maintenanceResponse, vehiclesResponse] = await Promise.all([
-          fetchRef.current(`${API_URL}/api/v1/maintenances/`),
-          fetchRef.current(`${API_URL}/api/v1/vehicles/`),
-        ]);
+        const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
+        const vehiclesData = vehiclesResponse.ok ? await vehiclesResponse.json() : [];
+        const normalizedVehicles = Array.isArray(vehiclesData) ? vehiclesData : [];
 
-        let maintenanceData: MaintenanceType[] = [];
-        if (maintenanceResponse.ok) {
-          maintenanceData = await maintenanceResponse.json();
-          if (isActive) {
-            setMaintenance(Array.isArray(maintenanceData) ? maintenanceData : []);
-          }
-        } else {
-          if (isActive) {
-            setMaintenance([]);
-          }
+        const maintenanceData = await fetchMaintenanceRecords(normalizedVehicles);
+
+        if (isActive) {
+          setMaintenance(maintenanceData);
         }
 
         if (vehiclesResponse.ok) {
-          const vehiclesData = await vehiclesResponse.json();
           // Enriquecer con M3 usando los datos de mantenimiento recién cargados
-          const mapped = (Array.isArray(vehiclesData) ? vehiclesData : []).map(
-            (v: any) => enrichWithM3(v, maintenanceData)
-          );
+          const mapped = normalizedVehicles.map((v: any) => enrichWithM3(v, maintenanceData));
           if (isActive) {
             setVehicles(mapped);
             await fetchAlerts(mapped);
@@ -301,16 +375,13 @@ export function useMaintenance() {
 
   /** Extrae el mensaje de error legible de una respuesta HTTP fallida. */
   const extractErrorMessage = async (response: Response): Promise<string> => {
+    const fallback = `No se pudo completar la solicitud (${response.status}).`;
+
     try {
       const body = await response.json();
-      return (
-        stringifyValidationError(body.detail) ||
-        stringifyValidationError(body.message) ||
-        stringifyValidationError(body.error) ||
-        JSON.stringify(body)
-      );
+      return localizeApiErrorPayload(body, fallback);
     } catch {
-      return `Error ${response.status}`;
+      return fallback;
     }
   };
 
@@ -335,7 +406,8 @@ export function useMaintenance() {
 
     if (response.ok) {
       const newMaintenance = await response.json();
-      const updatedList = [...maintenance, newMaintenance];
+      const normalizedNew = normalizeMaintenanceEntries([newMaintenance], vehicles)[0] ?? newMaintenance;
+      const updatedList = [...maintenance, normalizedNew];
       setMaintenance(updatedList);
       await reloadVehicles(updatedList);
       toast({
@@ -364,7 +436,8 @@ export function useMaintenance() {
 
     if (response.ok) {
       const updated = await response.json();
-      const updatedList = maintenance.map(m => m.id === id ? updated : m);
+      const normalizedUpdated = normalizeMaintenanceEntries([updated], vehicles)[0] ?? updated;
+      const updatedList = maintenance.map(m => m.id === id ? normalizedUpdated : m);
       setMaintenance(updatedList);
       await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
       toast({ title: "Mantenimiento actualizado", description: `El mantenimiento ${formData.type} ha sido actualizado.` });

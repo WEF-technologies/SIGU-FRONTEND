@@ -18,26 +18,14 @@ import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 const parseBackendErrorMessage = async (response: Response, fallback: string) => {
   try {
     const body = await response.json();
-
-    const detail = body?.detail;
-    if (typeof detail === "string") return detail;
-    if (Array.isArray(detail)) {
-      const messages = detail
-        .map((item: any) => item?.msg || item?.message || item?.detail)
-        .filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0);
-      if (messages.length > 0) return messages.join(" | ");
-    }
-
-    if (typeof body?.message === "string") return body.message;
-    if (typeof body?.error === "string") return body.error;
-
-    return fallback;
+    return localizeApiErrorPayload(body, fallback);
   } catch {
     return fallback;
   }

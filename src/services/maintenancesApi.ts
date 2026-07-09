@@ -1,8 +1,12 @@
+import { localizeApiErrorPayload } from '@/lib/errorI18n';
+
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
 export interface BackendErrorPayload {
   status?: number;
-  message?: string;
+  message?: unknown;
+  detail?: unknown;
+  error?: unknown;
   code?: string;
   details?: unknown;
 }
@@ -60,7 +64,7 @@ const parseBackendError = async (response: Response): Promise<ApiRequestError> =
   }
 
   const fallbackMessage = `No se pudo descargar el historial (${response.status}).`;
-  const message = payload?.message || fallbackMessage;
+  const message = localizeApiErrorPayload(payload, fallbackMessage);
 
   return new ApiRequestError(response.status, message, payload?.code, payload?.details);
 };

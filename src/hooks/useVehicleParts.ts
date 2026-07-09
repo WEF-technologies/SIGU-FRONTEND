@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { VehiclePart, PartAlert, Vehicle } from '@/types';
 import { useAuthenticatedFetch } from './useAuthenticatedFetch';
 import { toast } from 'sonner';
+import { localizeApiError, localizeApiErrorPayload } from '@/lib/errorI18n';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -77,12 +78,12 @@ export const useVehicleParts = () => {
         toast.success('Parte agregada exitosamente');
         return newPart;
       } else {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al crear parte');
+        const errorPayload = await response.json().catch(() => null);
+        throw new Error(localizeApiErrorPayload(errorPayload, 'Error al crear parte'));
       }
     } catch (error) {
       console.error('Error creating part:', error);
-      toast.error(error instanceof Error ? error.message : 'Error al crear parte');
+      toast.error(localizeApiError(error, 'Error al crear parte'));
       throw error;
     }
   };
@@ -100,12 +101,12 @@ export const useVehicleParts = () => {
         toast.success('Parte actualizada exitosamente');
         return updatedPart;
       } else {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al actualizar parte');
+        const errorPayload = await response.json().catch(() => null);
+        throw new Error(localizeApiErrorPayload(errorPayload, 'Error al actualizar parte'));
       }
     } catch (error) {
       console.error('Error updating part:', error);
-      toast.error(error instanceof Error ? error.message : 'Error al actualizar parte');
+      toast.error(localizeApiError(error, 'Error al actualizar parte'));
       throw error;
     }
   };
@@ -120,12 +121,12 @@ export const useVehicleParts = () => {
         setParts(prev => prev.filter(p => p.id !== part.id));
         toast.success('Parte eliminada exitosamente');
       } else {
-        const error = await response.json();
-        throw new Error(error.detail || 'Error al eliminar parte');
+        const errorPayload = await response.json().catch(() => null);
+        throw new Error(localizeApiErrorPayload(errorPayload, 'Error al eliminar parte'));
       }
     } catch (error) {
       console.error('Error deleting part:', error);
-      toast.error(error instanceof Error ? error.message : 'Error al eliminar parte');
+      toast.error(localizeApiError(error, 'Error al eliminar parte'));
       throw error;
     }
   };

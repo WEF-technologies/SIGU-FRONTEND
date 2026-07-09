@@ -8,6 +8,7 @@ import {
   FuelReading,
   FuelVehicleStatus,
 } from "@/types";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1/fuel`;
 
@@ -15,8 +16,9 @@ type AuthenticatedFetch = (url: string, options?: RequestInit) => Promise<Respon
 
 interface BackendErrorPayload {
   status?: number;
-  message?: string;
-  detail?: string;
+  message?: unknown;
+  detail?: unknown;
+  error?: unknown;
   code?: string;
   details?: unknown;
 }
@@ -56,7 +58,7 @@ const parseFuelApiError = async (response: Response, fallback: string): Promise<
     payload = null;
   }
 
-  const message = payload?.message || payload?.detail || fallback;
+  const message = localizeApiErrorPayload(payload, fallback);
   return new FuelApiError(response.status, message, payload?.code, payload?.details);
 };
 

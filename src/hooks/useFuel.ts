@@ -14,6 +14,7 @@ import {
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { FuelApiError, fuelApi } from "@/services/fuelApi";
+import { localizeApiError } from "@/lib/errorI18n";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -28,7 +29,8 @@ const DEFAULT_ANOMALY_FILTERS: FuelAnomalyFilters = {
 
 const isSessionExpiredError = (error: unknown) => {
   if (!(error instanceof Error)) return false;
-  return error.message.toLowerCase().includes("expirada");
+  const message = error.message.toLowerCase();
+  return message.includes("expirada") || message.includes("expiro") || message.includes("sesion");
 };
 
 const resolveApiErrorMessage = (
@@ -40,14 +42,10 @@ const resolveApiErrorMessage = (
     if (specificByStatus?.[error.status]) {
       return specificByStatus[error.status];
     }
-    return error.message || fallback;
+    return localizeApiError(error, fallback);
   }
 
-  if (error instanceof Error) {
-    return error.message || fallback;
-  }
-
-  return fallback;
+  return localizeApiError(error, fallback);
 };
 
 const normalizeOptionalText = (value?: string | null) => {
