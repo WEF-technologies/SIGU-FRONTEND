@@ -20,6 +20,16 @@ import { maintenancesApi, ApiRequestError } from "@/services/maintenancesApi";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
+const normalizeIdValue = (value: unknown) => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const normalizePlateValue = (value: unknown) => {
+  if (typeof value !== "string") return "";
+  return value.trim().toUpperCase();
+};
+
 interface VehicleDetailsModalProps {
   vehicle: Vehicle | null;
   isOpen: boolean;
@@ -44,8 +54,10 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
         .filter((m) => {
           if (!vehicle) return false;
 
-          const byPlate = m.vehicle_plate === vehicle.plate_number;
-          const byId = Boolean(vehicle.id) && m.vehicle_id === vehicle.id;
+          const byPlate = normalizePlateValue(m.vehicle_plate) === normalizePlateValue(vehicle.plate_number);
+          const byId =
+            normalizeIdValue(vehicle.id).length > 0 &&
+            normalizeIdValue(m.vehicle_id) === normalizeIdValue(vehicle.id);
           return byPlate || byId;
         })
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),

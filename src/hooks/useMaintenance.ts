@@ -9,41 +9,87 @@ const M3_INTERVAL_KM = 5000;
 const MAINTENANCE_PAGE_SIZE = 200;
 const MAX_MAINTENANCE_PAGES = 40;
 
+const normalizeIdValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const normalizePlateValue = (value: unknown): string => {
+  if (typeof value !== "string") return "";
+  return value.trim().toUpperCase();
+};
+
+const toPositiveNumber = (value: unknown): number | null => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+};
+
 const extractMaintenanceItems = (payload: any): any[] => {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.items)) return payload.items;
   if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.maintenances)) return payload.maintenances;
+  if (Array.isArray(payload?.payload)) return payload.payload;
   return [];
 };
 
 const resolveMaintenancePlate = (entry: any, vehiclesById: Map<string, any>) => {
+  const directPlate =
+    entry?.vehicle_plate ||
+    entry?.plate_number ||
+    entry?.vehicle?.plate_number;
+
+  if (typeof directPlate === "string" && directPlate.trim().length > 0) {
+    return directPlate;
+  }
+
+  const vehicleId = normalizeIdValue(entry?.vehicle_id ?? entry?.vehicle?.id);
+  if (vehicleId) {
+    return vehiclesById.get(vehicleId)?.plate_number;
+  }
+
   return (
     entry?.vehicle_plate ||
     entry?.plate_number ||
     entry?.vehicle?.plate_number ||
-    (entry?.vehicle_id ? vehiclesById.get(entry.vehicle_id)?.plate_number : undefined) ||
     undefined
   );
 };
 
 const normalizeMaintenanceEntries = (entries: any[], vehiclesPool: any[]): MaintenanceType[] => {
   const vehiclesById = new Map(
-    (Array.isArray(vehiclesPool) ? vehiclesPool : []).map((vehicle) => [vehicle.id, vehicle])
+    (Array.isArray(vehiclesPool) ? vehiclesPool : []).map((vehicle) => [normalizeIdValue(vehicle.id), vehicle])
   );
 
   return entries.map((entry) => {
     const resolvedPlate = resolveMaintenancePlate(entry, vehiclesById);
+    const normalizedVehicleId = normalizeIdValue(entry?.vehicle_id ?? entry?.vehicle?.id);
+    const normalizedPlate = normalizePlateValue(resolvedPlate ?? entry?.vehicle_plate ?? entry?.plate_number);
+
     return {
       ...entry,
-      vehicle_plate: resolvedPlate ?? entry?.vehicle_plate,
+      vehicle_id: normalizedVehicleId || entry?.vehicle_id,
+      vehicle_plate: normalizedPlate || (resolvedPlate ?? entry?.vehicle_plate),
     } as MaintenanceType;
   });
 };
 
 const buildMaintenancePageUrl = (page: number) =>
   `${API_URL}/api/v1/maintenances/?all=true&page=${page}&limit=${MAINTENANCE_PAGE_SIZE}&page_size=${MAINTENANCE_PAGE_SIZE}&per_page=${MAINTENANCE_PAGE_SIZE}&size=${MAINTENANCE_PAGE_SIZE}`;
+
+const buildMaintenanceOffsetUrl = (page: number) => {
+  const offset = (page - 1) * MAINTENANCE_PAGE_SIZE;
+  return `${API_URL}/api/v1/maintenances/?all=true&skip=${offset}&offset=${offset}&limit=${MAINTENANCE_PAGE_SIZE}&page_size=${MAINTENANCE_PAGE_SIZE}&per_page=${MAINTENANCE_PAGE_SIZE}&size=${MAINTENANCE_PAGE_SIZE}`;
+};
+
+const getMaintenanceDedupKey = (item: Partial<MaintenanceType>) => {
+  return (
+    item.id ||
+    `${normalizeIdValue(item.vehicle_id)}-${normalizePlateValue(item.vehicle_plate)}-${item.date}-${item.type}-${item.kilometers ?? "na"}-${item.description ?? ""}`
+  );
+};
 
 /**
  * Enriquece un vehículo con datos de M3. El backend mantiene last_m3_date y
@@ -52,8 +98,13 @@ const buildMaintenancePageUrl = (page: number) =>
  * local sólo como fallback cuando el backend devuelve null.
  */
 function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
+  const normalizedVehiclePlate = normalizePlateValue(vehicle.plate_number);
+  const normalizedVehicleId = normalizeIdValue(vehicle.id);
+
   const vehicleMaintenances = maintenances.filter(
-    (m) => m.vehicle_plate === vehicle.plate_number || m.vehicle_id === vehicle.id
+    (m) =>
+      normalizePlateValue(m.vehicle_plate) === normalizedVehiclePlate ||
+      normalizeIdValue(m.vehicle_id) === normalizedVehicleId
   );
   const maxMaintenanceKm = Math.max(
     0,
@@ -169,47 +220,38 @@ export function useMaintenance() {
   };
 
   const fetchMaintenanceRecords = useCallback(async (vehiclesData: any[]): Promise<MaintenanceType[]> => {
-    try {
+    const collectWithBuilder = async (
+      buildUrl: (page: number) => string
+    ): Promise<MaintenanceType[]> => {
       const allItems: MaintenanceType[] = [];
       const seenKeys = new Set<string>();
-      let nextUrl: string | null = buildMaintenancePageUrl(1);
+      let nextUrl: string | null = buildUrl(1);
       let currentPage = 1;
 
       while (nextUrl && currentPage <= MAX_MAINTENANCE_PAGES) {
         const response = await fetchRef.current(nextUrl);
-
-        if (!response.ok) {
-          if (currentPage === 1) {
-            const fallbackResponse = await fetchRef.current(`${API_URL}/api/v1/maintenances/`);
-            if (!fallbackResponse.ok) return [];
-
-            const fallbackPayload = await fallbackResponse.json();
-            return normalizeMaintenanceEntries(extractMaintenanceItems(fallbackPayload), vehiclesData);
-          }
-          break;
-        }
+        if (!response.ok) break;
 
         const payload = await response.json();
         const pageItems = normalizeMaintenanceEntries(extractMaintenanceItems(payload), vehiclesData);
-
         if (pageItems.length === 0) break;
 
         let added = 0;
         for (const item of pageItems) {
-          const dedupeKey =
-            item.id || `${item.vehicle_id}-${item.date}-${item.type}-${item.kilometers ?? "na"}`;
-
+          const dedupeKey = getMaintenanceDedupKey(item);
           if (seenKeys.has(dedupeKey)) continue;
-
           seenKeys.add(dedupeKey);
           allItems.push(item);
           added += 1;
         }
 
         const nextFromPayload =
-          typeof (payload as any)?.next === "string" && (payload as any).next.length > 0
+          (typeof (payload as any)?.next === "string" && (payload as any).next.length > 0
             ? (payload as any).next
-            : null;
+            : null) ||
+          (typeof (payload as any)?.links?.next === "string" && (payload as any).links.next.length > 0
+            ? (payload as any).links.next
+            : null);
 
         if (nextFromPayload) {
           nextUrl = nextFromPayload;
@@ -217,21 +259,73 @@ export function useMaintenance() {
           continue;
         }
 
+        const hasNext =
+          (payload as any)?.has_next === true ||
+          (payload as any)?.hasNext === true ||
+          (payload as any)?.pagination?.has_next === true ||
+          (payload as any)?.pagination?.hasNext === true;
+
         const totalPages =
-          Number((payload as any)?.total_pages) ||
-          Number((payload as any)?.pages) ||
-          Number((payload as any)?.last_page) ||
+          toPositiveNumber((payload as any)?.total_pages) ||
+          toPositiveNumber((payload as any)?.pages) ||
+          toPositiveNumber((payload as any)?.last_page) ||
+          toPositiveNumber((payload as any)?.pagination?.total_pages) ||
+          toPositiveNumber((payload as any)?.pagination?.pages) ||
           null;
 
-        if (totalPages && currentPage < totalPages) {
-          currentPage += 1;
-          nextUrl = buildMaintenancePageUrl(currentPage);
+        const totalItems =
+          toPositiveNumber((payload as any)?.total) ||
+          toPositiveNumber((payload as any)?.count) ||
+          toPositiveNumber((payload as any)?.total_count) ||
+          toPositiveNumber((payload as any)?.pagination?.total) ||
+          toPositiveNumber((payload as any)?.pagination?.count) ||
+          null;
+
+        const serverPage =
+          toPositiveNumber((payload as any)?.page) ||
+          toPositiveNumber((payload as any)?.current_page) ||
+          toPositiveNumber((payload as any)?.pagination?.page) ||
+          toPositiveNumber((payload as any)?.pagination?.current_page) ||
+          currentPage;
+
+        const serverPageSize =
+          toPositiveNumber((payload as any)?.page_size) ||
+          toPositiveNumber((payload as any)?.per_page) ||
+          toPositiveNumber((payload as any)?.size) ||
+          toPositiveNumber((payload as any)?.limit) ||
+          toPositiveNumber((payload as any)?.pagination?.page_size) ||
+          toPositiveNumber((payload as any)?.pagination?.per_page) ||
+          toPositiveNumber((payload as any)?.pagination?.size) ||
+          toPositiveNumber((payload as any)?.pagination?.limit) ||
+          MAINTENANCE_PAGE_SIZE;
+
+        if (hasNext) {
+          currentPage = serverPage + 1;
+          nextUrl = buildUrl(currentPage);
           continue;
         }
 
-        if (pageItems.length >= MAINTENANCE_PAGE_SIZE && added > 0) {
+        if (totalPages && serverPage < totalPages) {
+          currentPage = serverPage + 1;
+          nextUrl = buildUrl(currentPage);
+          continue;
+        }
+
+        if (totalItems && allItems.length < totalItems && added > 0) {
+          currentPage = serverPage + 1;
+          nextUrl = buildUrl(currentPage);
+          continue;
+        }
+
+        if (pageItems.length >= serverPageSize && added > 0) {
+          currentPage = serverPage + 1;
+          nextUrl = buildUrl(currentPage);
+          continue;
+        }
+
+        if (added > 0 && currentPage < MAX_MAINTENANCE_PAGES) {
           currentPage += 1;
-          nextUrl = buildMaintenancePageUrl(currentPage);
+          nextUrl = buildUrl(currentPage);
           continue;
         }
 
@@ -239,6 +333,27 @@ export function useMaintenance() {
       }
 
       return allItems;
+    };
+
+    try {
+      const pageBasedItems = await collectWithBuilder(buildMaintenancePageUrl);
+      const offsetBasedItems = await collectWithBuilder(buildMaintenanceOffsetUrl);
+
+      const merged = [...pageBasedItems, ...offsetBasedItems];
+      const dedupedById = new Map<string, MaintenanceType>();
+      for (const item of merged) {
+        dedupedById.set(getMaintenanceDedupKey(item), item);
+      }
+
+      if (dedupedById.size > 0) {
+        return Array.from(dedupedById.values());
+      }
+
+      const fallbackResponse = await fetchRef.current(`${API_URL}/api/v1/maintenances/`);
+      if (!fallbackResponse.ok) return [];
+
+      const fallbackPayload = await fallbackResponse.json();
+      return normalizeMaintenanceEntries(extractMaintenanceItems(fallbackPayload), vehiclesData);
     } catch (error) {
       console.error("Error fetching maintenance records:", error);
       return [];

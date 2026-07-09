@@ -25,6 +25,16 @@ function formatDate(dateStr: string) {
   });
 }
 
+function normalizeIdValue(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function normalizePlateValue(value: unknown) {
+  if (typeof value !== "string") return "";
+  return value.trim().toUpperCase();
+}
+
 function M3StatusPill({ vehicle }: { vehicle?: Vehicle }) {
   if (!vehicle) return null;
   const effectiveKm = Math.max(
@@ -285,11 +295,11 @@ export default function Maintenance() {
   const [prefilledPlate, setPrefilledPlate] = useState<string>("");
 
   const vehiclesByPlate = useMemo(
-    () => new Map(vehicles.map((vehicle) => [vehicle.plate_number, vehicle])),
+    () => new Map(vehicles.map((vehicle) => [normalizePlateValue(vehicle.plate_number), vehicle])),
     [vehicles]
   );
   const vehiclesById = useMemo(
-    () => new Map(vehicles.map((vehicle) => [vehicle.id, vehicle])),
+    () => new Map(vehicles.map((vehicle) => [normalizeIdValue(vehicle.id), vehicle])),
     [vehicles]
   );
 
@@ -297,7 +307,11 @@ export default function Maintenance() {
   const grouped = useMemo(() => {
     const map = new Map<string, MaintenanceType[]>();
     for (const m of maintenance) {
-      const plate = m.vehicle_plate ?? vehiclesById.get(m.vehicle_id)?.plate_number ?? "Sin placa";
+      const plateFromMaintenance = normalizePlateValue(m.vehicle_plate);
+      const plateFromVehicle = normalizePlateValue(
+        vehiclesById.get(normalizeIdValue(m.vehicle_id))?.plate_number
+      );
+      const plate = plateFromMaintenance || plateFromVehicle || "Sin placa";
       const list = map.get(plate) ?? [];
       list.push(m);
       map.set(plate, list);
@@ -321,7 +335,7 @@ export default function Maintenance() {
     const matches = !term
       ? grouped
       : grouped.filter(([plate, records]) => {
-          const vehicle = vehiclesByPlate.get(plate);
+          const vehicle = vehiclesByPlate.get(normalizePlateValue(plate));
 
           const vehicleText = [
             plate,
