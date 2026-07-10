@@ -5,8 +5,15 @@ import { FormModal } from "@/components/shared/FormModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -19,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertTriangle,
   BarChart3,
+  Calendar,
   Car,
   ChevronDown,
   ChevronRight,
@@ -29,7 +37,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  TrendingUp,
 } from "lucide-react";
 import { useFuel } from "@/hooks/useFuel";
 import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType, Vehicle } from "@/types";
@@ -72,7 +79,6 @@ interface FuelReadingsGroup {
   latestNormalized: number | null;
   maxLitersReference: number;
   primaryUnit: "percent" | "liters";
-  trendValues: number[];
 }
 
 const FUEL_TYPE_OPTIONS: Array<{ value: FuelType; label: string }> = [
@@ -86,16 +92,14 @@ const getFuelTypeLabel = (fuelType: FuelType) =>
 const getVehicleDisplayLabel = (vehicle?: Vehicle, fallbackPlateOrId?: string) => {
   if (!vehicle) return fallbackPlateOrId || "Unidad no identificada";
 
-  const descriptor = [vehicle.brand, vehicle.model, vehicle.year ? String(vehicle.year) : ""]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const plate = vehicle.plate_number?.trim();
+  const descriptor = (vehicle.model || vehicle.brand || "").trim();
 
-  if (descriptor && vehicle.plate_number) {
-    return `${descriptor} (${vehicle.plate_number})`;
+  if (plate && descriptor) {
+    return `${plate} · ${descriptor}`;
   }
 
-  return descriptor || vehicle.plate_number || fallbackPlateOrId || "Unidad no identificada";
+  return plate || descriptor || fallbackPlateOrId || "Unidad no identificada";
 };
 
 const getVehicleSearchText = (vehicle?: Vehicle, fallbackPlateOrId?: string) => {
@@ -366,19 +370,15 @@ const LogsTable = memo(({ items }: { items: FuelLogRow[] }) => {
 
 const LogsByVehicle = memo(({
   groups,
-  onCreateLog,
 }: {
   groups: FuelLogsGroup[];
-  onCreateLog: () => void;
 }) => {
   const [expandedVehicleIds, setExpandedVehicleIds] = useState<string[]>([]);
 
   useEffect(() => {
     setExpandedVehicleIds((prev) => {
       const availableIds = new Set(groups.map((group) => group.vehicleId));
-      const persisted = prev.filter((id) => availableIds.has(id));
-      const fallback = groups.slice(0, Math.min(2, groups.length)).map((group) => group.vehicleId);
-      const next = persisted.length > 0 ? persisted : fallback;
+      const next = prev.filter((id) => availableIds.has(id));
 
       if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
         return prev;
@@ -388,8 +388,7 @@ const LogsByVehicle = memo(({
     });
   }, [groups]);
 
-  const topGroups = groups.slice(0, 8);
-  const maxTopLiters = Math.max(1, ...topGroups.map((group) => group.totalLiters));
+  const maxTotalLiters = Math.max(1, ...groups.map((group) => group.totalLiters));
 
   const toggleVehicle = (vehicleId: string) => {
     setExpandedVehicleIds((prev) =>
@@ -405,127 +404,140 @@ const LogsByVehicle = memo(({
     setExpandedVehicleIds([]);
   };
 
+  const getVehicleSubLabel = (group: FuelLogsGroup) => {
+    const prefix = `${group.vehiclePlate} · `;
+    if (group.vehicleLabel.startsWith(prefix)) {
+      return group.vehicleLabel.slice(prefix.length);
+    }
+    return group.vehicleLabel;
+  };
+
   return (
-    <div className="space-y-4">
-      <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
+    <Card className="border-primary/20 overflow-hidden">
+      <div className="px-3 py-2 border-b bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-primary-900">Cargas recientes por unidad</p>
-            <p className="text-xs text-gray-500">Resumen rápido del último registro y volumen acumulado.</p>
+            <p className="text-sm font-semibold text-primary-900">Cargas por unidad</p>
+            <p className="text-xs text-gray-500">Vista compacta por placa, con detalle al expandir.</p>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
             <Button type="button" size="sm" variant="outline" onClick={expandAll}>
               Expandir todo
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={collapseAll}>
               Colapsar todo
             </Button>
-            <Button variant="outline" className="w-full sm:w-auto" onClick={onCreateLog}>
-              <Plus className="w-4 h-4 mr-2" />
-              Registrar carga
-            </Button>
           </div>
         </div>
+      </div>
 
-        <div className="space-y-2">
-          {topGroups.map((group) => {
-            const litersBar = Math.max(6, Math.round((group.totalLiters / maxTopLiters) * 100));
+      <div className="hidden md:grid md:grid-cols-[minmax(220px,1.6fr)_120px_minmax(180px,1fr)_130px_130px_36px] gap-2 px-3 py-2 text-[11px] uppercase tracking-wide text-gray-500 border-b bg-gray-50">
+        <span>Unidad</span>
+        <span>Última</span>
+        <span>Litros</span>
+        <span>Costo</span>
+        <span>Odómetro</span>
+        <span className="text-right">Detalle</span>
+      </div>
 
-            return (
-              <div key={`log-bar-${group.vehicleId}`} className="grid grid-cols-[88px_1fr_auto] items-center gap-2">
-                <span className="text-xs font-semibold text-gray-700 truncate" title={group.vehicleLabel}>
-                  {group.vehicleLabel}
-                </span>
-                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                  <div className="h-full bg-primary/70" style={{ width: `${litersBar}%` }} />
-                </div>
-                <span className="text-xs font-semibold text-gray-600 min-w-[68px] text-right">
-                  {group.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 1 })} L
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+      <div className="divide-y">
         {groups.map((group) => {
-          const recentItems = group.logs.slice(0, 3);
           const isExpanded = expandedVehicleIds.includes(group.vehicleId);
+          const litersBar = Math.max(6, Math.round((group.totalLiters / maxTotalLiters) * 100));
+          const vehicleSubLabel = getVehicleSubLabel(group);
 
           return (
-            <Card key={group.vehicleId} className="p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Car className="w-4 h-4 text-primary shrink-0" />
-                  <p className="font-semibold text-primary-900 truncate" title={group.vehicleLabel}>
-                    {group.vehicleLabel}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Badge className="bg-slate-100 text-slate-700 text-xs">{group.logs.length} reg.</Badge>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-gray-600"
-                    onClick={() => toggleVehicle(group.vehicleId)}
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 mr-1" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 mr-1" />
-                    )}
-                    {isExpanded ? "Ocultar" : "Ver"}
-                  </Button>
-                </div>
-              </div>
+            <div key={group.vehicleId} className="px-3 py-2">
+              <button
+                type="button"
+                onClick={() => toggleVehicle(group.vehicleId)}
+                className="w-full text-left"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1.6fr)_120px_minmax(180px,1fr)_130px_130px_36px] items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-primary-900 truncate" title={group.vehiclePlate}>
+                      {group.vehiclePlate}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate" title={vehicleSubLabel}>
+                      {vehicleSubLabel}
+                    </p>
+                  </div>
 
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500">Última carga</p>
-                  <p className="font-semibold text-primary-900">{formatShortDate(group.latest.fueled_at)}</p>
+                  <div>
+                    <p className="text-xs md:text-sm text-gray-700">{formatShortDate(group.latest.fueled_at)}</p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                      <span className="font-semibold text-gray-800 truncate">
+                        {group.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+                      </span>
+                      <Badge variant="outline" className="text-[10px] h-5">
+                        {group.logs.length} reg.
+                      </Badge>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-primary/70" style={{ width: `${litersBar}%` }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs md:text-sm font-medium text-gray-800">
+                      {group.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs md:text-sm text-gray-700">
+                      <NumberCell value={group.latest.odometer_km} suffix=" km" />
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end text-gray-500">
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">Litros acumulados</p>
-                  <p className="font-semibold text-primary-900">
-                    {group.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Costo acumulado</p>
-                  <p className="font-semibold text-primary-900">
-                    {group.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Último odómetro</p>
-                  <p className="font-semibold text-primary-900">
-                    <NumberCell value={group.latest.odometer_km} suffix=" km" />
-                  </p>
-                </div>
-              </div>
+              </button>
 
               {isExpanded ? (
-                <div className="space-y-1">
-                  <p className="text-xs text-gray-500">Últimos movimientos</p>
-                  {recentItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between text-xs border-b last:border-b-0 py-1 gap-3">
-                      <span className="text-gray-600 truncate">{formatDateTime(item.fueled_at)}</span>
-                      <span className="font-semibold text-primary-900 whitespace-nowrap">
-                        {item.liters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L · {item.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  ))}
+                <div className="mt-2 rounded-md border border-gray-100 bg-gray-50 overflow-x-auto">
+                  <table className="w-full min-w-[640px]">
+                    <thead>
+                      <tr className="text-[11px] uppercase tracking-wide text-gray-500 border-b">
+                        <th className="text-left px-2 py-1.5 font-medium">Fecha</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Combustible</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Litros</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Costo</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Odómetro</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Estación</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.logs.map((item) => (
+                        <tr key={item.id} className="border-b last:border-b-0 text-xs">
+                          <td className="px-2 py-1.5 text-gray-700">{formatDateTime(item.fueled_at)}</td>
+                          <td className="px-2 py-1.5 text-gray-700">{getFuelTypeLabel(item.fuel_type)}</td>
+                          <td className="px-2 py-1.5 text-gray-800 font-medium">
+                            {item.liters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+                          </td>
+                          <td className="px-2 py-1.5 text-gray-700">
+                            {item.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-2 py-1.5 text-gray-700">
+                            <NumberCell value={item.odometer_km} suffix=" km" />
+                          </td>
+                          <td className="px-2 py-1.5 text-gray-700">{item.station || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              ) : (
-                <p className="text-xs text-gray-500">Expandir para ver últimos movimientos de esta unidad.</p>
-              )}
-            </Card>
+              ) : null}
+            </div>
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 });
 
@@ -568,34 +580,25 @@ const ReadingsTable = memo(({ items }: { items: FuelReadingRow[] }) => {
   );
 });
 
-const MiniSparkline = memo(({ values }: { values: number[] }) => {
-  if (values.length < 2) {
-    return <span className="text-xs text-gray-400">Sin tendencia suficiente</span>;
-  }
-
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * 100;
-      const y = 100 - clamp(value, 0, 1) * 100;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg viewBox="0 0 100 100" className="w-full h-14" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="6" className="text-primary/70" />
-    </svg>
-  );
-});
-
 const ReadingsByVehicle = memo(({
   groups,
-  onCreateReading,
 }: {
   groups: FuelReadingsGroup[];
-  onCreateReading: () => void;
 }) => {
-  const topGroups = groups.slice(0, 8);
+  const [expandedVehicleIds, setExpandedVehicleIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setExpandedVehicleIds((prev) => {
+      const availableIds = new Set(groups.map((group) => group.vehicleId));
+      const next = prev.filter((id) => availableIds.has(id));
+
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [groups]);
 
   const getLevelTone = (normalized: number | null) => {
     if (normalized === null) return "bg-gray-300";
@@ -604,124 +607,151 @@ const ReadingsByVehicle = memo(({
     return "bg-emerald-500";
   };
 
+  const toggleVehicle = (vehicleId: string) => {
+    setExpandedVehicleIds((prev) =>
+      prev.includes(vehicleId) ? prev.filter((id) => id !== vehicleId) : [...prev, vehicleId]
+    );
+  };
+
+  const expandAll = () => {
+    setExpandedVehicleIds(groups.map((group) => group.vehicleId));
+  };
+
+  const collapseAll = () => {
+    setExpandedVehicleIds([]);
+  };
+
+  const getVehicleSubLabel = (group: FuelReadingsGroup) => {
+    const prefix = `${group.vehiclePlate} · `;
+    if (group.vehicleLabel.startsWith(prefix)) {
+      return group.vehicleLabel.slice(prefix.length);
+    }
+    return group.vehicleLabel;
+  };
+
   return (
-    <div className="space-y-4">
-      <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-emerald-50/40">
+    <Card className="border-primary/20 overflow-hidden">
+      <div className="px-3 py-2 border-b bg-gradient-to-r from-primary/5 via-white to-emerald-50/40">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-primary-900">Lecturas actuales por unidad</p>
-            <p className="text-xs text-gray-500">Vista rápida del nivel más reciente por vehículo.</p>
+            <p className="text-sm font-semibold text-primary-900">Lecturas por unidad</p>
+            <p className="text-xs text-gray-500">Vista compacta por placa, con detalle al expandir.</p>
           </div>
-          <Button variant="outline" className="w-full sm:w-auto" onClick={onCreateReading}>
-            <Plus className="w-4 h-4 mr-2" />
-            Registrar lectura
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={expandAll}>
+              Expandir todo
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={collapseAll}>
+              Colapsar todo
+            </Button>
+          </div>
         </div>
+      </div>
 
-        <div className="space-y-2">
-          {topGroups.map((group) => {
-            const level = group.latestNormalized !== null ? Math.round(group.latestNormalized * 100) : null;
-            const barWidth = level === null ? 6 : Math.max(6, level);
+      <div className="hidden md:grid md:grid-cols-[minmax(220px,1.5fr)_120px_minmax(180px,1fr)_130px_130px_36px] gap-2 px-3 py-2 text-[11px] uppercase tracking-wide text-gray-500 border-b bg-gray-50">
+        <span>Unidad</span>
+        <span>Actualizado</span>
+        <span>Nivel</span>
+        <span>Tipo</span>
+        <span>Odómetro</span>
+        <span className="text-right">Detalle</span>
+      </div>
 
-            return (
-              <div key={`bar-${group.vehicleId}`} className="grid grid-cols-[88px_1fr_auto] items-center gap-2">
-                <span className="text-xs font-semibold text-gray-700 truncate" title={group.vehicleLabel}>
-                  {group.vehicleLabel}
-                </span>
-                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                  <div
-                    className={`h-full ${getLevelTone(group.latestNormalized)}`}
-                    style={{ width: `${barWidth}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-gray-600 min-w-[42px] text-right">
-                  {level === null ? "s/d" : `${level}%`}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+      <div className="divide-y">
         {groups.map((group) => {
           const level = group.latestNormalized !== null ? Math.round(group.latestNormalized * 100) : null;
-          const levelTone = getLevelTone(group.latestNormalized);
-          const recentItems = group.readings.slice(0, 3);
+          const barWidth = level === null ? 6 : Math.max(6, level);
+          const isExpanded = expandedVehicleIds.includes(group.vehicleId);
+          const vehicleSubLabel = getVehicleSubLabel(group);
 
           return (
-            <Card key={group.vehicleId} className="p-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Car className="w-4 h-4 text-primary shrink-0" />
-                  <p className="font-semibold text-primary-900 truncate" title={group.vehicleLabel}>
-                    {group.vehicleLabel}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Badge variant="outline" className="text-xs">
-                    {group.primaryUnit === "percent" ? "Lectura %" : "Lectura L"}
-                  </Badge>
-                  <Badge className="bg-slate-100 text-slate-700 text-xs">{group.readings.length} reg.</Badge>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-gray-500">Última lectura</p>
-                  <p className="font-semibold text-primary-900">{formatReadingValue(group.latest)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Odómetro</p>
-                  <p className="font-semibold text-primary-900">
-                    <NumberCell value={group.latest.odometer_km} suffix=" km" />
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Actualizado</p>
-                  <p className="font-semibold text-primary-900">{formatShortDate(group.latest.observed_at)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Nivel relativo</p>
-                  <p className="font-semibold text-primary-900">{level === null ? "s/d" : `${level}%`}</p>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                  <div
-                    className={`h-full ${levelTone}`}
-                    style={{ width: `${Math.max(6, level ?? 6)}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-gray-500">
-                  {group.primaryUnit === "percent"
-                    ? "Escala de porcentaje del tanque"
-                    : `Escala relativa respecto al máximo observado (${group.maxLitersReference.toLocaleString(undefined, {
-                        maximumFractionDigits: 2,
-                      })} L)`}
-                </p>
-              </div>
-
-              <div className="rounded-md border border-gray-100 p-2 bg-gray-50">
-                <p className="text-xs text-gray-500 mb-1">Tendencia reciente</p>
-                <MiniSparkline values={group.trendValues} />
-              </div>
-
-              <div className="space-y-1">
-                <p className="text-xs text-gray-500">Últimos movimientos</p>
-                {recentItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-xs border-b last:border-b-0 py-1">
-                    <span className="text-gray-600">{formatDateTime(item.observed_at)}</span>
-                    <span className="font-semibold text-primary-900">{formatReadingValue(item)}</span>
+            <div key={group.vehicleId} className="px-3 py-2">
+              <button
+                type="button"
+                onClick={() => toggleVehicle(group.vehicleId)}
+                className="w-full text-left"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,1.5fr)_120px_minmax(180px,1fr)_130px_130px_36px] items-center gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-primary-900 truncate" title={group.vehiclePlate}>
+                      {group.vehiclePlate}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate" title={vehicleSubLabel}>
+                      {vehicleSubLabel}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </Card>
+
+                  <div>
+                    <p className="text-xs md:text-sm text-gray-700">{formatShortDate(group.latest.observed_at)}</p>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                      <span className="font-semibold text-gray-800 truncate">{formatReadingValue(group.latest)}</span>
+                      <Badge variant="outline" className="text-[10px] h-5">
+                        {group.readings.length} reg.
+                      </Badge>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                      <div className={`h-full ${getLevelTone(group.latestNormalized)}`} style={{ width: `${barWidth}%` }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Badge variant="outline" className="text-xs">
+                      {group.primaryUnit === "percent" ? "Lectura %" : "Lectura L"}
+                    </Badge>
+                  </div>
+
+                  <div>
+                    <p className="text-xs md:text-sm text-gray-700">
+                      <NumberCell value={group.latest.odometer_km} suffix=" km" />
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end text-gray-500">
+                    {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                  </div>
+                </div>
+              </button>
+
+              {isExpanded ? (
+                <div className="mt-2 rounded-md border border-gray-100 bg-gray-50 overflow-x-auto">
+                  <table className="w-full min-w-[640px]">
+                    <thead>
+                      <tr className="text-[11px] uppercase tracking-wide text-gray-500 border-b">
+                        <th className="text-left px-2 py-1.5 font-medium">Fecha</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Combustible</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Lectura</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Unidad</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Odómetro</th>
+                        <th className="text-left px-2 py-1.5 font-medium">Notas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.readings.map((item) => (
+                        <tr key={item.id} className="border-b last:border-b-0 text-xs">
+                          <td className="px-2 py-1.5 text-gray-700">{formatDateTime(item.observed_at)}</td>
+                          <td className="px-2 py-1.5 text-gray-700">{getFuelTypeLabel(item.fuel_type)}</td>
+                          <td className="px-2 py-1.5 text-gray-800 font-medium">{formatReadingValue(item)}</td>
+                          <td className="px-2 py-1.5 text-gray-700">{item.reading_unit === "percent" ? "%" : "L"}</td>
+                          <td className="px-2 py-1.5 text-gray-700">
+                            <NumberCell value={item.odometer_km} suffix=" km" />
+                          </td>
+                          <td className="px-2 py-1.5 text-gray-700 max-w-[240px] truncate" title={item.notes || undefined}>
+                            {item.notes || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 });
 
@@ -923,13 +953,6 @@ export default function FuelPage() {
         const primaryUnit = latest.reading_unit;
         const latestNormalized = getReadingNormalized(latest, maxLitersReference);
 
-        const trendValues = sortedItems
-          .filter((item) => item.reading_unit === primaryUnit)
-          .slice(0, 8)
-          .reverse()
-          .map((item) => getReadingNormalized(item, maxLitersReference))
-          .filter((value): value is number => value !== null);
-
         return {
           vehicleId,
           vehicleLabel: latest.vehicle_label,
@@ -940,7 +963,6 @@ export default function FuelPage() {
           latestNormalized,
           maxLitersReference,
           primaryUnit,
-          trendValues,
         };
       })
       .filter((item): item is FuelReadingsGroup => item !== null);
@@ -1103,70 +1125,64 @@ export default function FuelPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualizar
+          <Button variant="outline" size="icon" onClick={handleRefresh} aria-label="Actualizar datos" title="Actualizar datos">
+            <RefreshCw className="w-4 h-4" />
           </Button>
-          <Button onClick={() => setIsLogModalOpen(true)} className="bg-primary hover:bg-primary/90 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva carga
-          </Button>
-          <Button
-            onClick={() => setIsReadingModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva lectura
-          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="bg-primary hover:bg-primary/90 text-white">
+                Registrar
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onSelect={() => setIsLogModalOpen(true)}>
+                <Droplets className="w-4 h-4 mr-2" />
+                Registrar carga
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setIsReadingModalOpen(true)}>
+                <Gauge className="w-4 h-4 mr-2" />
+                Registrar lectura
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {vehiclesError ? <ErrorState message={vehiclesError} onRetry={refreshAll} /> : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Droplets className="w-4 h-4" /> Cargas registradas
-          </div>
-          <p className="text-2xl font-bold text-primary-900 mt-2">{statusSummary.totalLogs}</p>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <Gauge className="w-4 h-4" /> Lecturas manuales
-          </div>
-          <p className="text-2xl font-bold text-primary-900 mt-2">{statusSummary.totalReadings}</p>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <TrendingUp className="w-4 h-4" /> Anomalias detectadas
-          </div>
-          <p className="text-2xl font-bold text-primary-900 mt-2">{statusSummary.totalAnomalies}</p>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-            <AlertTriangle className="w-4 h-4" /> Criticas
-          </div>
-          <p className="text-2xl font-bold text-red-600 mt-2">{statusSummary.criticalAnomalies}</p>
-        </Card>
-      </div>
-
       {showInitialLoader ? <InitialDataLoader /> : null}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full lg:w-auto grid grid-cols-2 lg:grid-cols-4 h-auto">
-          <TabsTrigger value="logs">Cargas</TabsTrigger>
-          <TabsTrigger value="readings">Lecturas</TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2">
+            Cargas
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalLogs}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="readings" className="gap-2">
+            Lecturas
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalReadings}</Badge>
+          </TabsTrigger>
           <TabsTrigger value="status">Estado actual</TabsTrigger>
-          <TabsTrigger value="anomalies">Anomalias</TabsTrigger>
+          <TabsTrigger value="anomalies" className="gap-1.5">
+            Anomalias
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalAnomalies}</Badge>
+            <Badge
+              className={`text-[10px] h-5 px-1.5 ${
+                statusSummary.criticalAnomalies > 0
+                  ? "bg-red-100 text-red-700"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              C {statusSummary.criticalAnomalies}
+            </Badge>
+          </TabsTrigger>
         </TabsList>
 
-        <Card className="p-4 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <div>
-              <Label>Unidad</Label>
+        <Card className="p-3">
+          <div className="flex flex-col xl:flex-row xl:items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_180px_minmax(280px,1fr)_auto] gap-2 flex-1">
               <Select
                 value={historyFilters.vehicle_id || "all"}
                 onValueChange={(value) =>
@@ -1175,10 +1191,10 @@ export default function FuelPage() {
                 disabled={isLoadingVehicles}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todas" />
+                  <SelectValue placeholder="Todas las unidades" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">Todas las unidades</SelectItem>
                   {vehicles.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
                       {getVehicleDisplayLabel(vehicle)}
@@ -1186,10 +1202,7 @@ export default function FuelPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div>
-              <Label>Combustible</Label>
               <Select
                 value={historyFilters.fuel_type || "all"}
                 onValueChange={(value) =>
@@ -1200,10 +1213,10 @@ export default function FuelPage() {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Todos" />
+                  <SelectValue placeholder="Todos los combustibles" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="all">Todos los combustibles</SelectItem>
                   {FUEL_TYPE_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -1211,43 +1224,12 @@ export default function FuelPage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div>
-              <Label>Desde</Label>
-              <Input
-                type="date"
-                value={historyFilters.date_from || ""}
-                onChange={(event) =>
-                  setHistoryFilters((prev) => ({
-                    ...prev,
-                    date_from: event.target.value || undefined,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Hasta</Label>
-              <Input
-                type="date"
-                value={historyFilters.date_to || ""}
-                onChange={(event) =>
-                  setHistoryFilters((prev) => ({
-                    ...prev,
-                    date_to: event.target.value || undefined,
-                  }))
-                }
-              />
-            </div>
-
-            <div>
-              <Label>Busqueda local</Label>
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <Input
                   className="pl-9"
-                  placeholder="Unidad, placa, notas, estacion..."
+                  placeholder="Buscar por placa, unidad, notas o estación..."
                   value={historyFilters.query}
                   onChange={(event) =>
                     setHistoryFilters((prev) => ({
@@ -1257,14 +1239,70 @@ export default function FuelPage() {
                   }
                 />
               </div>
-            </div>
-          </div>
 
-          <div className="flex gap-2 justify-end">
-            <Button variant="outline" onClick={clearHistoryFilters}>
-              Limpiar
-            </Button>
-            <Button onClick={applyHistoryFilters}>Aplicar filtros</Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="justify-start gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {historyFilters.date_from || historyFilters.date_to
+                      ? `${historyFilters.date_from || "..."} a ${historyFilters.date_to || "..."}`
+                      : "Fechas"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80">
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Desde</Label>
+                      <Input
+                        type="date"
+                        value={historyFilters.date_from || ""}
+                        onChange={(event) =>
+                          setHistoryFilters((prev) => ({
+                            ...prev,
+                            date_from: event.target.value || undefined,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Hasta</Label>
+                      <Input
+                        type="date"
+                        value={historyFilters.date_to || ""}
+                        onChange={(event) =>
+                          setHistoryFilters((prev) => ({
+                            ...prev,
+                            date_to: event.target.value || undefined,
+                          }))
+                        }
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                      onClick={() =>
+                        setHistoryFilters((prev) => ({
+                          ...prev,
+                          date_from: undefined,
+                          date_to: undefined,
+                        }))
+                      }
+                    >
+                      Limpiar fechas
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={clearHistoryFilters}>
+                Limpiar
+              </Button>
+              <Button onClick={applyHistoryFilters}>Aplicar</Button>
+            </div>
           </div>
         </Card>
 
@@ -1273,32 +1311,24 @@ export default function FuelPage() {
 
           {!isLoadingLogs && filteredLogs.length > 0 ? (
             <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Unidades con cargas</p>
-                  <p className="text-xl font-bold text-primary-900">{groupedLogsSummary.units}</p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Litros acumulados</p>
-                  <p className="text-xl font-bold text-primary-900">
-                    {groupedLogsSummary.totalLiters.toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}
-                    L
-                  </p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Costo acumulado</p>
-                  <p className="text-xl font-bold text-primary-900">
-                    {groupedLogsSummary.totalCost.toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}
-                  </p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Actualizadas en 7 días</p>
-                  <p className="text-xl font-bold text-primary-900">{groupedLogsSummary.updatedLast7d}</p>
-                </div>
+              <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                <span>
+                  <span className="font-semibold text-primary-900">{groupedLogsSummary.units}</span> unidades
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>
+                  <span className="font-semibold text-primary-900">
+                    {groupedLogsSummary.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+                  </span>
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>
+                  Costo <span className="font-semibold text-primary-900">{groupedLogsSummary.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>
+                  <span className="font-semibold text-primary-900">{groupedLogsSummary.updatedLast7d}</span> con actividad en 7 días
+                </span>
               </div>
 
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
@@ -1364,7 +1394,7 @@ export default function FuelPage() {
             />
           ) : (
             logsViewMode === "grouped" ? (
-              <LogsByVehicle groups={groupedLogs} onCreateLog={() => setIsLogModalOpen(true)} />
+              <LogsByVehicle groups={groupedLogs} />
             ) : (
               <LogsTable items={filteredLogs} />
             )
@@ -1376,27 +1406,27 @@ export default function FuelPage() {
 
           {!isLoadingReadings && filteredReadings.length > 0 ? (
             <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-sky-50/40">
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Unidades con lecturas</p>
-                  <p className="text-xl font-bold text-primary-900">{groupedReadingsSummary.units}</p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Nivel relativo promedio</p>
-                  <p className="text-xl font-bold text-primary-900">
+              <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                <span>
+                  <span className="font-semibold text-primary-900">{groupedReadingsSummary.units}</span> unidades
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>
+                  Nivel promedio{" "}
+                  <span className="font-semibold text-primary-900">
                     {groupedReadingsSummary.avgRelativeLevelPercent === null
                       ? "s/d"
                       : `${groupedReadingsSummary.avgRelativeLevelPercent}%`}
-                  </p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Actualizadas en 24h</p>
-                  <p className="text-xl font-bold text-primary-900">{groupedReadingsSummary.updatedLast24h}</p>
-                </div>
-                <div className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="text-xs text-gray-500">Unidades en nivel bajo</p>
-                  <p className="text-xl font-bold text-red-600">{groupedReadingsSummary.lowLevelUnits}</p>
-                </div>
+                  </span>
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>
+                  <span className="font-semibold text-primary-900">{groupedReadingsSummary.updatedLast24h}</span> actualizadas en 24h
+                </span>
+                <span className="text-gray-300">·</span>
+                <span>
+                  <span className="font-semibold text-red-600">{groupedReadingsSummary.lowLevelUnits}</span> en nivel bajo
+                </span>
               </div>
 
               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
@@ -1462,10 +1492,7 @@ export default function FuelPage() {
             />
           ) : (
             readingsViewMode === "grouped" ? (
-              <ReadingsByVehicle
-                groups={groupedReadings}
-                onCreateReading={() => setIsReadingModalOpen(true)}
-              />
+              <ReadingsByVehicle groups={groupedReadings} />
             ) : (
               <ReadingsTable items={filteredReadings} />
             )
