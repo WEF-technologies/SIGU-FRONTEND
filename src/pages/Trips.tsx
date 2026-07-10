@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { DataTable, Column } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -9,9 +9,78 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Gauge, AlertTriangle } from "lucide-react";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 const API_URL = BASE_URL.endsWith("/") ? BASE_URL : BASE_URL + "/";
+const TRIPS_PAGE_SIZE = 500;
+const MAX_TRIPS_PAGES = 20;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isTripUpdatePayload = (value: unknown): value is Partial<Trip> & { id: string } =>
+  isRecord(value) && typeof value.id === "string";
+
+const pickArray = <T,>(value: unknown): T[] | null =>
+  Array.isArray(value) ? (value as T[]) : null;
+
+const extractTripsFromPayload = (payload: unknown): Trip[] => {
+  const direct = pickArray<Trip>(payload);
+  if (direct) return direct;
+
+  if (!isRecord(payload)) return [];
+
+  const directCandidates = [payload.items, payload.results, payload.trips, payload.data];
+  for (const candidate of directCandidates) {
+    const found = pickArray<Trip>(candidate);
+    if (found) return found;
+  }
+
+  const nestedData = payload.data;
+  if (isRecord(nestedData)) {
+    const nested = pickArray<Trip>(nestedData.items) ?? pickArray<Trip>(nestedData.results);
+    if (nested) return nested;
+  }
+
+  return [];
+};
+
+const extractTripsTotal = (payload: unknown): number | null => {
+  if (!isRecord(payload)) return null;
+
+  if (typeof payload.total === "number") return payload.total;
+  if (typeof payload.count === "number") return payload.count;
+
+  if (isRecord(payload.pagination)) {
+    if (typeof payload.pagination.total === "number") return payload.pagination.total;
+    if (typeof payload.pagination.count === "number") return payload.pagination.count;
+  }
+
+  if (isRecord(payload.meta)) {
+    if (typeof payload.meta.total === "number") return payload.meta.total;
+    if (typeof payload.meta.count === "number") return payload.meta.count;
+  }
+
+  return null;
+};
+
+const dedupeTripsById = (items: Trip[]): Trip[] => {
+  const byId = new Map<string, Trip>();
+  for (const trip of items) {
+    byId.set(trip.id, trip);
+  }
+  return Array.from(byId.values());
+};
+
+const parseBackendErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const body = await response.json();
+    return localizeApiErrorPayload(body, fallback);
+  } catch {
+    return fallback;
+  }
+};
 
 export default function Trips() {
   const { toast } = useToast();
@@ -26,86 +95,140 @@ export default function Trips() {
   const [isLoading, setIsLoading] = useState(true);
   const [applyingKm, setApplyingKm] = useState<string | null>(null); // trip id en proceso
 
+  const fetchTrips = useCallback(async (): Promise<Trip[]> => {
+    let offset = 0;
+    const collected: Trip[] = [];
+
+    for (let page = 0; page < MAX_TRIPS_PAGES; page += 1) {
+      const response = await authenticatedFetch(
+        `${API_URL}api/v1/trips/?limit=${TRIPS_PAGE_SIZE}&offset=${offset}`
+      );
+
+      if (!response.ok) {
+        const message = await parseBackendErrorMessage(response, "No se pudieron cargar los viajes.");
+        throw new Error(message);
+      }
+
+      const payload = await response.json();
+      const pageItems = extractTripsFromPayload(payload);
+      const total = extractTripsTotal(payload);
+
+      if (pageItems.length === 0) break;
+
+      collected.push(...pageItems);
+
+      // Soporta backend sin estructura paginada (lista plana).
+      if (Array.isArray(payload)) break;
+
+      offset += pageItems.length;
+
+      if (total !== null && offset >= total) break;
+      if (pageItems.length < TRIPS_PAGE_SIZE) break;
+    }
+
+    return dedupeTripsById(collected);
+  }, [authenticatedFetch]);
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [tripsRes, routesRes, vehiclesRes, driversRes] = await Promise.all([
-          authenticatedFetch(`${API_URL}api/v1/trips/`),
+        const [tripsData, routesRes, vehiclesRes, driversRes] = await Promise.all([
+          fetchTrips(),
           authenticatedFetch(`${API_URL}api/v1/routes/`),
           authenticatedFetch(`${API_URL}api/v1/vehicles/`),
           authenticatedFetch(`${API_URL}api/v1/drivers/`),
         ]);
-        if (tripsRes.ok) setTrips(await tripsRes.json());
+        setTrips(tripsData);
         if (routesRes.ok) setRoutes(await routesRes.json());
         if (vehiclesRes.ok) setVehicles(await vehiclesRes.json());
         if (driversRes.ok) setDrivers(await driversRes.json());
       } catch (error) {
-        toast({ title: "Error cargando datos", description: "No se pudieron cargar los datos.", variant: "destructive" });
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "No se pudieron cargar los datos.";
+        toast({ title: "Error cargando datos", description: message, variant: "destructive" });
         console.error(error);
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [authenticatedFetch, toast]);
+  }, [fetchTrips, authenticatedFetch, toast]);
 
   const routesMap = useMemo(() => new Map(routes.map((r) => [r.id, r])), [routes]);
   const vehiclesMap = useMemo(() => new Map(vehicles.map((v) => [v.id, v])), [vehicles]);
   const driversMap = useMemo(() => new Map(drivers.map((d) => [d.id, d])), [drivers]);
 
   /**
-   * Aplica manualmente los km finales al vehículo cuando applied_kilometers es false.
-   * Llama al endpoint PUT /api/v1/vehicles/{plate}/kilometers con los km finales del viaje.
+   * Re-dispara la lógica backend de completado para aplicar km una sola vez
+   * cuando applied_kilometers está en false.
    */
   const handleApplyKilometers = async (trip: Trip) => {
     const vehicle = vehiclesMap.get(trip.vehicle_id);
-    if (!vehicle) {
-      toast({ title: "Vehículo no encontrado", variant: "destructive" });
-      return;
-    }
-
-    const kmToApply = trip.end_kilometers ?? trip.total_kilometers;
-    if (!kmToApply) {
-      toast({
-        title: "Sin kilómetros registrados",
-        description: "Este viaje no tiene km finales para aplicar.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     setApplyingKm(trip.id);
     try {
-      const response = await authenticatedFetch(
-        `${API_URL}api/v1/vehicles/${vehicle.plate_number}/kilometers`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kilometers: kmToApply }),
-        }
-      );
+      const encodedTripId = encodeURIComponent(trip.id);
+      const response = await authenticatedFetch(`${API_URL}api/v1/trips/${encodedTripId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "completed",
+          ...(trip.end_kilometers != null ? { end_kilometers: trip.end_kilometers } : {}),
+        }),
+      });
 
       if (response.ok) {
+        let updatedTrip: (Partial<Trip> & { id: string }) | null = null;
+        try {
+          const payload = await response.clone().json();
+          if (isTripUpdatePayload(payload)) {
+            updatedTrip = payload;
+          }
+        } catch {
+          // El backend puede devolver 204 sin body.
+        }
+
+        setTrips((prev) =>
+          prev.map((t) => {
+            if (t.id !== trip.id) return t;
+            if (updatedTrip) return { ...t, ...updatedTrip };
+            return { ...t, applied_kilometers: true };
+          })
+        );
+
         // Refrescar vehículos para mostrar km actualizado
         const vehiclesRes = await authenticatedFetch(`${API_URL}api/v1/vehicles/`);
         if (vehiclesRes.ok) setVehicles(await vehiclesRes.json());
 
-        // Marcar el viaje como aplicado en el estado local
-        setTrips((prev) =>
-          prev.map((t) => (t.id === trip.id ? { ...t, applied_kilometers: true } : t))
-        );
-
         toast({
           title: "Kilómetros aplicados",
-          description: `Se actualizaron los km del vehículo ${vehicle.plate_number} a ${kmToApply.toLocaleString()} km.`,
+          description: vehicle
+            ? `Se aplicaron los kilómetros pendientes del viaje a ${vehicle.plate_number}.`
+            : "Se aplicaron los kilómetros pendientes del viaje.",
         });
       } else {
-        toast({ title: "Error al aplicar kilómetros", variant: "destructive" });
+        const fallbackMessage =
+          response.status === 404
+            ? "No se encontró el viaje a actualizar."
+            : "No se pudieron aplicar los kilómetros de este viaje.";
+        const message = await parseBackendErrorMessage(response, fallbackMessage);
+
+        toast({
+          title: "Error al aplicar kilómetros",
+          description: message,
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error(error);
-      toast({ title: "Error de conexión", variant: "destructive" });
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar al servidor para aplicar el kilometraje.",
+        variant: "destructive",
+      });
     } finally {
       setApplyingKm(null);
     }
@@ -245,44 +368,75 @@ export default function Trips() {
   };
 
   const handleSubmit = async (data: TripFormData) => {
-    const payload = {
-      ...data,
+    const basePayload = {
+      route_id: data.route_id,
+      vehicle_id: data.vehicle_id,
+      driver_id: data.driver_id,
+      start_date: data.start_date,
       end_date: data.end_date || null,
-      start_kilometers: data.start_kilometers ?? null,
-      end_kilometers: data.end_kilometers ?? null,
+      status: data.status,
+      observations: data.observations || "",
     };
+
+    const updatePayload = {
+      ...basePayload,
+      ...(data.start_kilometers != null ? { start_kilometers: data.start_kilometers } : {}),
+      ...(data.end_kilometers != null ? { end_kilometers: data.end_kilometers } : {}),
+    };
+
+    const createPayload = {
+      route_id: data.route_id,
+      vehicle_id: data.vehicle_id,
+      driver_id: data.driver_id,
+      start_date: data.start_date,
+      status: data.status,
+      ...(data.end_date ? { end_date: data.end_date } : {}),
+      ...(data.observations ? { observations: data.observations } : {}),
+    };
+
+    let operationSucceeded = false;
 
     try {
       if (editingTrip) {
         const response = await authenticatedFetch(`${API_URL}api/v1/trips/${editingTrip.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(updatePayload),
         });
         if (response.ok) {
           const updated = await response.json();
           setTrips((prev) => prev.map((t) => (t.id === editingTrip.id ? updated : t)));
           toast({ title: "Viaje actualizado" });
+          operationSucceeded = true;
         } else {
-          toast({ title: "Error al actualizar", variant: "destructive" });
+          const message = await parseBackendErrorMessage(
+            response,
+            "No se pudo actualizar el viaje."
+          );
+          toast({ title: "Error al actualizar", description: message, variant: "destructive" });
         }
       } else {
         const response = await authenticatedFetch(`${API_URL}api/v1/trips/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(createPayload),
         });
         if (response.ok) {
           const newTrip = await response.json();
           setTrips((prev) => [...prev, newTrip]);
           toast({ title: "Viaje creado" });
+          operationSucceeded = true;
         } else {
-          toast({ title: "Error al crear", variant: "destructive" });
+          const message = await parseBackendErrorMessage(
+            response,
+            "No se pudo crear el viaje."
+          );
+          toast({ title: "Error al crear", description: message, variant: "destructive" });
         }
       }
 
       // Refrescar vehículos al completar un viaje para ver los km actualizados
-      if (payload.status === "completed") {
+      if (operationSucceeded && data.status === "completed") {
         const res = await authenticatedFetch(`${API_URL}api/v1/vehicles/`);
         if (res.ok) setVehicles(await res.json());
       }
@@ -290,7 +444,10 @@ export default function Trips() {
       console.error(error);
       toast({ title: "Error", description: "Ocurrió un error al procesar el viaje.", variant: "destructive" });
     }
-    setIsModalOpen(false);
+
+    if (operationSucceeded) {
+      setIsModalOpen(false);
+    }
   };
 
   // Contar viajes con KM pendientes de aplicar

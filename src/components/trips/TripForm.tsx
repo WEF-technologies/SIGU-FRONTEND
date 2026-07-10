@@ -20,6 +20,18 @@ export interface TripFormData {
   observations: string;
 }
 
+const EMPTY_FORM_DATA: TripFormData = {
+  route_id: "",
+  vehicle_id: "",
+  driver_id: "",
+  start_date: "",
+  end_date: "",
+  start_kilometers: null,
+  end_kilometers: null,
+  status: "in_progress",
+  observations: "",
+};
+
 interface TripFormProps {
   initialData?: Trip | null;
   routes: Route[];
@@ -30,18 +42,9 @@ interface TripFormProps {
 }
 
 export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onCancel }: TripFormProps) {
+  const isEditing = Boolean(initialData);
   const [manualKm, setManualKm] = useState(false);
-  const [formData, setFormData] = useState<TripFormData>({
-    route_id: "",
-    vehicle_id: "",
-    driver_id: "",
-    start_date: "",
-    end_date: "",
-    start_kilometers: null,
-    end_kilometers: null,
-    status: "in_progress",
-    observations: "",
-  });
+  const [formData, setFormData] = useState<TripFormData>(EMPTY_FORM_DATA);
 
   useEffect(() => {
     if (initialData) {
@@ -58,13 +61,16 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
         status: initialData.status,
         observations: initialData.observations || "",
       });
+    } else {
+      setManualKm(false);
+      setFormData(EMPTY_FORM_DATA);
     }
   }, [initialData]);
 
   // Auto-populate start_kilometers from vehicle's current km
   const handleVehicleChange = (vehicleId: string) => {
     setFormData((prev) => ({ ...prev, vehicle_id: vehicleId }));
-    if (manualKm && !initialData) {
+    if (manualKm && !isEditing) {
       const vehicle = vehicles.find((v) => v.id === vehicleId);
       if (vehicle) {
         const currentKm = vehicle.current_kilometers ?? vehicle.kilometers ?? 0;
@@ -165,34 +171,43 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
 
       {/* Kilómetros */}
       <div className="space-y-3 rounded-lg border p-4">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-semibold">Registro manual de kilómetros</Label>
-          <Switch checked={manualKm} onCheckedChange={setManualKm} />
-        </div>
-        {manualKm ? (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Km Inicial (odómetro)</Label>
-              <Input
-                type="number"
-                value={formData.start_kilometers ?? ""}
-                onChange={(e) => setFormData({ ...formData, start_kilometers: e.target.value ? Number(e.target.value) : null })}
-                placeholder="Km al salir"
-              />
+        {isEditing ? (
+          <>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Registro manual de kilómetros</Label>
+              <Switch checked={manualKm} onCheckedChange={setManualKm} />
             </div>
-            <div>
-              <Label>Km Final (odómetro)</Label>
-              <Input
-                type="number"
-                value={formData.end_kilometers ?? ""}
-                onChange={(e) => setFormData({ ...formData, end_kilometers: e.target.value ? Number(e.target.value) : null })}
-                placeholder="Km al llegar"
-              />
-            </div>
-          </div>
+            {manualKm ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Km Inicial (odómetro)</Label>
+                  <Input
+                    type="number"
+                    value={formData.start_kilometers ?? ""}
+                    onChange={(e) => setFormData({ ...formData, start_kilometers: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="Km al salir"
+                  />
+                </div>
+                <div>
+                  <Label>Km Final (odómetro)</Label>
+                  <Input
+                    type="number"
+                    value={formData.end_kilometers ?? ""}
+                    onChange={(e) => setFormData({ ...formData, end_kilometers: e.target.value ? Number(e.target.value) : null })}
+                    placeholder="Km al llegar"
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Se usarán los kilómetros planificados de la ruta seleccionada al completar el viaje.
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Se usarán los kilómetros planificados de la ruta seleccionada al completar el viaje.
+            En la creación, el kilometraje inicial se toma automáticamente del vehículo.
+            Al completar, se aplican los kilómetros de la ruta.
           </p>
         )}
         {calculatedKm != null && (
