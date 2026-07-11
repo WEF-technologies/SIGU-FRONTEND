@@ -15,8 +15,18 @@ import {
   Eye, Pencil, Trash2, AlertTriangle, Layers, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
+
+const parseBackendErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const body = await response.json();
+    return localizeApiErrorPayload(body, fallback);
+  } catch {
+    return fallback;
+  }
+};
 
 // ─── Tarjeta de repuesto en vista "Por Repuesto" ──────────────────────────────
 function SparePartCard({
@@ -207,6 +217,7 @@ export default function SpareParts() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [editingSparePart, setEditingSparePart] = useState<SparePart | null>(null);
   const [viewingSparePart, setViewingSparePart] = useState<SparePart | null>(null);
   const [view, setView] = useState<'parts' | 'vehicles'>('parts');
@@ -319,26 +330,37 @@ export default function SpareParts() {
   const handleSparePartRequest = async (requestData: {
     code: string; description: string; requestedBy: string; date: string; notes?: string;
   }) => {
+    setIsSubmittingRequest(true);
     try {
       const res = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: requestData.code,
-          description: requestData.description,
-          requested_by: requestData.requestedBy,
+          code: requestData.code.trim().toUpperCase(),
+          description: requestData.description.trim(),
+          requested_by: requestData.requestedBy.trim(),
           date: requestData.date,
-          notes: requestData.notes || null,
+          ...(requestData.notes?.trim() ? { notes: requestData.notes.trim() } : {}),
         }),
       });
       if (res.ok) {
-        toast({ title: "Solicitud enviada", description: `Solicitud de ${requestData.code} enviada.` });
+        toast({ title: "Solicitud enviada", description: `Solicitud de ${requestData.code.trim().toUpperCase()} enviada.` });
         setIsRequestModalOpen(false);
       } else {
-        throw new Error();
+        const message = await parseBackendErrorMessage(
+          res,
+          "No se pudo enviar la solicitud de repuesto."
+        );
+        toast({ title: "Error", description: message, variant: "destructive" });
       }
     } catch {
-      toast({ title: "Error", description: "Error al enviar la solicitud.", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "No se pudo conectar al servidor para enviar la solicitud.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingRequest(false);
     }
   };
 
@@ -464,7 +486,11 @@ export default function SpareParts() {
       </FormModal>
 
       <FormModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} title="Solicitar Repuesto">
-        <SparePartRequestForm onSubmit={handleSparePartRequest} onCancel={() => setIsRequestModalOpen(false)} />
+        <SparePartRequestForm
+          onSubmit={handleSparePartRequest}
+          onCancel={() => setIsRequestModalOpen(false)}
+          isSubmitting={isSubmittingRequest}
+        />
       </FormModal>
 
       <SparePartDetailsModal

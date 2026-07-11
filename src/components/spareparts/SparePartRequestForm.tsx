@@ -15,26 +15,28 @@ interface SparePartRequestFormProps {
     notes?: string;
   }) => void;
   onCancel: () => void;
+  isSubmitting?: boolean;
 }
 
-export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFormProps) {
+export function SparePartRequestForm({ onSubmit, onCancel, isSubmitting = false }: SparePartRequestFormProps) {
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [requestedBy, setRequestedBy] = useState("");
+  const [requestDate, setRequestDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!code.trim() || !description.trim() || !requestedBy.trim()) {
+
+    if (!code.trim() || !description.trim() || !requestedBy.trim() || !requestDate) {
       return;
     }
 
     onSubmit({
-      code: code.trim(),
+      code: code.trim().toUpperCase(),
       description: description.trim(),
       requestedBy: requestedBy.trim(),
-      date: new Date().toISOString().split('T')[0],
+      date: requestDate,
       notes: notes.trim() || undefined,
     });
   };
@@ -54,11 +56,14 @@ export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFor
             <Input
               id="code"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="Ej: BRK-001, OIL-002..."
               className="mt-1"
               required
             />
+            <p className="mt-1 text-xs text-gray-500">
+              El código debe existir en el inventario para que el backend acepte la solicitud.
+            </p>
           </div>
 
           <div>
@@ -96,9 +101,10 @@ export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFor
             <Input
               id="date"
               type="date"
-              value={new Date().toISOString().split('T')[0]}
-              readOnly
-              className="bg-gray-50 mt-1"
+              value={requestDate}
+              onChange={(e) => setRequestDate(e.target.value)}
+              className="mt-1"
+              required
             />
           </div>
 
@@ -119,15 +125,16 @@ export function SparePartRequestForm({ onSubmit, onCancel }: SparePartRequestFor
           <div className="flex gap-3 pt-4 border-t">
             <Button 
               type="submit" 
-              disabled={!code.trim() || !description.trim() || !requestedBy.trim()}
+              disabled={!code.trim() || !description.trim() || !requestedBy.trim() || !requestDate || isSubmitting}
               className="flex-1 bg-primary text-white hover:bg-primary/90"
             >
-              Enviar Solicitud
+              {isSubmitting ? "Enviando..." : "Enviar Solicitud"}
             </Button>
             <Button 
               type="button" 
               variant="outline" 
               onClick={onCancel}
+              disabled={isSubmitting}
               className="flex-1 text-gray-700 border-gray-300 hover:bg-gray-50"
             >
               Cancelar
