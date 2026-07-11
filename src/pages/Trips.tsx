@@ -73,6 +73,24 @@ const dedupeTripsById = (items: Trip[]): Trip[] => {
   return Array.from(byId.values());
 };
 
+const parseBooleanLike = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+    return undefined;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "si", "sí"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+  }
+  return undefined;
+};
+
+const isTripApplied = (trip: Trip): boolean =>
+  parseBooleanLike(trip.applied_kilometers) === true;
+
 const parseBackendErrorMessage = async (response: Response, fallback: string) => {
   try {
     const body = await response.json();
@@ -194,8 +212,19 @@ export default function Trips() {
         setTrips((prev) =>
           prev.map((t) => {
             if (t.id !== trip.id) return t;
-            if (updatedTrip) return { ...t, ...updatedTrip };
-            return { ...t, applied_kilometers: true };
+            if (updatedTrip) {
+              return {
+                ...t,
+                ...updatedTrip,
+                status: "completed",
+                applied_kilometers: true,
+              };
+            }
+            return {
+              ...t,
+              status: "completed",
+              applied_kilometers: true,
+            };
           })
         );
 
@@ -298,7 +327,7 @@ export default function Trips() {
       sortable: false,
       render: (_, trip) => {
         if (trip.status !== "completed") return <span className="text-gray-400 text-xs">—</span>;
-        if (trip.applied_kilometers === true) {
+        if (isTripApplied(trip)) {
           return (
             <Badge className="bg-green-100 text-green-800 text-xs">
               <Gauge className="w-3 h-3 mr-1" />
@@ -452,7 +481,7 @@ export default function Trips() {
 
   // Contar viajes con KM pendientes de aplicar
   const pendingKmCount = trips.filter(
-    (t) => t.status === "completed" && t.applied_kilometers === false
+    (t) => t.status === "completed" && !isTripApplied(t)
   ).length;
 
   return (
