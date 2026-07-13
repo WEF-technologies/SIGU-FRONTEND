@@ -117,9 +117,9 @@ interface MovementFormState {
   notes: string;
 }
 
-const toDateTimeLocalValue = (date: Date = new Date()) => {
+const toDateOnlyLocalValue = (date: Date = new Date()) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
+  return local.toISOString().slice(0, 10);
 };
 
 const DEFAULT_PRODUCT_FORM: ProductFormState = {
@@ -156,7 +156,7 @@ const DEFAULT_MOVEMENT_FORM: MovementFormState = {
   product_id: "",
   movement_type: "purchase",
   quantity: "",
-  occurred_at: toDateTimeLocalValue(),
+  occurred_at: toDateOnlyLocalValue(),
   reference: "",
   notes: "",
 };
@@ -645,10 +645,7 @@ export default function Fluids() {
     event.preventDefault();
 
     const quantity = parseNumber(movementForm.quantity);
-    const occurredAtDate = movementForm.occurred_at ? new Date(movementForm.occurred_at) : new Date();
-    const occurredAt = Number.isNaN(occurredAtDate.getTime())
-      ? new Date().toISOString()
-      : occurredAtDate.toISOString();
+    const occurredAt = movementForm.occurred_at?.trim() || toDateOnlyLocalValue();
 
     if (!movementForm.product_id) {
       toast({ title: "Producto requerido", description: "Selecciona un producto.", variant: "destructive" });
@@ -1555,9 +1552,9 @@ export default function Fluids() {
               />
             </div>
             <div>
-              <Label>Fecha y hora</Label>
+              <Label>Fecha</Label>
               <Input
-                type="datetime-local"
+                type="date"
                 value={movementForm.occurred_at}
                 onChange={(event) =>
                   setMovementForm((prev) => ({ ...prev, occurred_at: event.target.value }))

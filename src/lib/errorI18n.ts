@@ -132,6 +132,10 @@ const translateKnownEnglish = (message: string): string | null => {
     return "Debe ingresar una fecha valida.";
   }
 
+  if (/datetimes provided to dates should have zero time|exact dates/i.test(raw)) {
+    return "Debe ingresar solo una fecha, sin hora.";
+  }
+
   if (/not a valid email|valid email/i.test(raw)) {
     return "Debe ingresar un correo electronico valido.";
   }
