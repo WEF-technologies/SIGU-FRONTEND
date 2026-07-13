@@ -2,6 +2,8 @@ type AnyRecord = Record<string, unknown>;
 
 const ENGLISH_HINTS = /\b(not|invalid|required|missing|field|vehicle|fuel|reading|maintenance|tool|part|already|exists|found|permission|unauthorized|forbidden|must|should|greater|less|unable|failed|timeout|network|server|request|details|date|number|string|value|input)\b/i;
 const SPANISH_HINTS = /\b(no|vehiculo|combustible|lectura|mantenimiento|herramienta|parte|campo|obligatorio|invalido|sesion|permiso|placa|kilometr|fecha|costo|descripcion|error|actualizar|registrar)\b/i;
+const TECHNICAL_HINTS = /\b(traceback|stack trace|sqlalchemy|psycopg|sqlite|mongodb|objectid|integrityerror|validationerror|pydantic|typeerror|valueerror|keyerror|indexerror|attributeerror|foreign key|duplicate key|constraint|syntax error|internal server error|unhandled|request_id|timestamp|debug|line\s+\d+|file\s+".+")\b/i;
+const TECHNICAL_JSON_HINTS = /("request_id"|"timestamp"|"traceback"|"stack"|"loc"\s*:|"ctx"\s*:|"detail"\s*:|"error"\s*:|"status"\s*:\s*\d+)/i;
 
 const FIELD_LABELS: Record<string, string> = {
   vehicle_id: "Unidad",
@@ -28,6 +30,18 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const cleanText = (value: string) => value.replace(/\s+/g, " ").trim();
+
+const isTechnicalMessage = (value: string): boolean => {
+  if (!value) return false;
+
+  if (TECHNICAL_HINTS.test(value)) return true;
+  if (TECHNICAL_JSON_HINTS.test(value)) return true;
+
+  // Evita exponer blobs técnicos largos (payloads completos o trazas).
+  if (value.length > 220 && /[{}\[\]]/.test(value)) return true;
+
+  return false;
+};
 
 const capitalize = (value: string) => {
   if (!value) return value;
@@ -147,6 +161,10 @@ export const localizeApiErrorText = (message: unknown, fallback: string): string
   const translated = translateKnownEnglish(clean);
   if (translated) return translated;
 
+  if (isTechnicalMessage(clean)) {
+    return fallback;
+  }
+
   if (SPANISH_HINTS.test(clean) || !ENGLISH_HINTS.test(clean)) {
     return clean;
   }
@@ -195,7 +213,11 @@ const localizePayloadNode = (node: unknown): string => {
 
 export const localizeApiErrorPayload = (payload: unknown, fallback: string): string => {
   const localized = localizePayloadNode(payload);
-  if (localized) return localized;
+  if (localized) {
+    const cleaned = cleanText(localized);
+    if (!cleaned || isTechnicalMessage(cleaned)) return fallback;
+    return cleaned;
+  }
   return fallback;
 };
 
