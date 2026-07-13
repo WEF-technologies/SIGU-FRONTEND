@@ -456,9 +456,13 @@ export default function Fluids() {
       return;
     }
 
+    const specification =
+      productForm.description.trim() || productForm.name.trim() || productForm.code.trim().toUpperCase();
+
     const payload: CreateFluidProductPayload | UpdateFluidProductPayload = {
       code: productForm.code.trim().toUpperCase(),
       fluid_type: productForm.fluid_type,
+      ...(specification ? { specification } : {}),
       ...(productForm.name.trim() ? { name: productForm.name.trim() } : {}),
       ...(productForm.description.trim() ? { description: productForm.description.trim() } : {}),
       ...(stockQuantity !== undefined ? { stock_quantity: stockQuantity } : {}),

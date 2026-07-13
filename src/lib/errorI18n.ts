@@ -25,6 +25,7 @@ const FIELD_LABELS: Record<string, string> = {
   spare_part_description: "Descripcion del repuesto",
   code: "Codigo",
   name: "Nombre",
+  specification: "Especificacion",
   year: "Ano",
   status: "Estado",
 };

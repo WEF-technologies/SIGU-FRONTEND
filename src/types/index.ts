@@ -330,6 +330,7 @@ export interface FluidAlert {
 export interface CreateFluidProductPayload {
   code: string;
   fluid_type: FluidType;
+  specification?: string | Record<string, unknown>;
   name?: string;
   description?: string;
   stock_quantity?: number;
@@ -341,6 +342,7 @@ export interface CreateFluidProductPayload {
 export interface UpdateFluidProductPayload {
   code?: string;
   fluid_type?: FluidType;
+  specification?: string | Record<string, unknown>;
   name?: string;
   description?: string;
   stock_quantity?: number;

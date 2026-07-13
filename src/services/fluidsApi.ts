@@ -487,7 +487,53 @@ const buildProductPayloadVariants = (payload: CreateFluidProductPayload | Update
     variants.push(withMinimumStock);
   }
 
-  return variants;
+  const specificationText =
+    (typeof base.specification === "string" && base.specification.trim()) ||
+    (typeof base.description === "string" && base.description.trim()) ||
+    (typeof base.name === "string" && base.name.trim()) ||
+    (typeof base.code === "string" && base.code.trim()) ||
+    undefined;
+
+  const withSpecificationVariants: AnyRecord[] = [];
+  for (const variant of variants) {
+    withSpecificationVariants.push(variant);
+
+    if (specificationText && !("specification" in variant)) {
+      withSpecificationVariants.push({ ...variant, specification: specificationText });
+
+      const specificationObject: AnyRecord = {
+        summary: specificationText,
+      };
+
+      if (typeof variant.name === "string" && variant.name.trim()) {
+        specificationObject.name = variant.name.trim();
+      }
+
+      if (typeof variant.description === "string" && variant.description.trim()) {
+        specificationObject.description = variant.description.trim();
+      }
+
+      if (typeof variant.unit === "string" && variant.unit.trim()) {
+        specificationObject.unit = variant.unit.trim();
+      }
+
+      withSpecificationVariants.push({
+        ...variant,
+        specification: specificationObject,
+      });
+    }
+  }
+
+  const uniqueVariants: AnyRecord[] = [];
+  const seen = new Set<string>();
+  for (const candidate of withSpecificationVariants) {
+    const key = JSON.stringify(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueVariants.push(candidate);
+  }
+
+  return uniqueVariants;
 };
 
 const buildRulePayloadVariants = (payload: CreateFluidRulePayload | UpdateFluidRulePayload) => {
