@@ -353,9 +353,12 @@ export interface UpdateFluidProductPayload {
 
 export interface CreateFluidRulePayload {
   vehicle_id?: string;
+  unit_id?: string;
   vehicle_plate?: string;
+  plate_number?: string;
   fluid_type: FluidType;
   product_id?: string;
+  fluid_product_id?: string;
   capacity_liters: number;
   interval_km?: number;
   interval_days?: number;
@@ -365,6 +368,7 @@ export interface CreateFluidRulePayload {
 export interface UpdateFluidRulePayload {
   fluid_type?: FluidType;
   product_id?: string;
+  fluid_product_id?: string;
   capacity_liters?: number;
   interval_km?: number;
   interval_days?: number;
@@ -373,17 +377,25 @@ export interface UpdateFluidRulePayload {
 
 export interface CreateFluidServicePayload {
   vehicle_plate: string;
+  plate_number?: string;
+  vehicle_id?: string;
+  unit_id?: string;
   product_id: string;
+  fluid_product_id?: string;
   quantity: number;
   odometer_km?: number;
   serviced_at?: string;
+  service_date?: string;
+  moved_at?: string;
   notes?: string;
 }
 
 export interface CreateFluidMovementPayload {
   product_id: string;
+  fluid_product_id?: string;
   movement_type: Extract<FluidMovementType, 'purchase' | 'adjustment_in' | 'adjustment_out'>;
   quantity: number;
+  occurred_at?: string;
   reference?: string;
   notes?: string;
 }

@@ -26,6 +26,8 @@ const FIELD_LABELS: Record<string, string> = {
   code: "Codigo",
   name: "Nombre",
   specification: "Especificacion",
+  fluid_product_id: "Producto de fluido",
+  occurred_at: "Fecha y hora",
   year: "Ano",
   status: "Estado",
 };

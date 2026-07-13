@@ -112,9 +112,15 @@ interface MovementFormState {
   product_id: string;
   movement_type: Extract<FluidMovementType, "purchase" | "adjustment_in" | "adjustment_out">;
   quantity: string;
+  occurred_at: string;
   reference: string;
   notes: string;
 }
+
+const toDateTimeLocalValue = (date: Date = new Date()) => {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
 
 const DEFAULT_PRODUCT_FORM: ProductFormState = {
   code: "",
@@ -150,6 +156,7 @@ const DEFAULT_MOVEMENT_FORM: MovementFormState = {
   product_id: "",
   movement_type: "purchase",
   quantity: "",
+  occurred_at: toDateTimeLocalValue(),
   reference: "",
   notes: "",
 };
@@ -535,8 +542,11 @@ export default function Fluids() {
       fluid_type: ruleForm.fluid_type,
       capacity_liters: capacityLiters,
       ...(selectedVehicle?.id ? { vehicle_id: selectedVehicle.id } : {}),
+      ...(selectedVehicle?.id ? { unit_id: selectedVehicle.id } : {}),
       ...(selectedVehicle?.plate_number ? { vehicle_plate: selectedVehicle.plate_number } : {}),
+      ...(selectedVehicle?.plate_number ? { plate_number: selectedVehicle.plate_number } : {}),
       ...(ruleForm.product_id ? { product_id: ruleForm.product_id } : {}),
+      ...(ruleForm.product_id ? { fluid_product_id: ruleForm.product_id } : {}),
       ...(intervalKm ? { interval_km: intervalKm } : {}),
       ...(intervalDays ? { interval_days: intervalDays } : {}),
       ...(ruleForm.notes.trim() ? { notes: ruleForm.notes.trim() } : {}),
@@ -546,6 +556,7 @@ export default function Fluids() {
       fluid_type: ruleForm.fluid_type,
       capacity_liters: capacityLiters,
       ...(ruleForm.product_id ? { product_id: ruleForm.product_id } : {}),
+      ...(ruleForm.product_id ? { fluid_product_id: ruleForm.product_id } : {}),
       ...(intervalKm ? { interval_km: intervalKm } : {}),
       ...(intervalDays ? { interval_days: intervalDays } : {}),
       ...(ruleForm.notes.trim() ? { notes: ruleForm.notes.trim() } : {}),
@@ -600,10 +611,15 @@ export default function Fluids() {
 
     const payload: CreateFluidServicePayload = {
       vehicle_plate: selectedVehicle.plate_number,
+      plate_number: selectedVehicle.plate_number,
+      vehicle_id: selectedVehicle.id,
+      unit_id: selectedVehicle.id,
       product_id: serviceForm.product_id,
+      fluid_product_id: serviceForm.product_id,
       quantity,
       ...(odometerKm ? { odometer_km: odometerKm } : {}),
       ...(serviceForm.serviced_at ? { serviced_at: serviceForm.serviced_at } : {}),
+      ...(serviceForm.serviced_at ? { service_date: serviceForm.serviced_at } : {}),
       ...(serviceForm.notes.trim() ? { notes: serviceForm.notes.trim() } : {}),
     };
 
@@ -629,6 +645,11 @@ export default function Fluids() {
     event.preventDefault();
 
     const quantity = parseNumber(movementForm.quantity);
+    const occurredAtDate = movementForm.occurred_at ? new Date(movementForm.occurred_at) : new Date();
+    const occurredAt = Number.isNaN(occurredAtDate.getTime())
+      ? new Date().toISOString()
+      : occurredAtDate.toISOString();
+
     if (!movementForm.product_id) {
       toast({ title: "Producto requerido", description: "Selecciona un producto.", variant: "destructive" });
       return;
@@ -641,8 +662,10 @@ export default function Fluids() {
 
     const payload: CreateFluidMovementPayload = {
       product_id: movementForm.product_id,
+      fluid_product_id: movementForm.product_id,
       movement_type: movementForm.movement_type,
       quantity,
+      occurred_at: occurredAt,
       ...(movementForm.reference.trim() ? { reference: movementForm.reference.trim() } : {}),
       ...(movementForm.notes.trim() ? { notes: movementForm.notes.trim() } : {}),
     };
@@ -1531,6 +1554,20 @@ export default function Fluids() {
                 required
               />
             </div>
+            <div>
+              <Label>Fecha y hora</Label>
+              <Input
+                type="datetime-local"
+                value={movementForm.occurred_at}
+                onChange={(event) =>
+                  setMovementForm((prev) => ({ ...prev, occurred_at: event.target.value }))
+                }
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
               <Label>Referencia</Label>
               <Input

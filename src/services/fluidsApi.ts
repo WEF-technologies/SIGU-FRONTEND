@@ -280,10 +280,10 @@ const normalizeRule = (payload: unknown): FluidRule | null => {
 
   return {
     id,
-    vehicle_id: readString(payload, ["vehicle_id"]),
+    vehicle_id: readString(payload, ["vehicle_id", "unit_id"]),
     vehicle_plate: readString(payload, ["vehicle_plate", "plate_number"]),
     fluid_type: parseFluidType(payload.fluid_type),
-    product_id: readString(payload, ["product_id"]),
+    product_id: readString(payload, ["product_id", "fluid_product_id"]),
     product_code: readString(payload, ["product_code", "code"]),
     capacity_liters: readNumber(payload, ["capacity_liters", "capacity", "capacity_l"]) ?? 0,
     interval_km: readNumber(payload, ["interval_km", "change_interval_km", "service_interval_km"]),
@@ -302,12 +302,12 @@ const normalizeService = (payload: unknown): FluidService | null => {
   if (!isRecord(payload)) return null;
 
   const id = readString(payload, ["id", "_id"]);
-  const productId = readString(payload, ["product_id"]);
+  const productId = readString(payload, ["product_id", "fluid_product_id"]);
   if (!id || !productId) return null;
 
   return {
     id,
-    vehicle_id: readString(payload, ["vehicle_id"]),
+    vehicle_id: readString(payload, ["vehicle_id", "unit_id"]),
     vehicle_plate: readString(payload, ["vehicle_plate", "plate_number"]),
     product_id: productId,
     product_code: readString(payload, ["product_code", "code"]),
@@ -540,6 +540,16 @@ const buildRulePayloadVariants = (payload: CreateFluidRulePayload | UpdateFluidR
   const base: AnyRecord = { ...payload };
   const variants: AnyRecord[] = [base];
 
+  const withFluidProductId = { ...base };
+  if (typeof withFluidProductId.product_id === "string" && withFluidProductId.product_id) {
+    withFluidProductId.fluid_product_id = withFluidProductId.product_id;
+  }
+  variants.push(withFluidProductId);
+
+  const onlyFluidProductId = { ...withFluidProductId };
+  delete onlyFluidProductId.product_id;
+  variants.push(onlyFluidProductId);
+
   if ("vehicle_id" in base && typeof base.vehicle_id === "string" && base.vehicle_id) {
     const vehiclePlateCandidate = base.vehicle_plate;
 
@@ -553,6 +563,12 @@ const buildRulePayloadVariants = (payload: CreateFluidRulePayload | UpdateFluidR
     const onlyVehicleId = { ...base };
     delete onlyVehicleId.vehicle_plate;
     variants.push(onlyVehicleId);
+
+    const withPlateNumber = { ...base };
+    if (typeof vehiclePlateCandidate === "string" && vehiclePlateCandidate) {
+      withPlateNumber.plate_number = vehiclePlateCandidate;
+    }
+    variants.push(withPlateNumber);
   }
 
   if ("interval_km" in base && base.interval_km === undefined) {
@@ -567,11 +583,25 @@ const buildRulePayloadVariants = (payload: CreateFluidRulePayload | UpdateFluidR
     variants.push(withoutIntervalDays);
   }
 
-  return variants;
+  const uniqueVariants: AnyRecord[] = [];
+  const seen = new Set<string>();
+  for (const candidate of variants) {
+    const key = JSON.stringify(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueVariants.push(candidate);
+  }
+
+  return uniqueVariants;
 };
 
 const buildServicePayloadVariants = (payload: CreateFluidServicePayload) => {
   const base: AnyRecord = { ...payload };
+
+  const servicedAtValue =
+    (typeof base.serviced_at === "string" && base.serviced_at.trim()) ||
+    new Date().toISOString();
+  base.serviced_at = servicedAtValue;
 
   const variants: AnyRecord[] = [base];
 
@@ -582,7 +612,74 @@ const buildServicePayloadVariants = (payload: CreateFluidServicePayload) => {
     variants.push(withQuantityLiters);
   }
 
-  return variants;
+  const withFluidProductId = { ...base };
+  if (typeof withFluidProductId.product_id === "string" && withFluidProductId.product_id) {
+    withFluidProductId.fluid_product_id = withFluidProductId.product_id;
+  }
+  variants.push(withFluidProductId);
+
+  const withPlateNumber = { ...base };
+  if (typeof withPlateNumber.vehicle_plate === "string" && withPlateNumber.vehicle_plate) {
+    withPlateNumber.plate_number = withPlateNumber.vehicle_plate;
+  }
+  variants.push(withPlateNumber);
+
+  const withMovedAt = { ...base };
+  withMovedAt.moved_at = servicedAtValue;
+  variants.push(withMovedAt);
+
+  const withServiceDate = { ...base };
+  withServiceDate.service_date = servicedAtValue;
+  variants.push(withServiceDate);
+
+  const uniqueVariants: AnyRecord[] = [];
+  const seen = new Set<string>();
+  for (const candidate of variants) {
+    const key = JSON.stringify(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueVariants.push(candidate);
+  }
+
+  return uniqueVariants;
+};
+
+const buildMovementPayloadVariants = (payload: CreateFluidMovementPayload) => {
+  const base: AnyRecord = { ...payload };
+
+  const occurredAtValue =
+    (typeof base.occurred_at === "string" && base.occurred_at.trim()) ||
+    new Date().toISOString();
+
+  base.occurred_at = occurredAtValue;
+
+  const variants: AnyRecord[] = [base];
+
+  const withFluidProductId = { ...base };
+  if (typeof withFluidProductId.product_id === "string" && withFluidProductId.product_id) {
+    withFluidProductId.fluid_product_id = withFluidProductId.product_id;
+  }
+  variants.push(withFluidProductId);
+
+  const onlyFluidProductId = { ...withFluidProductId };
+  delete onlyFluidProductId.product_id;
+  variants.push(onlyFluidProductId);
+
+  // Compatibilidad por si backend usa nombres alternativos de timestamp.
+  const withMovedAt = { ...base };
+  withMovedAt.moved_at = occurredAtValue;
+  variants.push(withMovedAt);
+
+  const uniqueVariants: AnyRecord[] = [];
+  const seen = new Set<string>();
+  for (const candidate of variants) {
+    const key = JSON.stringify(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueVariants.push(candidate);
+  }
+
+  return uniqueVariants;
 };
 
 const sortByDateDesc = <T extends { created_at?: string }>(items: T[]) =>
@@ -762,10 +859,11 @@ export const fluidsApi = {
     authenticatedFetch: AuthenticatedFetch,
     payload: CreateFluidMovementPayload
   ): Promise<FluidMovement> => {
-    return requestJson(
+    return requestWithPayloadVariants(
       authenticatedFetch,
       `${API_BASE_URL}/movements/`,
-      withBody("POST", payload),
+      "POST",
+      buildMovementPayloadVariants(payload),
       "No se pudo registrar el movimiento de inventario.",
       (responsePayload) => {
         const normalized = normalizeMovement(responsePayload);
