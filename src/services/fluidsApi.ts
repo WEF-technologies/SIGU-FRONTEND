@@ -329,7 +329,7 @@ const normalizeMovement = (payload: unknown): FluidMovement | null => {
   if (!isRecord(payload)) return null;
 
   const id = readString(payload, ["id", "_id"]);
-  const productId = readString(payload, ["product_id"]);
+  const productId = readString(payload, ["product_id", "fluid_product_id"]);
   if (!id || !productId) return null;
 
   return {
@@ -344,6 +344,7 @@ const normalizeMovement = (payload: unknown): FluidMovement | null => {
     notes: readString(payload, ["notes"]),
     moved_at:
       toDateString(payload.moved_at) ??
+      toDateString(payload.occurred_at) ??
       toDateString(payload.date) ??
       readString(payload, ["created_at"]),
     created_at: readString(payload, ["created_at"]),
