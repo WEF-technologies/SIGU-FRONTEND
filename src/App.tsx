@@ -18,6 +18,7 @@ const SpareParts = lazy(() => import("./pages/SpareParts"));
 const SparePartRequests = lazy(() => import("./pages/SparePartRequests"));
 const Maintenance = lazy(() => import("./pages/Maintenance"));
 const FuelPage = lazy(() => import("./pages/Fuel"));
+const Fluids = lazy(() => import("./pages/Fluids"));
 const Trips = lazy(() => import("./pages/Trips"));
 const Tools = lazy(() => import("./pages/Tools"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -54,6 +55,7 @@ const App = () => (
                   <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
                   <Route path="/mantenimiento" element={<Maintenance />} />
                   <Route path="/combustible" element={<FuelPage />} />
+                  <Route path="/fluidos" element={<Fluids />} />
                   <Route path="/herramientas" element={<Tools />} />
                   <Route path="/viajes" element={<Trips />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

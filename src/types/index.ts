@@ -229,6 +229,163 @@ export interface CreateFuelReadingPayload {
   notes?: string;
 }
 
+export type FluidType =
+  | 'engine_oil'
+  | 'transmission_oil'
+  | 'brake_fluid'
+  | 'hydraulic_oil'
+  | 'coolant'
+  | 'other';
+
+export type FluidMovementType =
+  | 'opening_balance'
+  | 'purchase'
+  | 'adjustment_in'
+  | 'adjustment_out'
+  | 'service_use';
+
+export type FluidAlertKind = 'stock' | 'service';
+export type FluidAlertSeverity = 'info' | 'warning' | 'critical';
+
+export interface FluidProduct {
+  id: string;
+  code: string;
+  name?: string;
+  description?: string;
+  fluid_type: FluidType;
+  stock_quantity: number;
+  min_stock_quantity: number;
+  unit?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FluidRule {
+  id: string;
+  vehicle_id?: string;
+  vehicle_plate?: string;
+  fluid_type: FluidType;
+  product_id?: string;
+  product_code?: string;
+  capacity_liters: number;
+  interval_km?: number | null;
+  interval_days?: number | null;
+  last_service_km?: number | null;
+  last_service_at?: string | null;
+  next_due_km?: number | null;
+  next_due_date?: string | null;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FluidService {
+  id: string;
+  vehicle_id?: string;
+  vehicle_plate?: string;
+  product_id: string;
+  product_code?: string;
+  fluid_type: FluidType;
+  quantity: number;
+  odometer_km?: number | null;
+  serviced_at?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FluidMovement {
+  id: string;
+  product_id: string;
+  product_code?: string;
+  fluid_type?: FluidType;
+  movement_type: FluidMovementType;
+  quantity: number;
+  stock_after?: number | null;
+  reference?: string;
+  notes?: string;
+  moved_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FluidAlert {
+  id: string;
+  kind: FluidAlertKind;
+  severity: FluidAlertSeverity;
+  title: string;
+  message: string;
+  fluid_type?: FluidType;
+  vehicle_plate?: string;
+  product_code?: string;
+  current_stock?: number;
+  min_stock?: number;
+  due_km?: number;
+  due_days?: number;
+  due_date?: string;
+  source?: string;
+}
+
+export interface CreateFluidProductPayload {
+  code: string;
+  fluid_type: FluidType;
+  name?: string;
+  description?: string;
+  stock_quantity?: number;
+  min_stock_quantity?: number;
+  unit?: string;
+  notes?: string;
+}
+
+export interface UpdateFluidProductPayload {
+  code?: string;
+  fluid_type?: FluidType;
+  name?: string;
+  description?: string;
+  stock_quantity?: number;
+  min_stock_quantity?: number;
+  unit?: string;
+  notes?: string;
+}
+
+export interface CreateFluidRulePayload {
+  vehicle_id?: string;
+  vehicle_plate?: string;
+  fluid_type: FluidType;
+  product_id?: string;
+  capacity_liters: number;
+  interval_km?: number;
+  interval_days?: number;
+  notes?: string;
+}
+
+export interface UpdateFluidRulePayload {
+  fluid_type?: FluidType;
+  product_id?: string;
+  capacity_liters?: number;
+  interval_km?: number;
+  interval_days?: number;
+  notes?: string;
+}
+
+export interface CreateFluidServicePayload {
+  vehicle_plate: string;
+  product_id: string;
+  quantity: number;
+  odometer_km?: number;
+  serviced_at?: string;
+  notes?: string;
+}
+
+export interface CreateFluidMovementPayload {
+  product_id: string;
+  movement_type: Extract<FluidMovementType, 'purchase' | 'adjustment_in' | 'adjustment_out'>;
+  quantity: number;
+  reference?: string;
+  notes?: string;
+}
+
 export interface SparePart extends BaseEntity {
   code: string;
   description: string;

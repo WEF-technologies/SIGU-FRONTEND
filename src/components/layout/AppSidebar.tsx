@@ -13,6 +13,7 @@ import {
   Route,
   Hammer,
   Droplets,
+  FlaskConical,
 } from "lucide-react";
 
 import {
@@ -40,6 +41,7 @@ const menuItems = [
   { title: "Solicitudes", url: "/solicitudes-repuestos", icon: ClipboardList },
   { title: "Mantenimiento", url: "/mantenimiento", icon: Wrench },
   { title: "Combustible", url: "/combustible", icon: Droplets },
+  { title: "Fluidos", url: "/fluidos", icon: FlaskConical },
   { title: "Herramientas", url: "/herramientas", icon: Hammer },
 ];
 
