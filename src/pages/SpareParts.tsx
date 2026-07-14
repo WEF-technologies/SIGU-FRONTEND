@@ -3,7 +3,10 @@ import { useState, useEffect, useMemo } from "react";
 import { FormModal } from "@/components/shared/FormModal";
 import { SparePartForm } from "@/components/spareparts/SparePartForm";
 import { SparePartDetailsModal } from "@/components/spareparts/SparePartDetailsModal";
-import { SparePartRequestForm } from "@/components/spareparts/SparePartRequestForm";
+import {
+  SparePartRequestForm,
+  type SparePartRequestSubmission,
+} from "@/components/spareparts/SparePartRequestForm";
 import { SparePart, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
@@ -327,29 +330,36 @@ export default function SpareParts() {
     setIsModalOpen(false);
   };
 
-  const handleSparePartRequest = async (requestData: {
-    code: string; description: string; requestedBy: string; date: string; notes?: string;
-  }) => {
+  const handleSparePartRequest = async (requestData: SparePartRequestSubmission) => {
     setIsSubmittingRequest(true);
     try {
+      const normalizedCode = requestData.code?.trim();
       const res = await authenticatedFetch(`${API_URL}/api/v1/spare_part_requests/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: requestData.code.trim().toUpperCase(),
           description: requestData.description.trim(),
           requested_by: requestData.requestedBy.trim(),
           date: requestData.date,
+          item_type: requestData.itemType.trim() || "spare_part",
+          target_area: requestData.targetArea.trim() || "general",
+          ...(normalizedCode ? { code: normalizedCode.toUpperCase() } : {}),
           ...(requestData.notes?.trim() ? { notes: requestData.notes.trim() } : {}),
+          ...(requestData.targetReference?.trim()
+            ? { target_reference: requestData.targetReference.trim() }
+            : {}),
         }),
       });
       if (res.ok) {
-        toast({ title: "Solicitud enviada", description: `Solicitud de ${requestData.code.trim().toUpperCase()} enviada.` });
+        toast({
+          title: "Solicitud enviada",
+          description: `Solicitud de ${normalizedCode?.toUpperCase() ?? requestData.description.trim()} enviada.`,
+        });
         setIsRequestModalOpen(false);
       } else {
         const message = await parseBackendErrorMessage(
           res,
-          "No se pudo enviar la solicitud de repuesto."
+          "No se pudo enviar la solicitud."
         );
         toast({ title: "Error", description: message, variant: "destructive" });
       }
