@@ -611,15 +611,10 @@ export default function Fluids() {
 
     const payload: CreateFluidServicePayload = {
       vehicle_plate: selectedVehicle.plate_number,
-      plate_number: selectedVehicle.plate_number,
-      vehicle_id: selectedVehicle.id,
-      unit_id: selectedVehicle.id,
-      product_id: serviceForm.product_id,
       fluid_product_id: serviceForm.product_id,
-      quantity,
+      serviced_at: serviceForm.serviced_at,
+      quantity_used: quantity,
       ...(odometerKm ? { odometer_km: odometerKm } : {}),
-      ...(serviceForm.serviced_at ? { serviced_at: serviceForm.serviced_at } : {}),
-      ...(serviceForm.serviced_at ? { service_date: serviceForm.serviced_at } : {}),
       ...(serviceForm.notes.trim() ? { notes: serviceForm.notes.trim() } : {}),
     };
 

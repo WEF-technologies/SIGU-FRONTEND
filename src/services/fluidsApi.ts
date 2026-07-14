@@ -312,8 +312,10 @@ const normalizeService = (payload: unknown): FluidService | null => {
     product_id: productId,
     product_code: readString(payload, ["product_code", "code"]),
     fluid_type: parseFluidType(payload.fluid_type),
-    quantity: readNumber(payload, ["quantity", "quantity_liters", "liters"]) ?? 0,
+    quantity: readNumber(payload, ["quantity_used", "quantity", "quantity_liters", "liters"]) ?? 0,
     odometer_km: readNumber(payload, ["odometer_km", "kilometers", "odometer"]),
+    performed_by: readString(payload, ["performed_by"]),
+    location: readString(payload, ["location"]),
     serviced_at:
       toDateString(payload.serviced_at) ??
       toDateString(payload.service_date) ??
@@ -597,128 +599,20 @@ const buildRulePayloadVariants = (payload: CreateFluidRulePayload | UpdateFluidR
 };
 
 const buildServicePayloadVariants = (payload: CreateFluidServicePayload) => {
-  const base: AnyRecord = { ...payload };
+  const servicedAtValue = payload.serviced_at?.trim() || new Date().toISOString().slice(0, 10);
 
-  const servicedAtValue =
-    (typeof base.serviced_at === "string" && base.serviced_at.trim()) ||
-    (typeof base.service_date === "string" && base.service_date.trim()) ||
-    (typeof base.moved_at === "string" && base.moved_at.trim()) ||
-    new Date().toISOString();
-  base.serviced_at = servicedAtValue;
-
-  const variants: AnyRecord[] = [base];
-
-  const vehicleIdValue =
-    (typeof base.vehicle_id === "string" && base.vehicle_id.trim()) ||
-    (typeof base.unit_id === "string" && base.unit_id.trim()) ||
-    undefined;
-  const vehiclePlateValue =
-    (typeof base.vehicle_plate === "string" && base.vehicle_plate.trim()) ||
-    (typeof base.plate_number === "string" && base.plate_number.trim()) ||
-    undefined;
-  const productIdValue =
-    (typeof base.product_id === "string" && base.product_id.trim()) ||
-    (typeof base.fluid_product_id === "string" && base.fluid_product_id.trim()) ||
-    undefined;
-  const quantityValue =
-    typeof base.quantity === "number"
-      ? base.quantity
-      : typeof base.quantity_liters === "number"
-        ? base.quantity_liters
-        : undefined;
-
-  const vehicleIdKeys = vehicleIdValue ? ["vehicle_id", "unit_id"] : [];
-  const vehiclePlateKeys = vehiclePlateValue ? ["vehicle_plate", "plate_number"] : [];
-  const productKeys = productIdValue ? ["product_id", "fluid_product_id"] : [];
-  const quantityKeys = quantityValue !== undefined ? ["quantity", "quantity_liters"] : [];
-  const dateKeys = ["serviced_at", "service_date", "moved_at"];
-
-  const appendVariant = ({
-    includeVehicleId,
-    includeVehiclePlate,
-    productKey,
-    quantityKey,
-    dateKey,
-  }: {
-    includeVehicleId: boolean;
-    includeVehiclePlate: boolean;
-    productKey: string;
-    quantityKey: string;
-    dateKey: string;
-  }) => {
-    const candidate: AnyRecord = {};
-
-    if (includeVehicleId && vehicleIdValue) {
-      const key = productKey === "fluid_product_id" ? "unit_id" : "vehicle_id";
-      candidate[key] = vehicleIdValue;
-    }
-
-    if (includeVehiclePlate && vehiclePlateValue) {
-      const key = productKey === "fluid_product_id" ? "plate_number" : "vehicle_plate";
-      candidate[key] = vehiclePlateValue;
-    }
-
-    if (productIdValue) {
-      candidate[productKey] = productIdValue;
-    }
-
-    if (quantityValue !== undefined) {
-      candidate[quantityKey] = quantityValue;
-    }
-
-    candidate[dateKey] = servicedAtValue;
-
-    if (typeof base.odometer_km === "number") {
-      candidate.odometer_km = base.odometer_km;
-    }
-
-    if (typeof base.notes === "string" && base.notes.trim()) {
-      candidate.notes = base.notes.trim();
-    }
-
-    variants.push(candidate);
-  };
-
-  for (const productKey of productKeys) {
-    for (const quantityKey of quantityKeys) {
-      for (const dateKey of dateKeys) {
-        appendVariant({
-          includeVehicleId: true,
-          includeVehiclePlate: true,
-          productKey,
-          quantityKey,
-          dateKey,
-        });
-
-        appendVariant({
-          includeVehicleId: true,
-          includeVehiclePlate: false,
-          productKey,
-          quantityKey,
-          dateKey,
-        });
-
-        appendVariant({
-          includeVehicleId: false,
-          includeVehiclePlate: true,
-          productKey,
-          quantityKey,
-          dateKey,
-        });
-      }
-    }
-  }
-
-  const uniqueVariants: AnyRecord[] = [];
-  const seen = new Set<string>();
-  for (const candidate of variants) {
-    const key = JSON.stringify(candidate);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    uniqueVariants.push(candidate);
-  }
-
-  return uniqueVariants;
+  return [
+    {
+      vehicle_plate: payload.vehicle_plate,
+      fluid_product_id: payload.fluid_product_id,
+      serviced_at: servicedAtValue,
+      quantity_used: payload.quantity_used,
+      ...(typeof payload.odometer_km === "number" ? { odometer_km: payload.odometer_km } : {}),
+      ...(payload.performed_by?.trim() ? { performed_by: payload.performed_by.trim() } : {}),
+      ...(payload.location?.trim() ? { location: payload.location.trim() } : {}),
+      ...(payload.notes?.trim() ? { notes: payload.notes.trim() } : {}),
+    },
+  ];
 };
 
 const buildMovementPayloadVariants = (payload: CreateFluidMovementPayload) => {
@@ -907,30 +801,56 @@ export const fluidsApi = {
     authenticatedFetch: AuthenticatedFetch,
     payload: CreateFluidServicePayload
   ): Promise<FluidService> => {
-    return requestWithPayloadVariants(
-      authenticatedFetch,
+    const [requestPayload] = buildServicePayloadVariants(payload);
+    const response = await authenticatedFetch(
       `${API_BASE_URL}/services/`,
-      "POST",
-      buildServicePayloadVariants(payload),
-      "No se pudo registrar el servicio de fluido.",
-      (responsePayload) => {
-        const normalized = normalizeService(responsePayload);
-        if (normalized) return normalized;
+      withBody("POST", requestPayload)
+    );
 
-        return {
-          id: `created-${Date.now()}`,
-          vehicle_id: payload.vehicle_id ?? payload.unit_id,
-          vehicle_plate: payload.vehicle_plate ?? payload.plate_number,
-          product_id: payload.product_id,
-          product_code: undefined,
-          fluid_type: "other",
-          quantity: payload.quantity,
-          odometer_km: payload.odometer_km,
-          serviced_at: payload.serviced_at ?? payload.service_date ?? payload.moved_at,
-          notes: payload.notes,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
+    if (!response.ok) {
+      throw await parseFluidsApiError(response, "No se pudo registrar el servicio de fluido.");
+    }
+
+    if (response.status === 204) {
+      return {
+        id: `created-${Date.now()}`,
+        vehicle_plate: payload.vehicle_plate,
+        product_id: payload.fluid_product_id,
+        product_code: undefined,
+        fluid_type: "other",
+        quantity: payload.quantity_used,
+        odometer_km: payload.odometer_km,
+        performed_by: payload.performed_by,
+        location: payload.location,
+        serviced_at: payload.serviced_at,
+        notes: payload.notes,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    }
+
+    let responsePayload: unknown = null;
+    try {
+      responsePayload = await response.json();
+    } catch {
+      responsePayload = null;
+    }
+
+    return (
+      normalizeService(responsePayload) ?? {
+        id: `created-${Date.now()}`,
+        vehicle_plate: payload.vehicle_plate,
+        product_id: payload.fluid_product_id,
+        product_code: undefined,
+        fluid_type: "other",
+        quantity: payload.quantity_used,
+        odometer_km: payload.odometer_km,
+        performed_by: payload.performed_by,
+        location: payload.location,
+        serviced_at: payload.serviced_at,
+        notes: payload.notes,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
     );
   },

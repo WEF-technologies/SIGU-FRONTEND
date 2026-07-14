@@ -7,6 +7,7 @@ const TECHNICAL_JSON_HINTS = /("request_id"|"timestamp"|"traceback"|"stack"|"loc
 
 const FIELD_LABELS: Record<string, string> = {
   vehicle_id: "Unidad",
+  vehicle_plate: "Placa",
   plate_number: "Placa",
   kilometers: "Kilometraje",
   current_kilometers: "Kilometraje",
@@ -27,6 +28,7 @@ const FIELD_LABELS: Record<string, string> = {
   name: "Nombre",
   specification: "Especificacion",
   fluid_product_id: "Producto de fluido",
+  quantity_used: "Cantidad usada",
   occurred_at: "Fecha y hora",
   year: "Ano",
   status: "Estado",
@@ -41,7 +43,7 @@ const isTechnicalMessage = (value: string): boolean => {
   if (TECHNICAL_JSON_HINTS.test(value)) return true;
 
   // Evita exponer blobs técnicos largos (payloads completos o trazas).
-  if (value.length > 220 && /[{}\[\]]/.test(value)) return true;
+  if (value.length > 220 && /[{}[\]]/.test(value)) return true;
 
   return false;
 };

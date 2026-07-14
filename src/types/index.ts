@@ -289,6 +289,8 @@ export interface FluidService {
   fluid_type: FluidType;
   quantity: number;
   odometer_km?: number | null;
+  performed_by?: string;
+  location?: string;
   serviced_at?: string;
   notes?: string;
   created_at?: string;
@@ -377,16 +379,12 @@ export interface UpdateFluidRulePayload {
 
 export interface CreateFluidServicePayload {
   vehicle_plate: string;
-  plate_number?: string;
-  vehicle_id?: string;
-  unit_id?: string;
-  product_id: string;
-  fluid_product_id?: string;
-  quantity: number;
+  fluid_product_id: string;
+  quantity_used: number;
   odometer_km?: number;
-  serviced_at?: string;
-  service_date?: string;
-  moved_at?: string;
+  serviced_at: string;
+  performed_by?: string;
+  location?: string;
   notes?: string;
 }
 
