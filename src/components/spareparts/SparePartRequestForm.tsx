@@ -6,6 +6,33 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+const toDisplayValue = (value: string | undefined, fallback: string) => {
+  const normalized = value?.trim();
+
+  if (!normalized) return fallback;
+  if (normalized === "spare_part") return "Repuesto";
+  if (normalized === "general") return "General";
+
+  return normalized
+    .split("_")
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
+};
+
+const normalizeItemTypeForApi = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized) return "";
+  if (["repuesto", "repuestos", "spare_part", "spare part"].includes(normalized)) {
+    return "spare_part";
+  }
+
+  return normalized.replace(/\s+/g, "_");
+};
+
+const normalizeTargetAreaForApi = (value: string) => value.trim().toLowerCase().replace(/\s+/g, "_");
+
 export interface SparePartRequestSubmission {
   code?: string;
   description: string;
@@ -37,16 +64,16 @@ export function SparePartRequestForm({
     initialValues?.date ?? new Date().toISOString().split("T")[0]
   );
   const [notes, setNotes] = useState(initialValues?.notes ?? "");
-  const [itemType, setItemType] = useState(initialValues?.itemType ?? "spare_part");
-  const [targetArea, setTargetArea] = useState(initialValues?.targetArea ?? "general");
+  const [itemType, setItemType] = useState(toDisplayValue(initialValues?.itemType, "Repuesto"));
+  const [targetArea, setTargetArea] = useState(toDisplayValue(initialValues?.targetArea, "General"));
   const [targetReference, setTargetReference] = useState(initialValues?.targetReference ?? "");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const normalizedCode = code.trim();
-    const normalizedItemType = itemType.trim();
-    const normalizedTargetArea = targetArea.trim();
+    const normalizedItemType = normalizeItemTypeForApi(itemType);
+    const normalizedTargetArea = normalizeTargetAreaForApi(targetArea);
 
     if (!description.trim() || !requestedBy.trim() || !requestDate || !normalizedItemType || !normalizedTargetArea) {
       return;
@@ -84,7 +111,7 @@ export function SparePartRequestForm({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="code" className="text-sm font-medium text-gray-700">
-              Código del repuesto
+              Código o referencia interna
             </Label>
             <Input
               id="code"
@@ -94,13 +121,13 @@ export function SparePartRequestForm({
               className="mt-1"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Si lo indicas, el sistema intentara enlazarlo con inventario. Si no existe, la solicitud igual se registra.
+              Si conoces el codigo, agregalo para identificar el insumo mas rapido. Si no lo tienes, puedes continuar igual.
             </p>
           </div>
 
           <div>
             <Label htmlFor="description" className="text-sm font-medium text-gray-700">
-              Descripción del item <span className="text-red-500">*</span>
+              ¿Qué necesitas? <span className="text-red-500">*</span>
             </Label>
             <Input
               id="description"
@@ -115,30 +142,30 @@ export function SparePartRequestForm({
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="itemType" className="text-sm font-medium text-gray-700">
-                Tipo de item <span className="text-red-500">*</span>
+                Tipo de solicitud <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="itemType"
                 value={itemType}
                 onChange={(e) => setItemType(e.target.value)}
-                placeholder="Ej: spare_part"
+                placeholder="Ej: Repuesto, lubricante, filtro..."
                 className="mt-1"
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                Usa <span className="font-medium">spare_part</span> para repuestos o el tipo que corresponda para otros insumos esenciales.
+                Escribe el tipo de insumo que necesitas, por ejemplo repuesto, lubricante o filtro.
               </p>
             </div>
 
             <div>
               <Label htmlFor="targetArea" className="text-sm font-medium text-gray-700">
-                Area destino <span className="text-red-500">*</span>
+                Area de uso <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="targetArea"
                 value={targetArea}
                 onChange={(e) => setTargetArea(e.target.value)}
-                placeholder="Ej: general, taller, operaciones..."
+                placeholder="Ej: General, taller, operaciones..."
                 className="mt-1"
                 required
               />
@@ -147,13 +174,13 @@ export function SparePartRequestForm({
 
           <div>
             <Label htmlFor="targetReference" className="text-sm font-medium text-gray-700">
-              Referencia destino (opcional)
+              Referencia relacionada (opcional)
             </Label>
             <Input
               id="targetReference"
               value={targetReference}
               onChange={(e) => setTargetReference(e.target.value)}
-              placeholder="Ej: placa, contrato, ruta o identificador interno"
+              placeholder="Ej: placa, contrato, ruta o numero interno"
               className="mt-1"
             />
           </div>
