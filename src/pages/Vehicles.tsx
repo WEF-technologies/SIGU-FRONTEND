@@ -228,9 +228,27 @@ export default function Vehicles() {
         // Eliminar del estado local directamente — sin refetch completo
         removeVehicleFromState(vehicle.plate_number);
         toast({ title: "Vehículo eliminado", description: `${vehicle.plate_number} ha sido eliminado.` });
+      } else {
+        const message = await parseBackendErrorMessage(
+          response,
+          response.status === 409
+            ? "No se pudo eliminar el vehículo porque aún tiene referencias activas."
+            : "No se pudo eliminar el vehículo."
+        );
+
+        toast({
+          title: response.status === 409 ? "Vehículo con dependencias" : "Error al eliminar vehículo",
+          description: message,
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error("Error deleting vehicle:", error);
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar al servidor para eliminar el vehículo.",
+        variant: "destructive",
+      });
     }
   };
 
