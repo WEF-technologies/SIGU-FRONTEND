@@ -7,6 +7,8 @@ import {
   FuelListFilters,
   FuelLog,
   FuelReading,
+  FuelVehicleReport,
+  FuelVehicleReportFilters,
   FuelVehicleStatus,
   FuelType,
   Vehicle,
@@ -58,6 +60,16 @@ const normalizeOptionalNumber = (value?: number | null) => {
   return value;
 };
 
+const hasInvalidDateRange = (dateFrom?: string, dateTo?: string) => {
+  if (!dateFrom || !dateTo) return false;
+
+  const fromTime = Date.parse(dateFrom);
+  const toTime = Date.parse(dateTo);
+  if (Number.isNaN(fromTime) || Number.isNaN(toTime)) return false;
+
+  return fromTime > toTime;
+};
+
 export const useFuel = () => {
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
@@ -83,10 +95,18 @@ export const useFuel = () => {
   const [statusByVehicle, setStatusByVehicle] = useState<Record<string, FuelVehicleStatus | null>>({});
   const [statusLoadingByVehicle, setStatusLoadingByVehicle] = useState<Record<string, boolean>>({});
   const [statusErrorByVehicle, setStatusErrorByVehicle] = useState<Record<string, string | null>>({});
+  const [vehicleReport, setVehicleReport] = useState<FuelVehicleReport | null>(null);
+  const [isLoadingVehicleReport, setIsLoadingVehicleReport] = useState(false);
+  const [isDownloadingVehicleReport, setIsDownloadingVehicleReport] = useState(false);
+  const [vehicleReportError, setVehicleReportError] = useState<string | null>(null);
 
   const lastLogFiltersRef = useRef<FuelListFilters>(EMPTY_LIST_FILTERS);
   const lastReadingFiltersRef = useRef<FuelListFilters>(EMPTY_LIST_FILTERS);
   const lastAnomalyFiltersRef = useRef<FuelAnomalyFilters>(DEFAULT_ANOMALY_FILTERS);
+  const lastVehicleReportRequestRef = useRef<{
+    vehicleId: string;
+    filters: FuelVehicleReportFilters;
+  } | null>(null);
 
   const fetchVehicles = useCallback(async () => {
     setIsLoadingVehicles(true);
@@ -234,6 +254,116 @@ export const useFuel = () => {
     });
   }, []);
 
+  const fetchVehicleReport = useCallback(async (vehicleId: string, filters: FuelVehicleReportFilters = {}) => {
+    if (!vehicleId) {
+      const message = "Selecciona una unidad para consultar el reporte.";
+      setVehicleReport(null);
+      setVehicleReportError(message);
+      return null;
+    }
+
+    if (hasInvalidDateRange(filters.date_from, filters.date_to)) {
+      const message = "La fecha desde no puede ser mayor que la fecha hasta.";
+      setVehicleReport(null);
+      setVehicleReportError(message);
+      return null;
+    }
+
+    lastVehicleReportRequestRef.current = {
+      vehicleId,
+      filters: { ...filters },
+    };
+
+    setIsLoadingVehicleReport(true);
+    setVehicleReportError(null);
+
+    try {
+      const report = await fuelApi.getVehicleReport(fetchRef.current, vehicleId, filters);
+      setVehicleReport(report);
+      return report;
+    } catch (error) {
+      if (!isSessionExpiredError(error)) {
+        console.error("Error fetching vehicle fuel report:", error);
+      }
+
+      const message = resolveApiErrorMessage(error, "No se pudo cargar el reporte de combustible.", {
+        400: "Verifica el rango de fechas antes de consultar el reporte.",
+        404: "La unidad seleccionada no existe o no esta disponible.",
+      });
+
+      setVehicleReport(null);
+      setVehicleReportError(message);
+      return null;
+    } finally {
+      setIsLoadingVehicleReport(false);
+    }
+  }, []);
+
+  const clearVehicleReport = useCallback(() => {
+    lastVehicleReportRequestRef.current = null;
+    setVehicleReport(null);
+    setVehicleReportError(null);
+    setIsLoadingVehicleReport(false);
+  }, []);
+
+  const refreshVehicleReport = useCallback(async () => {
+    const lastRequest = lastVehicleReportRequestRef.current;
+    if (!lastRequest) return null;
+
+    return fetchVehicleReport(lastRequest.vehicleId, lastRequest.filters);
+  }, [fetchVehicleReport]);
+
+  const refreshVehicleReportForVehicle = useCallback(async (vehicleId: string) => {
+    const lastRequest = lastVehicleReportRequestRef.current;
+    if (!lastRequest || lastRequest.vehicleId !== vehicleId) return null;
+
+    return fetchVehicleReport(lastRequest.vehicleId, lastRequest.filters);
+  }, [fetchVehicleReport]);
+
+  const downloadVehicleReportPdf = useCallback(async (vehicleId: string, filters: FuelVehicleReportFilters = {}) => {
+    if (!vehicleId) {
+      toast({
+        title: "Unidad requerida",
+        description: "Selecciona una unidad antes de descargar el reporte PDF.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (hasInvalidDateRange(filters.date_from, filters.date_to)) {
+      toast({
+        title: "Rango de fechas invalido",
+        description: "La fecha desde no puede ser mayor que la fecha hasta.",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    setIsDownloadingVehicleReport(true);
+
+    try {
+      return await fuelApi.downloadVehicleReportPdf(fetchRef.current, vehicleId, filters);
+    } catch (error) {
+      if (!isSessionExpiredError(error)) {
+        console.error("Error downloading fuel report PDF:", error);
+      }
+
+      const message = resolveApiErrorMessage(error, "No se pudo descargar el reporte PDF de combustible.", {
+        400: "Verifica el rango de fechas antes de descargar el reporte PDF.",
+        404: "La unidad seleccionada no existe o no esta disponible.",
+      });
+
+      toast({
+        title: "Error al descargar PDF",
+        description: message,
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsDownloadingVehicleReport(false);
+    }
+  }, [toast]);
+
   const getLogById = useCallback(async (logId: string) => {
     return fuelApi.getLogById(fetchRef.current, logId);
   }, []);
@@ -263,6 +393,7 @@ export const useFuel = () => {
       });
 
       await fetchLogs(lastLogFiltersRef.current);
+      await refreshVehicleReportForVehicle(created.vehicle_id);
       return true;
     } catch (error) {
       if (!isSessionExpiredError(error)) {
@@ -283,7 +414,7 @@ export const useFuel = () => {
 
       return false;
     }
-  }, [fetchLogs, toast]);
+  }, [fetchLogs, refreshVehicleReportForVehicle, toast]);
 
   const createReading = useCallback(async (payload: CreateFuelReadingPayload) => {
     try {
@@ -308,6 +439,7 @@ export const useFuel = () => {
       });
 
       await fetchReadings(lastReadingFiltersRef.current);
+      await refreshVehicleReportForVehicle(created.vehicle_id);
       return true;
     } catch (error) {
       if (!isSessionExpiredError(error)) {
@@ -328,7 +460,7 @@ export const useFuel = () => {
 
       return false;
     }
-  }, [fetchReadings, toast]);
+  }, [fetchReadings, refreshVehicleReportForVehicle, toast]);
 
   const refreshCoreData = useCallback(async () => {
     await Promise.all([
@@ -362,21 +494,29 @@ export const useFuel = () => {
     statusByVehicle,
     statusLoadingByVehicle,
     statusErrorByVehicle,
+    vehicleReport,
     isLoadingLogs,
     isLoadingReadings,
     isLoadingAnomalies,
     isLoadingVehicles,
+    isLoadingVehicleReport,
+    isDownloadingVehicleReport,
     isAnyLoading,
     logsError,
     readingsError,
     anomaliesError,
     vehiclesError,
+    vehicleReportError,
     fetchVehicles,
     fetchLogs,
     fetchReadings,
     fetchAnomalies,
     fetchVehicleStatus,
     clearVehicleStatus,
+    fetchVehicleReport,
+    clearVehicleReport,
+    refreshVehicleReport,
+    downloadVehicleReportPdf,
     getLogById,
     getReadingById,
     createLog,

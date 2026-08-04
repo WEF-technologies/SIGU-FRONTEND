@@ -6,6 +6,8 @@ import {
   FuelListFilters,
   FuelLog,
   FuelReading,
+  FuelVehicleReport,
+  FuelVehicleReportFilters,
   FuelVehicleStatus,
 } from "@/types";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -62,6 +64,22 @@ const parseFuelApiError = async (response: Response, fallback: string): Promise<
   return new FuelApiError(response.status, message, payload?.code, payload?.details);
 };
 
+const extractFilenameFromContentDisposition = (headerValue: string | null, fallbackVehicleId: string) => {
+  if (!headerValue) return `${fallbackVehicleId}_fuel_report.pdf`;
+
+  const filenameMatch = headerValue.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+  if (!filenameMatch || !filenameMatch[1]) {
+    return `${fallbackVehicleId}_fuel_report.pdf`;
+  }
+
+  const rawFilename = filenameMatch[1].replace(/"/g, "").trim();
+  try {
+    return decodeURIComponent(rawFilename);
+  } catch {
+    return rawFilename;
+  }
+};
+
 const requestJson = async <T>(
   authenticatedFetch: AuthenticatedFetch,
   url: string,
@@ -75,6 +93,28 @@ const requestJson = async <T>(
   }
 
   return response.json();
+};
+
+const requestFile = async (
+  authenticatedFetch: AuthenticatedFetch,
+  url: string,
+  options: RequestInit,
+  fallbackMessage: string,
+  fallbackFilename: string
+): Promise<{ blob: Blob; filename: string }> => {
+  const response = await authenticatedFetch(url, options);
+
+  if (!response.ok) {
+    throw await parseFuelApiError(response, fallbackMessage);
+  }
+
+  const blob = await response.blob();
+  const filename = extractFilenameFromContentDisposition(
+    response.headers.get("Content-Disposition"),
+    fallbackFilename
+  );
+
+  return { blob, filename };
 };
 
 export const fuelApi = {
@@ -170,6 +210,56 @@ export const fuelApi = {
       `${API_BASE_URL}/vehicles/${vehicleId}/status${query}`,
       { method: "GET" },
       "No se pudo consultar el estado de combustible de la unidad."
+    );
+  },
+
+  getVehicleReport: async (
+    authenticatedFetch: AuthenticatedFetch,
+    vehicleId: string,
+    filters: FuelVehicleReportFilters = {}
+  ): Promise<FuelVehicleReport> => {
+    const query = buildQueryString({
+      fuel_type: filters.fuel_type,
+      date_from: filters.date_from,
+      date_to: filters.date_to,
+      bucket: filters.bucket,
+      movement_limit: filters.movement_limit,
+      anomaly_limit: filters.anomaly_limit,
+    });
+
+    return requestJson<FuelVehicleReport>(
+      authenticatedFetch,
+      `${API_BASE_URL}/vehicles/${encodeURIComponent(vehicleId)}/report${query}`,
+      { method: "GET" },
+      "No se pudo cargar el reporte de combustible de la unidad."
+    );
+  },
+
+  downloadVehicleReportPdf: async (
+    authenticatedFetch: AuthenticatedFetch,
+    vehicleId: string,
+    filters: FuelVehicleReportFilters = {}
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const query = buildQueryString({
+      fuel_type: filters.fuel_type,
+      date_from: filters.date_from,
+      date_to: filters.date_to,
+      bucket: filters.bucket,
+      movement_limit: filters.movement_limit,
+      anomaly_limit: filters.anomaly_limit,
+    });
+
+    return requestFile(
+      authenticatedFetch,
+      `${API_BASE_URL}/vehicles/${encodeURIComponent(vehicleId)}/report/pdf${query}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/pdf",
+        },
+      },
+      "No se pudo descargar el reporte PDF de combustible.",
+      vehicleId
     );
   },
 

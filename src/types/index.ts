@@ -135,6 +135,7 @@ export type FuelType = 'gasoil' | 'gasolina';
 export type FuelReadingUnit = 'liters' | 'percent';
 export type FuelStatusSource = 'fuel_log' | 'fuel_reading';
 export type FuelAnomalySeverity = 'warning' | 'critical';
+export type FuelReportBucket = 'day' | 'week' | 'month';
 
 export interface FuelLog {
   id: string;
@@ -169,6 +170,7 @@ export interface FuelVehicleStatus {
   as_of: string;
   source: FuelStatusSource;
   fuel_type: FuelType;
+  record_id?: string;
   message: string;
   liters?: number;
   total_cost?: number;
@@ -192,11 +194,78 @@ export interface FuelConsumptionAnomaly {
   severity: FuelAnomalySeverity;
 }
 
+export interface FuelReportSummary {
+  fuel_types?: FuelType[];
+  total_logs: number;
+  total_readings: number;
+  total_liters: number;
+  total_cost: number;
+  average_cost_per_liter?: number | null;
+  first_event_at?: string | null;
+  last_event_at?: string | null;
+  odometer_start_km?: number | null;
+  odometer_end_km?: number | null;
+  distance_km?: number | null;
+  average_consumption_l_per_100km?: number | null;
+}
+
+export interface FuelReportTimelinePoint {
+  bucket: FuelReportBucket;
+  period_start: string;
+  total_liters: number;
+  total_cost: number;
+  average_cost_per_liter?: number | null;
+  distance_km?: number | null;
+  average_consumption_l_per_100km?: number | null;
+  logs_count: number;
+  readings_count: number;
+  average_reading_value?: number | null;
+  reading_unit?: FuelReadingUnit | null;
+}
+
+export interface FuelReportMovement {
+  event_type: FuelStatusSource;
+  record_id: string;
+  occurred_at: string;
+  fuel_type: FuelType;
+  odometer_km?: number | null;
+  liters?: number | null;
+  total_cost?: number | null;
+  unit_cost?: number | null;
+  station?: string | null;
+  reading_value?: number | null;
+  reading_unit?: FuelReadingUnit | null;
+  notes?: string | null;
+}
+
+export interface FuelVehicleReport {
+  vehicle_id: string;
+  vehicle_plate: string;
+  fuel_type_filter?: FuelType | null;
+  date_from?: string | null;
+  date_to?: string | null;
+  bucket: FuelReportBucket;
+  summary: FuelReportSummary;
+  latest_status?: FuelVehicleStatus | null;
+  anomalies?: FuelConsumptionAnomaly[];
+  timeline?: FuelReportTimelinePoint[];
+  movements?: FuelReportMovement[];
+}
+
 export interface FuelListFilters {
   vehicle_id?: string;
   fuel_type?: FuelType;
   date_from?: string;
   date_to?: string;
+}
+
+export interface FuelVehicleReportFilters {
+  fuel_type?: FuelType;
+  date_from?: string;
+  date_to?: string;
+  bucket?: FuelReportBucket;
+  movement_limit?: number;
+  anomaly_limit?: number;
 }
 
 export interface FuelAnomalyFilters {

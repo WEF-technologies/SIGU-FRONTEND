@@ -1,6 +1,10 @@
 import { ReactNode, memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { FuelLogForm } from "@/components/fuel/FuelLogForm";
 import { FuelReadingForm } from "@/components/fuel/FuelReadingForm";
+import {
+  FuelVehicleReportSection,
+  type FuelVehicleReportUiFilters,
+} from "@/components/fuel/FuelVehicleReportSection";
 import { FormModal } from "@/components/shared/FormModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +43,7 @@ import {
   Search,
 } from "lucide-react";
 import { useFuel } from "@/hooks/useFuel";
+import { useToast } from "@/hooks/use-toast";
 import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType, Vehicle } from "@/types";
 
 type FuelLogRow = FuelLog & {
@@ -137,6 +142,11 @@ const formatShortDate = (isoDate: string) => {
 
 const clamp = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, value));
+};
+
+const toFilterDateTimeBoundary = (value: string | undefined, boundary: "start" | "end") => {
+  if (!value) return undefined;
+  return `${value}T${boundary === "start" ? "00:00:00" : "23:59:59"}`;
 };
 
 const formatReadingValue = (item: FuelReadingRow) => {
@@ -756,6 +766,7 @@ const ReadingsByVehicle = memo(({
 });
 
 export default function FuelPage() {
+  const { toast } = useToast();
   const {
     logs,
     readings,
@@ -772,13 +783,20 @@ export default function FuelPage() {
     readingsError,
     anomaliesError,
     vehiclesError,
+    vehicleReport,
+    vehicleReportError,
     createLog,
     createReading,
     fetchLogs,
     fetchReadings,
     fetchAnomalies,
     fetchVehicleStatus,
+    fetchVehicleReport,
     clearVehicleStatus,
+    clearVehicleReport,
+    downloadVehicleReportPdf,
+    isLoadingVehicleReport,
+    isDownloadingVehicleReport,
     refreshCoreData,
     refreshAll,
     defaultAnomalyFilters,
@@ -798,6 +816,9 @@ export default function FuelPage() {
   }>({ query: "" });
 
   const [statusFilters, setStatusFilters] = useState<{ vehicle_id?: string; fuel_type?: FuelType }>({});
+  const [reportFilters, setReportFilters] = useState<FuelVehicleReportUiFilters>({
+    bucket: "month",
+  });
 
   const [anomalyFilters, setAnomalyFilters] = useState<FuelAnomalyFilters>(defaultAnomalyFilters);
   const [logsSortMode, setLogsSortMode] = useState<LogsSortMode>("latest_desc");
@@ -1083,7 +1104,72 @@ export default function FuelPage() {
     setHasFetchedAnomalies(true);
   };
 
+  const buildVehicleReportRequestFilters = (filters: FuelVehicleReportUiFilters) => ({
+    fuel_type: filters.fuel_type,
+    date_from: toFilterDateTimeBoundary(filters.date_from, "start"),
+    date_to: toFilterDateTimeBoundary(filters.date_to, "end"),
+    bucket: filters.bucket,
+  });
+
+  const applyVehicleReportFilters = async () => {
+    await fetchVehicleReport(
+      reportFilters.vehicle_id || "",
+      buildVehicleReportRequestFilters(reportFilters)
+    );
+  };
+
+  const clearVehicleReportFilters = () => {
+    setReportFilters({ bucket: "month" });
+    clearVehicleReport();
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
+  };
+
+  const handleDownloadVehicleReport = async () => {
+    const activeVehicleId = reportFilters.vehicle_id || vehicleReport?.vehicle_id || "";
+    const file = await downloadVehicleReportPdf(
+      activeVehicleId,
+      buildVehicleReportRequestFilters(reportFilters)
+    );
+
+    if (!file) return;
+
+    downloadBlob(file.blob, file.filename);
+    toast({
+      title: "Descarga completada",
+      description: `Se descargó el reporte PDF de combustible de ${
+        reportFilters.vehicle_id
+          ? getVehicleDisplayLabel(vehicleMap.get(reportFilters.vehicle_id), reportFilters.vehicle_id)
+          : file.filename
+      }.`,
+    });
+  };
+
   const handleRefresh = async () => {
+    if (activeTab === "report" && reportFilters.vehicle_id) {
+      const reportPromise = fetchVehicleReport(
+        reportFilters.vehicle_id,
+        buildVehicleReportRequestFilters(reportFilters)
+      );
+
+      if (hasFetchedAnomalies) {
+        await Promise.all([refreshAll(), reportPromise]);
+        return;
+      }
+
+      await Promise.all([refreshCoreData(), reportPromise]);
+      return;
+    }
+
     if (hasFetchedAnomalies) {
       await refreshAll();
       return;
@@ -1155,7 +1241,7 @@ export default function FuelPage() {
       {showInitialLoader ? <InitialDataLoader /> : null}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-full lg:w-auto grid grid-cols-2 lg:grid-cols-4 h-auto">
+        <TabsList className="w-full lg:w-auto grid grid-cols-2 lg:grid-cols-5 h-auto">
           <TabsTrigger value="logs" className="gap-2">
             Cargas
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalLogs}</Badge>
@@ -1165,6 +1251,7 @@ export default function FuelPage() {
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalReadings}</Badge>
           </TabsTrigger>
           <TabsTrigger value="status">Estado actual</TabsTrigger>
+          <TabsTrigger value="report">Reporte unidad</TabsTrigger>
           <TabsTrigger value="anomalies" className="gap-1.5">
             Anomalias
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalAnomalies}</Badge>
@@ -1180,131 +1267,133 @@ export default function FuelPage() {
           </TabsTrigger>
         </TabsList>
 
-        <Card className="p-3">
-          <div className="flex flex-col xl:flex-row xl:items-center gap-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_180px_minmax(280px,1fr)_auto] gap-2 flex-1">
-              <Select
-                value={historyFilters.vehicle_id || "all"}
-                onValueChange={(value) =>
-                  setHistoryFilters((prev) => ({ ...prev, vehicle_id: value === "all" ? undefined : value }))
-                }
-                disabled={isLoadingVehicles}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas las unidades" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las unidades</SelectItem>
-                  {vehicles.map((vehicle) => (
-                    <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {getVehicleDisplayLabel(vehicle)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {activeTab === "logs" || activeTab === "readings" ? (
+          <Card className="p-3">
+            <div className="flex flex-col xl:flex-row xl:items-center gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_180px_minmax(280px,1fr)_auto] gap-2 flex-1">
+                <Select
+                  value={historyFilters.vehicle_id || "all"}
+                  onValueChange={(value) =>
+                    setHistoryFilters((prev) => ({ ...prev, vehicle_id: value === "all" ? undefined : value }))
+                  }
+                  disabled={isLoadingVehicles}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas las unidades" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las unidades</SelectItem>
+                    {vehicles.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.id}>
+                        {getVehicleDisplayLabel(vehicle)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-              <Select
-                value={historyFilters.fuel_type || "all"}
-                onValueChange={(value) =>
-                  setHistoryFilters((prev) => ({
-                    ...prev,
-                    fuel_type: value === "all" ? undefined : (value as FuelType),
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los combustibles" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los combustibles</SelectItem>
-                  {FUEL_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <Input
-                  className="pl-9"
-                  placeholder="Buscar por placa, unidad, notas o estación..."
-                  value={historyFilters.query}
-                  onChange={(event) =>
+                <Select
+                  value={historyFilters.fuel_type || "all"}
+                  onValueChange={(value) =>
                     setHistoryFilters((prev) => ({
                       ...prev,
-                      query: event.target.value,
+                      fuel_type: value === "all" ? undefined : (value as FuelType),
                     }))
                   }
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los combustibles" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los combustibles</SelectItem>
+                    {FUEL_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Buscar por placa, unidad, notas o estación..."
+                    value={historyFilters.query}
+                    onChange={(event) =>
+                      setHistoryFilters((prev) => ({
+                        ...prev,
+                        query: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" className="justify-start gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {historyFilters.date_from || historyFilters.date_to
+                        ? `${historyFilters.date_from || "..."} a ${historyFilters.date_to || "..."}`
+                        : "Fechas"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80">
+                    <div className="space-y-3">
+                      <div>
+                        <Label>Desde</Label>
+                        <Input
+                          type="date"
+                          value={historyFilters.date_from || ""}
+                          onChange={(event) =>
+                            setHistoryFilters((prev) => ({
+                              ...prev,
+                              date_from: event.target.value || undefined,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label>Hasta</Label>
+                        <Input
+                          type="date"
+                          value={historyFilters.date_to || ""}
+                          onChange={(event) =>
+                            setHistoryFilters((prev) => ({
+                              ...prev,
+                              date_to: event.target.value || undefined,
+                            }))
+                          }
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full"
+                        onClick={() =>
+                          setHistoryFilters((prev) => ({
+                            ...prev,
+                            date_from: undefined,
+                            date_to: undefined,
+                          }))
+                        }
+                      >
+                        Limpiar fechas
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="justify-start gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {historyFilters.date_from || historyFilters.date_to
-                      ? `${historyFilters.date_from || "..."} a ${historyFilters.date_to || "..."}`
-                      : "Fechas"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-80">
-                  <div className="space-y-3">
-                    <div>
-                      <Label>Desde</Label>
-                      <Input
-                        type="date"
-                        value={historyFilters.date_from || ""}
-                        onChange={(event) =>
-                          setHistoryFilters((prev) => ({
-                            ...prev,
-                            date_from: event.target.value || undefined,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Hasta</Label>
-                      <Input
-                        type="date"
-                        value={historyFilters.date_to || ""}
-                        onChange={(event) =>
-                          setHistoryFilters((prev) => ({
-                            ...prev,
-                            date_to: event.target.value || undefined,
-                          }))
-                        }
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                      onClick={() =>
-                        setHistoryFilters((prev) => ({
-                          ...prev,
-                          date_from: undefined,
-                          date_to: undefined,
-                        }))
-                      }
-                    >
-                      Limpiar fechas
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={clearHistoryFilters}>
+                  Limpiar
+                </Button>
+                <Button onClick={applyHistoryFilters}>Aplicar</Button>
+              </div>
             </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={clearHistoryFilters}>
-                Limpiar
-              </Button>
-              <Button onClick={applyHistoryFilters}>Aplicar</Button>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ) : null}
 
         <TabsContent value="logs" className="space-y-4">
           {logsError ? <ErrorState message={logsError} onRetry={applyHistoryFilters} /> : null}
@@ -1589,6 +1678,24 @@ export default function FuelPage() {
           ) : (
             <EmptyState title="Sin informacion reciente" description="No se encontro estado para la seleccion actual." />
           )}
+        </TabsContent>
+
+        <TabsContent value="report" className="space-y-4">
+          <FuelVehicleReportSection
+            vehicles={vehicles}
+            vehicleMap={vehicleMap}
+            isLoadingVehicles={isLoadingVehicles}
+            filters={reportFilters}
+            setFilters={setReportFilters}
+            report={vehicleReport}
+            isLoadingReport={isLoadingVehicleReport}
+            isDownloadingReport={isDownloadingVehicleReport}
+            reportError={vehicleReportError}
+            onApply={applyVehicleReportFilters}
+            onClear={clearVehicleReportFilters}
+            onDownload={handleDownloadVehicleReport}
+            getVehicleDisplayLabel={getVehicleDisplayLabel}
+          />
         </TabsContent>
 
         <TabsContent value="anomalies" className="space-y-4">
