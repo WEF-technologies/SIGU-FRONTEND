@@ -3,8 +3,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { SparePart, Vehicle } from "@/types";
-import { Package, MapPin, Store, AlertTriangle, Car } from "lucide-react";
+import { SparePart, SparePartFitment, Vehicle } from "@/types";
+import { AlertTriangle, Car, MapPin, Package, Settings2, Store } from "lucide-react";
+
+const formatFitmentSummary = (fitment: SparePartFitment) => {
+  const yearRange =
+    fitment.year_from != null && fitment.year_to != null
+      ? `${fitment.year_from}-${fitment.year_to}`
+      : fitment.year_from != null
+        ? `Desde ${fitment.year_from}`
+        : fitment.year_to != null
+          ? `Hasta ${fitment.year_to}`
+          : null;
+
+  return [
+    fitment.brand,
+    fitment.model,
+    yearRange,
+    fitment.engine_type,
+    fitment.engine_code,
+    fitment.fuel_type,
+    fitment.transmission_type,
+  ].filter((value): value is string => Boolean(value && value.trim()));
+};
 
 interface SparePartDetailsModalProps {
   sparePart: SparePart | null;
@@ -68,14 +89,14 @@ export function SparePartDetailsModal({ sparePart, isOpen, onClose, vehicles = [
               <div>
                 <Label className="text-xs text-gray-500">Precio Unitario</Label>
                 <p className="font-medium mt-0.5">
-                  {sparePart.unit_price ? `$${sparePart.unit_price.toLocaleString()}` : 'No definido'}
+                  {sparePart.unit_price != null ? `$${sparePart.unit_price.toLocaleString()}` : 'No definido'}
                 </p>
               </div>
             </div>
           </Card>
 
           {/* Ubicaciones */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Card className="p-3">
               <div className="flex items-center gap-2 mb-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
@@ -83,13 +104,15 @@ export function SparePartDetailsModal({ sparePart, isOpen, onClose, vehicles = [
               </div>
               <p className="text-sm text-gray-800">{sparePart.company_location || '—'}</p>
             </Card>
-            <Card className="p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Store className="w-4 h-4 text-green-600" />
-                <Label className="text-xs font-semibold text-gray-600">Tienda de Compra</Label>
-              </div>
-              <p className="text-sm text-gray-800">{sparePart.store_location || '—'}</p>
-            </Card>
+            {sparePart.store_location ? (
+              <Card className="p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Store className="w-4 h-4 text-green-600" />
+                  <Label className="text-xs font-semibold text-gray-600">Tienda de Compra</Label>
+                </div>
+                <p className="text-sm text-gray-800">{sparePart.store_location}</p>
+              </Card>
+            ) : null}
           </div>
 
           {/* Vehículos compatibles */}
@@ -121,6 +144,40 @@ export function SparePartDetailsModal({ sparePart, isOpen, onClose, vehicles = [
               </div>
             ) : (
               <p className="text-sm text-gray-400 italic">No hay vehículos asociados</p>
+            )}
+          </Card>
+
+          <Card className="p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Settings2 className="h-4 w-4 text-slate-500" />
+              <Label className="text-xs font-semibold text-gray-600">
+                Compatibilidad Técnica ({sparePart.fitments?.length ?? 0})
+              </Label>
+            </div>
+            {(sparePart.fitments?.length ?? 0) > 0 ? (
+              <div className="space-y-2">
+                {sparePart.fitments!.map((fitment) => {
+                  const tokens = formatFitmentSummary(fitment);
+
+                  return (
+                    <div key={fitment.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      {tokens.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {tokens.map((token) => (
+                            <Badge key={`${fitment.id}-${token}`} variant="outline" className="border-slate-200 bg-white text-slate-700">
+                              {token}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">Regla técnica sin restricciones específicas.</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 italic">No hay reglas técnicas configuradas</p>
             )}
           </Card>
 

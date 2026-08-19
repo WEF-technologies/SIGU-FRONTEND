@@ -1,11 +1,14 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useCallback } from 'react';
 
-export const useAuthenticatedFetch = () => {
-  const { token, logout, refreshToken } = useAuth();
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
 
-  const isUnauthorizedPayload = (payload: any): boolean => {
-    if (!payload || typeof payload !== 'object') return false;
+export const useAuthenticatedFetch = () => {
+  const { token, logout } = useAuth();
+
+  const isUnauthorizedPayload = (payload: unknown): boolean => {
+    if (!isRecord(payload)) return false;
 
     const code = String(payload.code ?? '').toLowerCase();
     const message = String(payload.message ?? '').toLowerCase();
@@ -21,12 +24,10 @@ export const useAuthenticatedFetch = () => {
   };
 
   const shouldTryRefresh = async (response: Response): Promise<boolean> => {
-    if (response.status !== 401 && response.status !== 403) return false;
-
-    // 401 siempre intenta refresh.
     if (response.status === 401) return true;
+    if (response.status !== 403) return false;
 
-    // Para 403 sólo intenta refresh si el payload indica falta de auth.
+    // Para 403 sólo trata la sesión como inválida si el payload indica falta de auth.
     try {
       const cloned = response.clone();
       const payload = await cloned.json();
@@ -61,23 +62,13 @@ export const useAuthenticatedFetch = () => {
       let response = await makeRequest();
 
       if (await shouldTryRefresh(response)) {
-        const newToken = await refreshToken();
-        if (!newToken) {
-          logout();
-          throw new Error('Sesión expirada');
-        }
-
-        response = await makeRequest(newToken);
-
-        if (await shouldTryRefresh(response)) {
-          logout();
-          throw new Error('Sesión expirada');
-        }
+        logout();
+        throw new Error('Sesión expirada');
       }
 
       return response;
     },
-    [token, refreshToken, logout]
+    [token, logout]
   );
 
   return authenticatedFetch;

@@ -1,10 +1,5 @@
-import { ReactNode, memo, useDeferredValue, useEffect, useMemo, useState } from "react";
-import { FuelLogForm } from "@/components/fuel/FuelLogForm";
-import { FuelReadingForm } from "@/components/fuel/FuelReadingForm";
-import {
-  FuelVehicleReportSection,
-  type FuelVehicleReportUiFilters,
-} from "@/components/fuel/FuelVehicleReportSection";
+import { ReactNode, Suspense, lazy, memo, useDeferredValue, useEffect, useMemo, useState } from "react";
+import type { FuelVehicleReportUiFilters } from "@/components/fuel/FuelVehicleReportSection";
 import { FormModal } from "@/components/shared/FormModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +40,18 @@ import {
 import { useFuel } from "@/hooks/useFuel";
 import { useToast } from "@/hooks/use-toast";
 import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType, Vehicle } from "@/types";
+
+const FuelLogForm = lazy(async () => ({
+  default: (await import("@/components/fuel/FuelLogForm")).FuelLogForm,
+}));
+
+const FuelReadingForm = lazy(async () => ({
+  default: (await import("@/components/fuel/FuelReadingForm")).FuelReadingForm,
+}));
+
+const FuelVehicleReportSection = lazy(async () => ({
+  default: (await import("@/components/fuel/FuelVehicleReportSection")).FuelVehicleReportSection,
+}));
 
 type FuelLogRow = FuelLog & {
   vehicle_plate: string;
@@ -207,6 +214,16 @@ const ErrorState = memo(({ message, onRetry }: { message: string; onRetry: () =>
           Reintentar
         </Button>
       </div>
+    </Card>
+  );
+});
+
+const DeferredSectionLoader = memo(({ message }: { message: string }) => {
+  return (
+    <Card className="p-4 space-y-3">
+      <p className="text-sm text-gray-500">{message}</p>
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-28 w-full" />
     </Card>
   );
 });
@@ -1681,21 +1698,25 @@ export default function FuelPage() {
         </TabsContent>
 
         <TabsContent value="report" className="space-y-4">
-          <FuelVehicleReportSection
-            vehicles={vehicles}
-            vehicleMap={vehicleMap}
-            isLoadingVehicles={isLoadingVehicles}
-            filters={reportFilters}
-            setFilters={setReportFilters}
-            report={vehicleReport}
-            isLoadingReport={isLoadingVehicleReport}
-            isDownloadingReport={isDownloadingVehicleReport}
-            reportError={vehicleReportError}
-            onApply={applyVehicleReportFilters}
-            onClear={clearVehicleReportFilters}
-            onDownload={handleDownloadVehicleReport}
-            getVehicleDisplayLabel={getVehicleDisplayLabel}
-          />
+          {activeTab === "report" ? (
+            <Suspense fallback={<DeferredSectionLoader message="Cargando reporte de combustible..." />}>
+              <FuelVehicleReportSection
+                vehicles={vehicles}
+                vehicleMap={vehicleMap}
+                isLoadingVehicles={isLoadingVehicles}
+                filters={reportFilters}
+                setFilters={setReportFilters}
+                report={vehicleReport}
+                isLoadingReport={isLoadingVehicleReport}
+                isDownloadingReport={isDownloadingVehicleReport}
+                reportError={vehicleReportError}
+                onApply={applyVehicleReportFilters}
+                onClear={clearVehicleReportFilters}
+                onDownload={handleDownloadVehicleReport}
+                getVehicleDisplayLabel={getVehicleDisplayLabel}
+              />
+            </Suspense>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="anomalies" className="space-y-4">
@@ -1913,37 +1934,45 @@ export default function FuelPage() {
         </TabsContent>
       </Tabs>
 
-      <FormModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Registrar carga de combustible">
-        <FuelLogForm
-          vehicles={vehicles}
-          onSubmit={async (payload) => {
-            const ok = await createLog(payload);
-            if (ok) {
-              setIsLogModalOpen(false);
-            }
-            return ok;
-          }}
-          onCancel={() => setIsLogModalOpen(false)}
-        />
-      </FormModal>
+      {isLogModalOpen ? (
+        <FormModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Registrar carga de combustible">
+          <Suspense fallback={<DeferredSectionLoader message="Cargando formulario de carga..." />}>
+            <FuelLogForm
+              vehicles={vehicles}
+              onSubmit={async (payload) => {
+                const ok = await createLog(payload);
+                if (ok) {
+                  setIsLogModalOpen(false);
+                }
+                return ok;
+              }}
+              onCancel={() => setIsLogModalOpen(false)}
+            />
+          </Suspense>
+        </FormModal>
+      ) : null}
 
-      <FormModal
-        isOpen={isReadingModalOpen}
-        onClose={() => setIsReadingModalOpen(false)}
-        title="Registrar lectura de combustible"
-      >
-        <FuelReadingForm
-          vehicles={vehicles}
-          onSubmit={async (payload) => {
-            const ok = await createReading(payload);
-            if (ok) {
-              setIsReadingModalOpen(false);
-            }
-            return ok;
-          }}
-          onCancel={() => setIsReadingModalOpen(false)}
-        />
-      </FormModal>
+      {isReadingModalOpen ? (
+        <FormModal
+          isOpen={isReadingModalOpen}
+          onClose={() => setIsReadingModalOpen(false)}
+          title="Registrar lectura de combustible"
+        >
+          <Suspense fallback={<DeferredSectionLoader message="Cargando formulario de lectura..." />}>
+            <FuelReadingForm
+              vehicles={vehicles}
+              onSubmit={async (payload) => {
+                const ok = await createReading(payload);
+                if (ok) {
+                  setIsReadingModalOpen(false);
+                }
+                return ok;
+              }}
+              onCancel={() => setIsReadingModalOpen(false)}
+            />
+          </Suspense>
+        </FormModal>
+      ) : null}
 
       {!showInitialLoader && isLoadingVehicles && vehicles.length === 0 ? (
         <Card className="p-4">

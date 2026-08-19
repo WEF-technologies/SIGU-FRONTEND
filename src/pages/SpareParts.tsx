@@ -7,7 +7,7 @@ import {
   SparePartRequestForm,
   type SparePartRequestSubmission,
 } from "@/components/spareparts/SparePartRequestForm";
-import { SparePart, Vehicle } from "@/types";
+import { SparePart, SparePartPayload, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { sparePartsApi } from "@/services/sparePartsApi";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -30,6 +31,30 @@ const parseBackendErrorMessage = async (response: Response, fallback: string) =>
     return fallback;
   }
 };
+
+const getSparePartErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
+const getFitmentSearchText = (part: SparePart) =>
+  (part.fitments ?? [])
+    .flatMap((fitment) => [
+      fitment.brand,
+      fitment.model,
+      fitment.engine_type,
+      fitment.engine_code,
+      fitment.fuel_type,
+      fitment.transmission_type,
+      fitment.year_from != null ? String(fitment.year_from) : "",
+      fitment.year_to != null ? String(fitment.year_to) : "",
+    ])
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .join(" ")
+    .toLowerCase();
 
 // ─── Tarjeta de repuesto en vista "Por Repuesto" ──────────────────────────────
 function SparePartCard({
@@ -46,6 +71,7 @@ function SparePartCard({
   onDelete: (p: SparePart) => void;
 }) {
   const isLowStock = part.min_stock != null && part.quantity <= part.min_stock;
+  const fitmentCount = part.fitments?.length ?? 0;
   const vehicles = (part.compatible_vehicles ?? [])
     .map(plate => vehicleMap.get(plate))
     .filter(Boolean) as Vehicle[];
@@ -82,7 +108,12 @@ function SparePartCard({
             <MapPin className="h-3 w-3" /> {part.company_location}
           </span>
         )}
-        {part.unit_price ? (
+        {fitmentCount > 0 && (
+          <Badge variant="outline" className="border-slate-200 text-slate-600">
+            {fitmentCount} regla{fitmentCount !== 1 ? "s" : ""}
+          </Badge>
+        )}
+        {part.unit_price != null ? (
           <span className="ml-auto font-semibold text-gray-700">${part.unit_price.toLocaleString()}</span>
         ) : (
           <span className="ml-auto text-gray-300">Sin precio</span>
@@ -107,6 +138,10 @@ function SparePartCard({
             <span key={p} className="text-xs bg-gray-50 text-gray-500 border border-gray-200 rounded-md px-2 py-0.5">{p}</span>
           ))}
         </div>
+      ) : fitmentCount > 0 ? (
+        <p className="text-xs text-slate-500 italic">
+          Compatibilidad definida por ficha técnica ({fitmentCount} regla{fitmentCount !== 1 ? "s" : ""}).
+        </p>
       ) : (
         <p className="text-xs text-gray-400 italic">Sin vehículos asignados</p>
       )}
@@ -229,11 +264,11 @@ export default function SpareParts() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [spRes, vRes] = await Promise.all([
-          authenticatedFetch(`${API_URL}/api/v1/spare_parts/`),
+        const [sparePartsData, vRes] = await Promise.all([
+          sparePartsApi.listAll(authenticatedFetch),
           authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
         ]);
-        setSpareParts(spRes.ok ? await spRes.json() : []);
+        setSpareParts(sparePartsData);
         setVehicles(vRes.ok ? await vRes.json() : []);
       } catch {
         setSpareParts([]);
@@ -255,6 +290,7 @@ export default function SpareParts() {
     return spareParts.filter(p =>
       p.code.toLowerCase().includes(q) ||
       p.description.toLowerCase().includes(q) ||
+      getFitmentSearchText(p).includes(q) ||
       (p.compatible_vehicles ?? []).some(plate => {
         const v = vehicleMap.get(plate);
         return plate.toLowerCase().includes(q) ||
@@ -289,45 +325,37 @@ export default function SpareParts() {
 
   const handleDelete = async (sp: SparePart) => {
     try {
-      const res = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/${sp.id}`, { method: "DELETE" });
-      if (res.ok) {
-        setSpareParts(prev => prev.filter(p => p.id !== sp.id));
-        toast({ title: "Repuesto eliminado", description: `${sp.code} - ${sp.description} eliminado.` });
-      }
-    } catch {
-      toast({ title: "Error", description: "Error al eliminar el repuesto.", variant: "destructive" });
+      await sparePartsApi.remove(authenticatedFetch, sp.id);
+      setSpareParts(prev => prev.filter(p => p.id !== sp.id));
+      toast({ title: "Repuesto eliminado", description: `${sp.code} - ${sp.description} eliminado.` });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: getSparePartErrorMessage(error, "Error al eliminar el repuesto."),
+        variant: "destructive"
+      });
     }
   };
 
-  const handleSubmit = async (formData: Omit<SparePart, 'id' | 'created_at' | 'updated_at'>) => {
+  const handleSubmit = async (formData: SparePartPayload) => {
     try {
       if (editingSparePart) {
-        const res = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/${editingSparePart.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        if (res.ok) {
-          const updated = await res.json();
-          setSpareParts(prev => prev.map(sp => sp.id === editingSparePart.id ? updated : sp));
-          toast({ title: "Repuesto actualizado", description: `${formData.code} actualizado correctamente.` });
-        }
+        const updated = await sparePartsApi.update(authenticatedFetch, editingSparePart.id, formData);
+        setSpareParts(prev => prev.map(sp => sp.id === editingSparePart.id ? updated : sp));
+        toast({ title: "Repuesto actualizado", description: `${formData.code} actualizado correctamente.` });
       } else {
-        const res = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        if (res.ok) {
-          const created = await res.json();
-          setSpareParts(prev => [...prev, created]);
-          toast({ title: "Repuesto creado", description: `${formData.code} creado correctamente.` });
-        }
+        const created = await sparePartsApi.create(authenticatedFetch, formData);
+        setSpareParts(prev => [...prev, created]);
+        toast({ title: "Repuesto creado", description: `${formData.code} creado correctamente.` });
       }
-    } catch {
-      toast({ title: "Error", description: "Error al procesar la operación.", variant: "destructive" });
+      setIsModalOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: getSparePartErrorMessage(error, "Error al procesar la operación."),
+        variant: "destructive"
+      });
     }
-    setIsModalOpen(false);
   };
 
   const handleSparePartRequest = async (requestData: SparePartRequestSubmission) => {

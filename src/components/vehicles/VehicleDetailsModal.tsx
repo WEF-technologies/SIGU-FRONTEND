@@ -1,6 +1,6 @@
 
-import { useState, useEffect, useMemo } from "react";
-import { Vehicle, Maintenance, SparePart } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+import { SparePart, Vehicle, VehicleSpecification, VehicleSpecificationPayload } from "@/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,15 +10,16 @@ import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit, Plus, Calendar, Gauge, MapPin, Wrench, Package, Download, Loader2 } from "lucide-react";
+import { Download, Edit, Gauge, Loader2, MapPin, Save, Wrench } from "lucide-react";
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 import { maintenancesApi, ApiRequestError } from "@/services/maintenancesApi";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "";
+import { sparePartsApi } from "@/services/sparePartsApi";
+import { vehiclesApi } from "@/services/vehiclesApi";
 
 const normalizeIdValue = (value: unknown) => {
   if (value === null || value === undefined) return "";
@@ -28,6 +29,38 @@ const normalizeIdValue = (value: unknown) => {
 const normalizePlateValue = (value: unknown) => {
   if (typeof value !== "string") return "";
   return value.trim().toUpperCase();
+};
+
+const createEmptyVehicleSpecificationForm = (): VehicleSpecificationPayload => ({
+  engine_type: "",
+  engine_code: "",
+  fuel_type: "",
+  transmission_type: "",
+  drive_type: "",
+  vin: "",
+  chassis_number: "",
+  notes: "",
+});
+
+const mapVehicleSpecificationToForm = (
+  specification: VehicleSpecification | null
+): VehicleSpecificationPayload => ({
+  engine_type: specification?.engine_type ?? "",
+  engine_code: specification?.engine_code ?? "",
+  fuel_type: specification?.fuel_type ?? "",
+  transmission_type: specification?.transmission_type ?? "",
+  drive_type: specification?.drive_type ?? "",
+  vin: specification?.vin ?? "",
+  chassis_number: specification?.chassis_number ?? "",
+  notes: specification?.notes ?? "",
+});
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 interface VehicleDetailsModalProps {
@@ -42,6 +75,11 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const [kmValue, setKmValue] = useState("");
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false);
   const [isDownloadingReport, setIsDownloadingReport] = useState(false);
+  const [isLoadingSpecification, setIsLoadingSpecification] = useState(false);
+  const [isSavingSpecification, setIsSavingSpecification] = useState(false);
+  const [vehicleSpecification, setVehicleSpecification] = useState<VehicleSpecificationPayload>(
+    createEmptyVehicleSpecificationForm()
+  );
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const { maintenance, vehicles, createMaintenance } = useMaintenance();
   const authenticatedFetch = useAuthenticatedFetch();
@@ -64,29 +102,74 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     [maintenance, vehicle]
   );
 
-  useEffect(() => {
-    if (vehicle) {
-      const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
-      setKmValue(currentKm.toString());
-      // Cargar repuestos para este vehículo
-      fetchVehicleSpareParts(vehicle.plate_number);
-    }
-  }, [vehicle]);
-
   const fetchVehicleSpareParts = async (plateNumber: string) => {
-    try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/spare_parts/vehicle/${plateNumber}`);
-      if (response.ok) {
-        const data = await response.json();
-        setSpareParts(Array.isArray(data) ? data : []);
-      } else {
-        setSpareParts([]);
-      }
-    } catch (error) {
-      console.error('Error fetching spare parts:', error);
-      setSpareParts([]);
-    }
+    const parts = await sparePartsApi.listByVehicle(authenticatedFetch, plateNumber);
+    setSpareParts(parts);
   };
+
+  useEffect(() => {
+    if (!vehicle || !isOpen) return;
+
+    const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
+    setKmValue(currentKm.toString());
+
+    let isActive = true;
+
+    const loadVehicleContext = async () => {
+      setIsLoadingSpecification(true);
+
+      const [specificationResult, sparePartsResult] = await Promise.allSettled([
+        vehiclesApi.getSpecification(authenticatedFetch, vehicle.plate_number),
+        sparePartsApi.listByVehicle(authenticatedFetch, vehicle.plate_number),
+      ]);
+
+      if (!isActive) return;
+
+      if (specificationResult.status === "fulfilled") {
+        setVehicleSpecification(mapVehicleSpecificationToForm(specificationResult.value));
+      } else {
+        console.error("Error fetching vehicle specification:", specificationResult.reason);
+        setVehicleSpecification(createEmptyVehicleSpecificationForm());
+        const message = getErrorMessage(
+          specificationResult.reason,
+          "No se pudo cargar la ficha técnica del vehículo."
+        );
+        if (message !== "Sesión expirada") {
+          toast({
+            title: "Error al cargar ficha técnica",
+            description: message,
+            variant: "destructive",
+          });
+        }
+      }
+
+      if (sparePartsResult.status === "fulfilled") {
+        setSpareParts(sparePartsResult.value);
+      } else {
+        console.error("Error fetching vehicle spare parts:", sparePartsResult.reason);
+        setSpareParts([]);
+        const message = getErrorMessage(
+          sparePartsResult.reason,
+          "No se pudieron cargar los repuestos compatibles del vehículo."
+        );
+        if (message !== "Sesión expirada") {
+          toast({
+            title: "Error al cargar repuestos",
+            description: message,
+            variant: "destructive",
+          });
+        }
+      }
+
+      setIsLoadingSpecification(false);
+    };
+
+    void loadVehicleContext();
+
+    return () => {
+      isActive = false;
+    };
+  }, [authenticatedFetch, isOpen, toast, vehicle]);
 
   if (!vehicle) return null;
 
@@ -148,6 +231,43 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
       setShowMaintenanceForm(false);
     }
     return success;
+  };
+
+  const handleSpecificationFieldChange = (
+    field: keyof VehicleSpecificationPayload,
+    value: string
+  ) => {
+    setVehicleSpecification((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSaveSpecification = async () => {
+    if (!vehicle?.plate_number) return;
+
+    try {
+      setIsSavingSpecification(true);
+      const updatedSpecification = await vehiclesApi.upsertSpecification(
+        authenticatedFetch,
+        vehicle.plate_number,
+        vehicleSpecification
+      );
+
+      setVehicleSpecification(mapVehicleSpecificationToForm(updatedSpecification));
+      await fetchVehicleSpareParts(vehicle.plate_number);
+
+      toast({
+        title: "Ficha técnica actualizada",
+        description: `Se actualizó la ficha técnica de ${vehicle.plate_number}.`,
+      });
+    } catch (error) {
+      console.error("Error saving vehicle specification:", error);
+      toast({
+        title: "Error al guardar ficha técnica",
+        description: getErrorMessage(error, "No se pudo guardar la ficha técnica del vehículo."),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingSpecification(false);
+    }
   };
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -302,10 +422,11 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
               </div>
             </Card>
 
-            {/* Tabs para historial y repuestos */}
+            {/* Tabs para historial, ficha técnica y repuestos */}
             <Tabs defaultValue="maintenance" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="maintenance">Historial de Mantenimientos</TabsTrigger>
+                <TabsTrigger value="specs">Ficha Técnica</TabsTrigger>
                 <TabsTrigger value="parts">Repuestos</TabsTrigger>
               </TabsList>
 
@@ -380,13 +501,122 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                 </Card>
               </TabsContent>
 
-              <TabsContent value="parts" className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Repuestos Asociados ({spareParts.length})</h3>
-                  <Button size="sm" className="bg-primary">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agregar Repuesto
+              <TabsContent value="specs" className="space-y-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-medium">Ficha Técnica del Vehículo</h3>
+                    <p className="text-sm text-gray-500">
+                      Estos datos permiten que el backend determine repuestos compatibles por especificación técnica.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveSpecification}
+                    disabled={isLoadingSpecification || isSavingSpecification}
+                  >
+                    {isSavingSpecification ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    {isSavingSpecification ? "Guardando..." : "Guardar ficha técnica"}
                   </Button>
+                </div>
+
+                <Card className="p-4">
+                  {isLoadingSpecification ? (
+                    <div className="flex min-h-[220px] items-center justify-center text-sm text-gray-500">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Cargando ficha técnica...
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <Label htmlFor="engine_type">Tipo de Motor</Label>
+                          <Input
+                            id="engine_type"
+                            value={vehicleSpecification.engine_type ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("engine_type", e.target.value)}
+                            placeholder="Ej. 2.8 Diesel"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="engine_code">Código de Motor</Label>
+                          <Input
+                            id="engine_code"
+                            value={vehicleSpecification.engine_code ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("engine_code", e.target.value)}
+                            placeholder="Ej. 1GD-FTV"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="fuel_type">Tipo de Combustible</Label>
+                          <Input
+                            id="fuel_type"
+                            value={vehicleSpecification.fuel_type ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("fuel_type", e.target.value)}
+                            placeholder="Ej. gasoil"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="transmission_type">Tipo de Transmisión</Label>
+                          <Input
+                            id="transmission_type"
+                            value={vehicleSpecification.transmission_type ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("transmission_type", e.target.value)}
+                            placeholder="Ej. manual"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="drive_type">Tipo de Tracción</Label>
+                          <Input
+                            id="drive_type"
+                            value={vehicleSpecification.drive_type ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("drive_type", e.target.value)}
+                            placeholder="Ej. 4x4"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="vin">VIN</Label>
+                          <Input
+                            id="vin"
+                            value={vehicleSpecification.vin ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("vin", e.target.value)}
+                            placeholder="Número VIN"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label htmlFor="chassis_number">Número de Chasis</Label>
+                          <Input
+                            id="chassis_number"
+                            value={vehicleSpecification.chassis_number ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("chassis_number", e.target.value)}
+                            placeholder="Número de chasis"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="vehicle_spec_notes">Notas</Label>
+                        <Textarea
+                          id="vehicle_spec_notes"
+                          value={vehicleSpecification.notes ?? ""}
+                          onChange={(e) => handleSpecificationFieldChange("notes", e.target.value)}
+                          placeholder="Detalles adicionales relevantes para repuestos o mantenimiento"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="parts" className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="font-medium">Repuestos Compatibles ({spareParts.length})</h3>
+                  <p className="text-sm text-gray-500">
+                    Lista calculada por placa y ficha técnica registrada para este vehículo.
+                  </p>
                 </div>
                 <Card>
                   <Table>
@@ -396,14 +626,15 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                         <TableHead>Descripción</TableHead>
                         <TableHead>Cantidad</TableHead>
                         <TableHead>Ubicación Empresa</TableHead>
+                        <TableHead>Compatibilidad</TableHead>
                         <TableHead>Precio Unitario</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {spareParts.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                            No hay repuestos asociados a este vehículo
+                          <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                            No hay repuestos compatibles con este vehículo
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -412,9 +643,16 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                             <TableCell>{part.code}</TableCell>
                             <TableCell>{part.description}</TableCell>
                             <TableCell>{part.quantity}</TableCell>
-                            <TableCell>{part.company_location}</TableCell>
+                            <TableCell>{part.company_location || "—"}</TableCell>
                             <TableCell>
-                              {part.unit_price ? `$${part.unit_price.toLocaleString()}` : 'N/A'}
+                              {(part.fitments?.length ?? 0) > 0
+                                ? `${part.fitments?.length} regla${part.fitments?.length !== 1 ? "s" : ""}`
+                                : (part.compatible_vehicles?.length ?? 0) > 0
+                                  ? "Por placa"
+                                  : "General"}
+                            </TableCell>
+                            <TableCell>
+                              {part.unit_price != null ? `$${part.unit_price.toLocaleString()}` : 'N/A'}
                             </TableCell>
                           </TableRow>
                         ))

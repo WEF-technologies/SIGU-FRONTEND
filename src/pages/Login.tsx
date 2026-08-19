@@ -26,9 +26,14 @@ export default function Login() {
         description: "Bienvenido al sistema de gestión Servi-Mont.M2D",
       });
     } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Credenciales inválidas. Por favor, inténtalo de nuevo.";
+
       toast({
         title: "Error de autenticación",
-        description: "Credenciales inválidas. Por favor, inténtalo de nuevo.",
+        description: message,
         variant: "destructive",
       });
     } finally {

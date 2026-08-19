@@ -14,6 +14,7 @@ import {
   Hammer,
   Droplets,
   FlaskConical,
+  Package,
 } from "lucide-react";
 
 import {
@@ -43,6 +44,7 @@ const menuItems = [
   { title: "Combustible", url: "/combustible", icon: Droplets },
   { title: "Fluidos", url: "/fluidos", icon: FlaskConical },
   { title: "Herramientas", url: "/herramientas", icon: Hammer },
+  { title: "Dotación", url: "/dotacion", icon: Package },
 ];
 
 export function AppSidebar() {

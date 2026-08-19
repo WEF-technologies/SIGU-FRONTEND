@@ -467,16 +467,59 @@ export interface CreateFluidMovementPayload {
   notes?: string;
 }
 
+export interface VehicleSpecificationFields {
+  engine_type?: string | null;
+  engine_code?: string | null;
+  fuel_type?: string | null;
+  transmission_type?: string | null;
+  drive_type?: string | null;
+  vin?: string | null;
+  chassis_number?: string | null;
+  notes?: string | null;
+}
+
+export interface VehicleSpecification extends BaseEntity, VehicleSpecificationFields {
+  vehicle_id: string;
+}
+
+export interface VehicleSpecificationPayload extends VehicleSpecificationFields {}
+
+export interface SparePartFitmentFields {
+  brand?: string | null;
+  model?: string | null;
+  year_from?: number | null;
+  year_to?: number | null;
+  engine_type?: string | null;
+  engine_code?: string | null;
+  fuel_type?: string | null;
+  transmission_type?: string | null;
+}
+
+export interface SparePartFitment extends BaseEntity, SparePartFitmentFields {}
+
+export interface SparePartFitmentPayload extends SparePartFitmentFields {}
+
 export interface SparePart extends BaseEntity {
   code: string;
   description: string;
   quantity: number;
-  company_location: string;
-  store_location: string;
-  compatible_vehicles: string[]; // Array of vehicle IDs or plate numbers
-  vehicle_plates?: string; // Comma-separated string for display
-  min_stock?: number;
-  unit_price?: number;
+  company_location?: string | null;
+  store_location?: string | null;
+  compatible_vehicles: string[];
+  vehicle_plates?: string;
+  min_stock?: number | null;
+  unit_price?: number | null;
+  fitments?: SparePartFitment[];
+}
+
+export interface SparePartPayload {
+  code: string;
+  description: string;
+  quantity: number;
+  company_location?: string | null;
+  compatible_vehicles?: string[];
+  unit_price?: number | null;
+  fitments?: SparePartFitmentPayload[];
 }
 
 export interface VehiclePart extends BaseEntity {
@@ -568,6 +611,135 @@ export interface ToolAlert {
   days_to_expiry?: number;
   alert_status: ToolAlertStatus;
   severity: ToolAlertSeverity;
+}
+
+export interface DotationStaffMember {
+  id: string;
+  name: string;
+  last_name: string;
+  document_number: string;
+  department?: string | null;
+  position?: string | null;
+  status?: string | null;
+  hire_date?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DotationStaffMemberPayload {
+  name: string;
+  last_name: string;
+  document_number: string;
+  department?: string | null;
+  position?: string | null;
+  status?: string | null;
+  hire_date?: string | null;
+  notes?: string | null;
+}
+
+export interface DotationStaffFilters {
+  status?: string;
+  department?: string;
+  position?: string;
+}
+
+export interface DotationItem {
+  id: string;
+  code: string;
+  name: string;
+  category: string;
+  renewal_months: number;
+  status?: string | null;
+  description?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface DotationItemPayload {
+  code: string;
+  name: string;
+  category: string;
+  renewal_months: number;
+  status?: string | null;
+  description?: string | null;
+}
+
+export interface DotationItemFilters {
+  status?: string;
+  category?: string;
+}
+
+export interface DotationDelivery {
+  id: string;
+  staff_member_id: string;
+  staff_document_number: string;
+  staff_name: string;
+  staff_last_name: string;
+  staff_full_name: string;
+  dotation_item_id: string;
+  item_code: string;
+  item_name: string;
+  item_category: string;
+  quantity: number;
+  delivered_at: string;
+  expires_at: string;
+  renewal_months_applied: number;
+  delivered_by?: string | null;
+  notes?: string | null;
+  alert_status: string;
+  days_to_expiry: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DotationDeliveryPayload {
+  staff_member_id: string;
+  dotation_item_id: string;
+  delivered_at: string;
+  quantity: number;
+  delivered_by?: string | null;
+  notes?: string | null;
+}
+
+export interface DotationDeliveryFilters {
+  staff_document_number?: string;
+  item_code?: string;
+  alert_status?: string;
+  delivered_from?: string;
+  delivered_to?: string;
+  near_days?: number;
+}
+
+export interface DotationAlert {
+  id: string;
+  staff_member_id: string;
+  staff_document_number: string;
+  staff_name: string;
+  staff_last_name: string;
+  staff_full_name: string;
+  dotation_item_id: string;
+  item_code: string;
+  item_name: string;
+  item_category: string;
+  quantity: number;
+  delivered_at: string;
+  expires_at: string;
+  renewal_months_applied: number;
+  delivered_by?: string | null;
+  notes?: string | null;
+  alert_status: string;
+  days_to_expiry: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DotationAlertFilters {
+  near_days?: number;
+  include_vigente?: boolean;
+  staff_document_number?: string;
+  item_code?: string;
+  alert_status?: string;
 }
 
 export type MaintenanceType = 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
