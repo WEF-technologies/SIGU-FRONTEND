@@ -37,7 +37,7 @@ const createEmptyVehicleSpecificationForm = (): VehicleSpecificationPayload => (
   fuel_type: "",
   transmission_type: "",
   drive_type: "",
-  vin: "",
+  serial: "",
   chassis_number: "",
   notes: "",
 });
@@ -50,7 +50,7 @@ const mapVehicleSpecificationToForm = (
   fuel_type: specification?.fuel_type ?? "",
   transmission_type: specification?.transmission_type ?? "",
   drive_type: specification?.drive_type ?? "",
-  vin: specification?.vin ?? "",
+  serial: specification?.serial ?? "",
   chassis_number: specification?.chassis_number ?? "",
   notes: specification?.notes ?? "",
 });
@@ -578,12 +578,12 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                           />
                         </div>
                         <div>
-                          <Label htmlFor="vin">VIN</Label>
+                          <Label htmlFor="serial">SERIAL</Label>
                           <Input
-                            id="vin"
-                            value={vehicleSpecification.vin ?? ""}
-                            onChange={(e) => handleSpecificationFieldChange("vin", e.target.value)}
-                            placeholder="Número VIN"
+                            id="serial"
+                            value={vehicleSpecification.serial ?? ""}
+                            onChange={(e) => handleSpecificationFieldChange("serial", e.target.value)}
+                            placeholder="Serial del vehículo"
                           />
                         </div>
                         <div className="md:col-span-2">

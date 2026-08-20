@@ -473,7 +473,7 @@ export interface VehicleSpecificationFields {
   fuel_type?: string | null;
   transmission_type?: string | null;
   drive_type?: string | null;
-  vin?: string | null;
+  serial?: string | null;
   chassis_number?: string | null;
   notes?: string | null;
 }
