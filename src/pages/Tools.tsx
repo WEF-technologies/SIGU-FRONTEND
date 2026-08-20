@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTools } from "@/hooks/useTools";
-import { Tool, ToolPayload, ToolStatus } from "@/types";
+import { Tool, ToolFilters, ToolPayload, ToolStatus } from "@/types";
 import { Filter, RefreshCw } from "lucide-react";
 
 const STATUS_OPTIONS: Array<{ value: ToolStatus; label: string }> = [
@@ -20,6 +20,18 @@ const STATUS_OPTIONS: Array<{ value: ToolStatus; label: string }> = [
   { value: "en_mantenimiento", label: "En mantenimiento" },
   { value: "retirada", label: "Retirada" },
 ];
+
+/** Estado local de los filtros: como ToolFilters, pero con todos los campos presentes. */
+type ToolFilterState = Required<Pick<ToolFilters, "category" | "location" | "assigned_to">> & {
+  status: ToolStatus | "all";
+};
+
+const EMPTY_TOOL_FILTERS: ToolFilterState = {
+  category: "",
+  location: "",
+  status: "all",
+  assigned_to: "",
+};
 
 export default function Tools() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,12 +53,7 @@ export default function Tools() {
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
 
-  const [filters, setFilters] = useState({
-    category: "",
-    location: "",
-    status: "all",
-    assigned_to: "",
-  });
+  const [filters, setFilters] = useState<ToolFilterState>(EMPTY_TOOL_FILTERS);
 
   const [alertFilters, setAlertFilters] = useState({
     near_days: 30,
@@ -98,9 +105,8 @@ export default function Tools() {
   };
 
   const clearFilters = async () => {
-    const reset = { category: "", location: "", status: "all", assigned_to: "" };
-    setFilters(reset);
-    await fetchTools(reset);
+    setFilters(EMPTY_TOOL_FILTERS);
+    await fetchTools(EMPTY_TOOL_FILTERS);
   };
 
   const refreshAlerts = async () => {
@@ -109,7 +115,7 @@ export default function Tools() {
       include_ok: alertFilters.include_ok,
       category: filters.category,
       location: filters.location,
-      status: filters.status as ToolStatus | "all",
+      status: filters.status,
     });
   };
 
@@ -141,7 +147,9 @@ export default function Tools() {
           />
           <Select
             value={filters.status}
-            onValueChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+            onValueChange={(value: ToolFilterState["status"]) =>
+              setFilters((prev) => ({ ...prev, status: value }))
+            }
           >
             <SelectTrigger>
               <SelectValue placeholder="Estado" />

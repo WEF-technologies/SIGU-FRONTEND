@@ -171,7 +171,9 @@ export function useMaintenance() {
   const M3_INTERVAL = M3_INTERVAL_KM;
 
   const computeLocalM3Alerts = (enrichedVehicles: Vehicle[]): MaintenanceAlert[] => {
-    return enrichedVehicles.flatMap((v) => {
+    // El retorno se anota explícitamente: sin ello TypeScript fija el tipo del
+    // callback con la primera rama (status: 'due') y rechaza la segunda ('near').
+    return enrichedVehicles.flatMap((v): MaintenanceAlert[] => {
       const effectiveKm = Math.max(
         v.current_kilometers || (v as any).kilometers || 0,
         v.last_m3_kilometers || 0
