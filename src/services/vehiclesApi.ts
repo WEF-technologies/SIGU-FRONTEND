@@ -72,7 +72,9 @@ export const normalizeVehicleSpecification = (value: unknown): VehicleSpecificat
     fuel_type: readNullableString(specification, "fuel_type") ?? null,
     transmission_type: readNullableString(specification, "transmission_type") ?? null,
     drive_type: readNullableString(specification, "drive_type") ?? null,
-    vin: readNullableString(specification, "vin") ?? null,
+    // El backend sigue nombrando este campo "vin"; en el frontend se expone
+    // como "serial", que es como lo llama la UI.
+    serial: readNullableString(specification, "vin") ?? null,
     chassis_number: readNullableString(specification, "chassis_number") ?? null,
     notes: readNullableString(specification, "notes") ?? null,
   };
@@ -105,7 +107,8 @@ const sanitizeVehicleSpecificationPayload = (payload: VehicleSpecificationPayloa
   fuel_type: normalizeSpecField(payload.fuel_type),
   transmission_type: normalizeSpecField(payload.transmission_type),
   drive_type: normalizeSpecField(payload.drive_type),
-  vin: normalizeSpecField(payload.vin),
+  // Se envía como "vin" porque es la clave que espera el backend.
+  vin: normalizeSpecField(payload.serial),
   chassis_number: normalizeSpecField(payload.chassis_number),
   notes: normalizeSpecField(payload.notes),
 });
