@@ -35,7 +35,8 @@ const FIELD_LABELS: Record<string, string> = {
   engine_code: "Codigo de motor",
   transmission_type: "Transmision",
   drive_type: "Traccion",
-  vin: "VIN",
+  // La clave es el nombre del campo en el backend; la etiqueta, cómo lo llama la UI.
+  vin: "Serial",
   chassis_number: "Numero de chasis",
   fluid_product_id: "Producto de fluido",
   quantity_used: "Cantidad usada",
