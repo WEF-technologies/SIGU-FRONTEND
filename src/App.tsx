@@ -1,11 +1,12 @@
-import { lazy, Suspense } from "react";
+import { ReactNode, lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { MainLayout } from "./components/layout/MainLayout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -35,41 +36,55 @@ const RouteLoader = () => (
   </div>
 );
 
+/**
+ * Aísla el fallo al módulo que lo provoca: el sidebar y el header siguen
+ * funcionando. Al cambiar de ruta el boundary se recupera solo, para que el
+ * usuario no quede atrapado en la pantalla de error.
+ */
+const RouteErrorBoundary = ({ children }: { children: ReactNode }) => {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+};
+
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <ProtectedRoute>
-            <MainLayout>
-              <Suspense fallback={<RouteLoader />}>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/vehiculos" element={<Vehicles />} />
-                  <Route path="/usuarios" element={<Users />} />
-                  <Route path="/contratos" element={<Contracts />} />
-                  <Route path="/rutas" element={<RoutesPage />} />
-                  <Route path="/choferes" element={<Drivers />} />
-                  <Route path="/repuestos" element={<SpareParts />} />
-                  <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
-                  <Route path="/mantenimiento" element={<Maintenance />} />
-                  <Route path="/combustible" element={<FuelPage />} />
-                  <Route path="/fluidos" element={<Fluids />} />
-                  <Route path="/herramientas" element={<Tools />} />
-                  <Route path="/dotacion" element={<Dotation />} />
-                  <Route path="/viajes" element={<Trips />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Suspense>
-            </MainLayout>
-          </ProtectedRoute>
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary variant="app">
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <ProtectedRoute>
+              <MainLayout>
+                <RouteErrorBoundary>
+                  <Suspense fallback={<RouteLoader />}>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/vehiculos" element={<Vehicles />} />
+                      <Route path="/usuarios" element={<Users />} />
+                      <Route path="/contratos" element={<Contracts />} />
+                      <Route path="/rutas" element={<RoutesPage />} />
+                      <Route path="/choferes" element={<Drivers />} />
+                      <Route path="/repuestos" element={<SpareParts />} />
+                      <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
+                      <Route path="/mantenimiento" element={<Maintenance />} />
+                      <Route path="/combustible" element={<FuelPage />} />
+                      <Route path="/fluidos" element={<Fluids />} />
+                      <Route path="/herramientas" element={<Tools />} />
+                      <Route path="/dotacion" element={<Dotation />} />
+                      <Route path="/viajes" element={<Trips />} />
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
+                </RouteErrorBoundary>
+              </MainLayout>
+            </ProtectedRoute>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
