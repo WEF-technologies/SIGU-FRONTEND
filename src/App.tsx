@@ -23,6 +23,7 @@ const Fluids = lazy(() => import("./pages/Fluids"));
 const Trips = lazy(() => import("./pages/Trips"));
 const Tools = lazy(() => import("./pages/Tools"));
 const Dotation = lazy(() => import("./pages/Dotation"));
+const Suppliers = lazy(() => import("./pages/Suppliers"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
                       <Route path="/fluidos" element={<Fluids />} />
                       <Route path="/herramientas" element={<Tools />} />
                       <Route path="/dotacion" element={<Dotation />} />
+                      <Route path="/proveedores" element={<Suppliers />} />
                       <Route path="/viajes" element={<Trips />} />
                       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                       <Route path="*" element={<NotFound />} />

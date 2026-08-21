@@ -53,6 +53,21 @@ const FIELD_LABELS: Record<string, string> = {
   delivered_by: "Entregado por",
   year: "Ano",
   status: "Estado",
+  supplier_id: "Proveedor",
+  address: "Direccion",
+  contact_person: "Contacto",
+  contact_name: "Contacto",
+  delivery_time_notes: "Notas de entrega",
+  phone: "Telefono",
+  contact_phone: "Telefono",
+  phone_number: "Telefono",
+  email: "Correo",
+  contact_email: "Correo",
+  categories: "Categorias",
+  category: "Categoria",
+  destacado: "Destacado",
+  chat_url: "Enlace de chat",
+  notes: "Notas",
 };
 
 const cleanText = (value: string) => value.replace(/\s+/g, " ").trim();

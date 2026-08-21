@@ -742,5 +742,61 @@ export interface DotationAlertFilters {
   alert_status?: string;
 }
 
+export const SUPPLIER_CATEGORY_OPTIONS = [
+  { value: "repuestos", label: "Repuestos" },
+  { value: "fluidos", label: "Fluidos" },
+  { value: "combustible", label: "Combustible" },
+  { value: "herramientas", label: "Herramientas" },
+  { value: "dotacion", label: "Dotacion" },
+  { value: "servicios_mecanicos", label: "Servicios mecanicos" },
+  { value: "servicios_electricos", label: "Servicios electricos" },
+  { value: "llantas", label: "Llantas" },
+  { value: "productos_limpieza", label: "Productos de limpieza" },
+] as const;
+
+export type SupplierCategory = (typeof SUPPLIER_CATEGORY_OPTIONS)[number]["value"];
+
+export interface Supplier {
+  id: string;
+  name: string;
+  address: string;
+  contact_phone: string;
+  email?: string | null;
+  location: string;
+  status: string;
+  categories: string[];
+  destacado: boolean;
+  description?: string | null;
+  delivery_time_notes?: string | null;
+  chat_url: string;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupplierPayload {
+  name: string;
+  address: string;
+  location: string;
+  contact_phone: string;
+  email?: string | null;
+  status: string;
+  categories: string[];
+  destacado: boolean;
+  description?: string | null;
+  delivery_time_notes?: string | null;
+  notes?: string | null;
+}
+
+export interface SupplierFilters {
+  search?: string;
+  status?: string;
+  location?: string;
+  category?: string;
+  destacado?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
 export type MaintenanceType = 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';
