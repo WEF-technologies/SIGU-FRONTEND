@@ -13,6 +13,9 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const isMissingEndpointError = (error: unknown) =>
+  error instanceof SuppliersApiError && error.status === 404;
+
 export const useSuppliers = () => {
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
@@ -21,6 +24,7 @@ export const useSuppliers = () => {
   const [featuredSuppliers, setFeaturedSuppliers] = useState<Supplier[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
   const [isLoadingFeatured, setIsLoadingFeatured] = useState(false);
+  const [isModuleUnavailable, setIsModuleUnavailable] = useState(false);
 
   const lastFiltersRef = useRef<SupplierFilters>({});
 
@@ -30,11 +34,15 @@ export const useSuppliers = () => {
 
     try {
       const data = await suppliersApi.list(authenticatedFetch, filters);
+      setIsModuleUnavailable(false);
       setSuppliers(Array.isArray(data) ? data : []);
       return true;
     } catch (error) {
       console.error("Error fetching suppliers:", error);
-      if (!isSessionExpiredError(error)) {
+      if (isMissingEndpointError(error)) {
+        setIsModuleUnavailable(true);
+        setFeaturedSuppliers([]);
+      } else if (!isSessionExpiredError(error)) {
         toast({
           title: "Error",
           description: getErrorMessage(error, "No se pudo cargar el listado de proveedores."),
@@ -52,12 +60,19 @@ export const useSuppliers = () => {
     setIsLoadingFeatured(true);
 
     try {
+      if (isModuleUnavailable) {
+        setFeaturedSuppliers([]);
+        return false;
+      }
+
       const data = await suppliersApi.list(authenticatedFetch, { destacado: true });
       setFeaturedSuppliers(Array.isArray(data) ? data : []);
       return true;
     } catch (error) {
       console.error("Error fetching featured suppliers:", error);
-      if (!isSessionExpiredError(error)) {
+      if (isMissingEndpointError(error)) {
+        setFeaturedSuppliers([]);
+      } else if (!isSessionExpiredError(error)) {
         toast({
           title: "Error",
           description: getErrorMessage(error, "No se pudieron cargar los proveedores destacados."),
@@ -127,7 +142,14 @@ export const useSuppliers = () => {
   };
 
   useEffect(() => {
-    void Promise.all([fetchSuppliers({}), fetchFeaturedSuppliers()]);
+    const bootstrap = async () => {
+      const loaded = await fetchSuppliers({});
+      if (loaded) {
+        await fetchFeaturedSuppliers();
+      }
+    };
+
+    void bootstrap();
   }, []);
 
   return {
@@ -135,6 +157,7 @@ export const useSuppliers = () => {
     featuredSuppliers,
     isLoadingSuppliers,
     isLoadingFeatured,
+    isModuleUnavailable,
     fetchSuppliers,
     fetchFeaturedSuppliers,
     createSupplier,

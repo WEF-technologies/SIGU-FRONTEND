@@ -68,10 +68,12 @@ export default function Suppliers() {
     featuredSuppliers,
     isLoadingSuppliers,
     isLoadingFeatured,
+    isModuleUnavailable,
     fetchSuppliers,
     createSupplier,
     updateSupplier,
     deleteSupplier,
+    refreshAll,
   } = useSuppliers();
 
   const [filters, setFilters] = useState<SupplierFilters>({
@@ -252,6 +254,15 @@ export default function Suppliers() {
     }
   };
 
+  const handleRetry = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshAll();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleSubmitSupplier = async (payload: SupplierPayload) => {
     const ok = editingSupplier
       ? await updateSupplier(editingSupplier.id, payload)
@@ -300,71 +311,97 @@ export default function Suppliers() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <CardTitle className="text-xl text-primary-900">Proveedores destacados</CardTitle>
-            <p className="text-sm text-secondary-dark">Listado rapido obtenido con el filtro `destacado=true` del backend.</p>
-          </div>
-          <Badge variant="outline" className="w-fit border-amber-200 bg-amber-50 text-amber-700">
-            {featuredSuppliers.length} priorizados
-          </Badge>
-        </CardHeader>
-        <CardContent>
-          {isLoadingFeatured ? (
-            <p className="text-sm text-secondary-dark">Cargando proveedores destacados...</p>
-          ) : featuredSuppliers.length === 0 ? (
-            <p className="text-sm text-secondary-dark">No hay proveedores destacados registrados.</p>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {featuredSuppliers.map((supplier) => (
-                <div key={supplier.id} className="rounded-xl border border-secondary-medium bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-primary-900">{supplier.name}</p>
-                      <p className="mt-1 text-sm text-secondary-dark">{formatContactLine(supplier)}</p>
-                      <p className="mt-1 text-sm text-secondary-dark">{formatAddressLine(supplier)}</p>
-                    </div>
-                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {supplier.categories.length > 0 ? (
-                      supplier.categories.map((category) => (
-                        <Badge key={`${supplier.id}-${category}`} variant="outline" className="border-primary-200 text-primary-800">
-                          {formatCategoryLabel(category)}
-                        </Badge>
-                      ))
-                    ) : (
-                      <Badge variant="outline" className="border-slate-200 text-slate-600">
-                        Sin categorias
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{supplier.location || "Sin ubicacion"}</p>
-                      <p className="mt-1 text-xs text-gray-500">{supplier.description || "Sin descripcion"}</p>
-                      <Badge variant="outline" className={`mt-2 ${getStatusBadgeClass(supplier.status)}`}>
-                        {supplier.status}
-                      </Badge>
-                    </div>
-                    {supplier.chat_url ? (
-                      <Button asChild className="bg-primary hover:bg-primary-600 text-white">
-                        <a href={supplier.chat_url} target="_blank" rel="noreferrer">
-                          <MessageCircle className="h-4 w-4" />
-                          Chatear
-                        </a>
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
+      {isModuleUnavailable ? (
+        <Card>
+          <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-primary-900">Módulo no disponible</h2>
+              <p className="mt-1 text-secondary-dark">
+                En este ambiente todavía no pudimos cargar la información de proveedores.
+              </p>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <Button
+              variant="outline"
+              onClick={handleRetry}
+              disabled={isRefreshing}
+              className="border-primary-200 text-primary hover:bg-primary-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Reintentar
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isModuleUnavailable ? (
+        <Card>
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-xl text-primary-900">Proveedores destacados</CardTitle>
+              <p className="text-sm text-secondary-dark">Accesos rápidos a los proveedores más relevantes.</p>
+            </div>
+            {featuredSuppliers.length > 0 ? (
+              <Badge variant="outline" className="w-fit border-amber-200 bg-amber-50 text-amber-700">
+                {featuredSuppliers.length} destacados
+              </Badge>
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            {isLoadingFeatured ? (
+              <p className="text-sm text-secondary-dark">Cargando proveedores destacados...</p>
+            ) : featuredSuppliers.length === 0 ? (
+              <p className="text-sm text-secondary-dark">Cuando marques proveedores como destacados, aparecerán aquí.</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {featuredSuppliers.map((supplier) => (
+                  <div key={supplier.id} className="rounded-xl border border-secondary-medium bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-primary-900">{supplier.name}</p>
+                        <p className="mt-1 text-sm text-secondary-dark">{formatContactLine(supplier)}</p>
+                        <p className="mt-1 text-sm text-secondary-dark">{formatAddressLine(supplier)}</p>
+                      </div>
+                      <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-1.5">
+                      {supplier.categories.length > 0 ? (
+                        supplier.categories.map((category) => (
+                          <Badge key={`${supplier.id}-${category}`} variant="outline" className="border-primary-200 text-primary-800">
+                            {formatCategoryLabel(category)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge variant="outline" className="border-slate-200 text-slate-600">
+                          Sin categorias
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{supplier.location || "Sin ubicacion"}</p>
+                        <p className="mt-1 text-xs text-gray-500">{supplier.description || "Sin descripcion"}</p>
+                        <Badge variant="outline" className={`mt-2 ${getStatusBadgeClass(supplier.status)}`}>
+                          {supplier.status}
+                        </Badge>
+                      </div>
+                      {supplier.chat_url ? (
+                        <Button asChild className="bg-primary hover:bg-primary-600 text-white">
+                          <a href={supplier.chat_url} target="_blank" rel="noreferrer">
+                            <MessageCircle className="h-4 w-4" />
+                            Chatear
+                          </a>
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
