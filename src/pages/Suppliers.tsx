@@ -65,15 +65,11 @@ const formatAddressLine = (supplier: Supplier) => {
 export default function Suppliers() {
   const {
     suppliers,
-    featuredSuppliers,
     isLoadingSuppliers,
-    isLoadingFeatured,
-    isModuleUnavailable,
     fetchSuppliers,
     createSupplier,
     updateSupplier,
     deleteSupplier,
-    refreshAll,
   } = useSuppliers();
 
   const [filters, setFilters] = useState<SupplierFilters>({
@@ -85,6 +81,11 @@ export default function Suppliers() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+
+  const featuredSuppliers = useMemo(
+    () => suppliers.filter((supplier) => supplier.destacado),
+    [suppliers]
+  );
 
   const summaryCards = useMemo(() => {
     const uniqueLocations = new Set(
@@ -112,7 +113,15 @@ export default function Suppliers() {
         header: "Proveedor",
         render: (_, supplier) => (
           <div>
-            <p className="font-medium text-gray-900">{supplier.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-900">{supplier.name}</p>
+              {supplier.destacado ? (
+                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                  <Star className="mr-1 h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                  Destacado
+                </Badge>
+              ) : null}
+            </div>
             <p className="text-xs text-gray-500">{formatContactLine(supplier)}</p>
             <p className="text-xs text-gray-500">{formatAddressLine(supplier)}</p>
           </div>
@@ -237,12 +246,10 @@ export default function Suppliers() {
     }
   };
 
-  const handleClearFilters = async () => {
+  const handleQuickFeaturedFilter = async (destacado?: boolean) => {
     const nextFilters: SupplierFilters = {
-      search: "",
-      status: "",
-      location: "",
-      category: "",
+      ...filters,
+      destacado,
     };
 
     setFilters(nextFilters);
@@ -254,10 +261,19 @@ export default function Suppliers() {
     }
   };
 
-  const handleRetry = async () => {
+  const handleClearFilters = async () => {
+    const nextFilters: SupplierFilters = {
+      search: "",
+      status: "",
+      location: "",
+      category: "",
+      destacado: undefined,
+    };
+
+    setFilters(nextFilters);
     setIsRefreshing(true);
     try {
-      await refreshAll();
+      await fetchSuppliers(nextFilters);
     } finally {
       setIsRefreshing(false);
     }
@@ -311,94 +327,64 @@ export default function Suppliers() {
         ))}
       </div>
 
-      {isModuleUnavailable ? (
-        <Card>
-          <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-primary-900">Módulo no disponible</h2>
-              <p className="mt-1 text-secondary-dark">
-                En este ambiente todavía no pudimos cargar la información de proveedores.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              onClick={handleRetry}
-              disabled={isRefreshing}
-              className="border-primary-200 text-primary hover:bg-primary-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              Reintentar
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {!isModuleUnavailable ? (
+      {featuredSuppliers.length > 0 ? (
         <Card>
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <CardTitle className="text-xl text-primary-900">Proveedores destacados</CardTitle>
-              <p className="text-sm text-secondary-dark">Accesos rápidos a los proveedores más relevantes.</p>
+              <CardTitle className="text-xl text-primary-900">Proveedores priorizados</CardTitle>
+              <p className="text-sm text-secondary-dark">Accesos rápidos a los proveedores marcados como destacados.</p>
             </div>
-            {featuredSuppliers.length > 0 ? (
-              <Badge variant="outline" className="w-fit border-amber-200 bg-amber-50 text-amber-700">
-                {featuredSuppliers.length} destacados
-              </Badge>
-            ) : null}
+            <Badge variant="outline" className="w-fit border-amber-200 bg-amber-50 text-amber-700">
+              {featuredSuppliers.length} destacados
+            </Badge>
           </CardHeader>
           <CardContent>
-            {isLoadingFeatured ? (
-              <p className="text-sm text-secondary-dark">Cargando proveedores destacados...</p>
-            ) : featuredSuppliers.length === 0 ? (
-              <p className="text-sm text-secondary-dark">Cuando marques proveedores como destacados, aparecerán aquí.</p>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {featuredSuppliers.map((supplier) => (
-                  <div key={supplier.id} className="rounded-xl border border-secondary-medium bg-white p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-primary-900">{supplier.name}</p>
-                        <p className="mt-1 text-sm text-secondary-dark">{formatContactLine(supplier)}</p>
-                        <p className="mt-1 text-sm text-secondary-dark">{formatAddressLine(supplier)}</p>
-                      </div>
-                      <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {featuredSuppliers.map((supplier) => (
+                <div key={supplier.id} className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-primary-900">{supplier.name}</p>
+                      <p className="mt-1 text-sm text-secondary-dark">{formatContactLine(supplier)}</p>
+                      <p className="mt-1 text-sm text-secondary-dark">{formatAddressLine(supplier)}</p>
                     </div>
-
-                    <div className="mt-4 flex flex-wrap gap-1.5">
-                      {supplier.categories.length > 0 ? (
-                        supplier.categories.map((category) => (
-                          <Badge key={`${supplier.id}-${category}`} variant="outline" className="border-primary-200 text-primary-800">
-                            {formatCategoryLabel(category)}
-                          </Badge>
-                        ))
-                      ) : (
-                        <Badge variant="outline" className="border-slate-200 text-slate-600">
-                          Sin categorias
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{supplier.location || "Sin ubicacion"}</p>
-                        <p className="mt-1 text-xs text-gray-500">{supplier.description || "Sin descripcion"}</p>
-                        <Badge variant="outline" className={`mt-2 ${getStatusBadgeClass(supplier.status)}`}>
-                          {supplier.status}
-                        </Badge>
-                      </div>
-                      {supplier.chat_url ? (
-                        <Button asChild className="bg-primary hover:bg-primary-600 text-white">
-                          <a href={supplier.chat_url} target="_blank" rel="noreferrer">
-                            <MessageCircle className="h-4 w-4" />
-                            Chatear
-                          </a>
-                        </Button>
-                      ) : null}
-                    </div>
+                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
                   </div>
-                ))}
-              </div>
-            )}
+
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {supplier.categories.length > 0 ? (
+                      supplier.categories.map((category) => (
+                        <Badge key={`${supplier.id}-${category}`} variant="outline" className="border-primary-200 text-primary-800">
+                          {formatCategoryLabel(category)}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge variant="outline" className="border-slate-200 text-slate-600">
+                        Sin categorias
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{supplier.location || "Sin ubicacion"}</p>
+                      <p className="mt-1 text-xs text-gray-500">{supplier.description || "Sin descripcion"}</p>
+                      <Badge variant="outline" className={`mt-2 ${getStatusBadgeClass(supplier.status)}`}>
+                        {supplier.status}
+                      </Badge>
+                    </div>
+                    {supplier.chat_url ? (
+                      <Button asChild className="bg-primary hover:bg-primary-600 text-white">
+                        <a href={supplier.chat_url} target="_blank" rel="noreferrer">
+                          <MessageCircle className="h-4 w-4" />
+                          Chatear
+                        </a>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       ) : null}
@@ -408,6 +394,29 @@ export default function Suppliers() {
           <CardTitle className="text-xl text-primary-900">Filtros</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+            <span className="text-sm font-medium text-amber-900">Vista rápida:</span>
+            <Button
+              type="button"
+              variant={filters.destacado === undefined ? "default" : "outline"}
+              className={filters.destacado === undefined ? "bg-primary hover:bg-primary-600 text-white" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"}
+              onClick={() => void handleQuickFeaturedFilter(undefined)}
+              disabled={isRefreshing}
+            >
+              Todos
+            </Button>
+            <Button
+              type="button"
+              variant={filters.destacado === true ? "default" : "outline"}
+              className={filters.destacado === true ? "bg-amber-500 hover:bg-amber-600 text-white" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"}
+              onClick={() => void handleQuickFeaturedFilter(true)}
+              disabled={isRefreshing}
+            >
+              <Star className="h-4 w-4" />
+              Solo destacados
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <Label htmlFor="supplier-search">Busqueda</Label>

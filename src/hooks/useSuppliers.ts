@@ -21,10 +21,7 @@ export const useSuppliers = () => {
   const { toast } = useToast();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [featuredSuppliers, setFeaturedSuppliers] = useState<Supplier[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
-  const [isLoadingFeatured, setIsLoadingFeatured] = useState(false);
-  const [isModuleUnavailable, setIsModuleUnavailable] = useState(false);
 
   const lastFiltersRef = useRef<SupplierFilters>({});
 
@@ -34,15 +31,13 @@ export const useSuppliers = () => {
 
     try {
       const data = await suppliersApi.list(authenticatedFetch, filters);
-      setIsModuleUnavailable(false);
       setSuppliers(Array.isArray(data) ? data : []);
       return true;
     } catch (error) {
-      console.error("Error fetching suppliers:", error);
       if (isMissingEndpointError(error)) {
-        setIsModuleUnavailable(true);
-        setFeaturedSuppliers([]);
+        setSuppliers([]);
       } else if (!isSessionExpiredError(error)) {
+        console.error("Error fetching suppliers:", error);
         toast({
           title: "Error",
           description: getErrorMessage(error, "No se pudo cargar el listado de proveedores."),
@@ -56,41 +51,11 @@ export const useSuppliers = () => {
     }
   };
 
-  const fetchFeaturedSuppliers = async () => {
-    setIsLoadingFeatured(true);
-
-    try {
-      if (isModuleUnavailable) {
-        setFeaturedSuppliers([]);
-        return false;
-      }
-
-      const data = await suppliersApi.list(authenticatedFetch, { destacado: true });
-      setFeaturedSuppliers(Array.isArray(data) ? data : []);
-      return true;
-    } catch (error) {
-      console.error("Error fetching featured suppliers:", error);
-      if (isMissingEndpointError(error)) {
-        setFeaturedSuppliers([]);
-      } else if (!isSessionExpiredError(error)) {
-        toast({
-          title: "Error",
-          description: getErrorMessage(error, "No se pudieron cargar los proveedores destacados."),
-          variant: "destructive",
-        });
-      }
-      setFeaturedSuppliers([]);
-      return false;
-    } finally {
-      setIsLoadingFeatured(false);
-    }
-  };
-
   const createSupplier = async (payload: SupplierPayload) => {
     try {
       await suppliersApi.create(authenticatedFetch, payload);
       toast({ title: "Proveedor creado", description: `${payload.name} fue registrado correctamente.` });
-      await Promise.all([fetchSuppliers(lastFiltersRef.current), fetchFeaturedSuppliers()]);
+      await fetchSuppliers(lastFiltersRef.current);
       return true;
     } catch (error) {
       console.error("Error creating supplier:", error);
@@ -107,7 +72,7 @@ export const useSuppliers = () => {
     try {
       await suppliersApi.update(authenticatedFetch, supplierId, payload);
       toast({ title: "Proveedor actualizado", description: `${payload.name} fue actualizado correctamente.` });
-      await Promise.all([fetchSuppliers(lastFiltersRef.current), fetchFeaturedSuppliers()]);
+      await fetchSuppliers(lastFiltersRef.current);
       return true;
     } catch (error) {
       console.error("Error updating supplier:", error);
@@ -124,7 +89,7 @@ export const useSuppliers = () => {
     try {
       await suppliersApi.remove(authenticatedFetch, supplier.id);
       toast({ title: "Proveedor eliminado", description: `${supplier.name} fue eliminado correctamente.` });
-      await Promise.all([fetchSuppliers(lastFiltersRef.current), fetchFeaturedSuppliers()]);
+      await fetchSuppliers(lastFiltersRef.current);
       return true;
     } catch (error) {
       console.error("Error deleting supplier:", error);
@@ -138,28 +103,17 @@ export const useSuppliers = () => {
   };
 
   const refreshAll = async () => {
-    await Promise.all([fetchSuppliers(lastFiltersRef.current), fetchFeaturedSuppliers()]);
+    await fetchSuppliers(lastFiltersRef.current);
   };
 
   useEffect(() => {
-    const bootstrap = async () => {
-      const loaded = await fetchSuppliers({});
-      if (loaded) {
-        await fetchFeaturedSuppliers();
-      }
-    };
-
-    void bootstrap();
+    void fetchSuppliers({});
   }, []);
 
   return {
     suppliers,
-    featuredSuppliers,
     isLoadingSuppliers,
-    isLoadingFeatured,
-    isModuleUnavailable,
     fetchSuppliers,
-    fetchFeaturedSuppliers,
     createSupplier,
     updateSupplier,
     deleteSupplier,
