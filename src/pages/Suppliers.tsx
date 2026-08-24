@@ -296,9 +296,6 @@ export default function Suppliers() {
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-primary-900">Proveedores</h1>
-          <p className="text-secondary-dark">
-            Gestiona informacion administrativa, categorias, prioridad operativa y accesos rapidos de chat desde un solo modulo.
-          </p>
         </div>
         <Button
           variant="outline"
