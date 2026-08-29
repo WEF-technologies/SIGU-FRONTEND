@@ -9,7 +9,7 @@ import { Driver, Contract } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 interface DriverFormProps {
-  driver?: Driver;
+  driver?: Partial<Driver>;
   contracts: Contract[];
   onSubmit: (data: Omit<Driver, 'id' | 'created_at' | 'updated_at'>) => void;
   onCancel: () => void;
