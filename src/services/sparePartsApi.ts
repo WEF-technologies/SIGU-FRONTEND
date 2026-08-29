@@ -255,7 +255,7 @@ export const sparePartsApi = {
   ): Promise<SparePart> => {
     const response = await requestJson(
       authenticatedFetch,
-      `${API_BASE_URL}/${sparePartId}`,
+      `${API_BASE_URL}/${encodeURIComponent(sparePartId)}`,
       {
         method: "PUT",
         body: JSON.stringify(sanitizeSparePartPayload(payload)),
@@ -267,7 +267,7 @@ export const sparePartsApi = {
   },
 
   remove: async (authenticatedFetch: AuthenticatedFetch, sparePartId: string): Promise<void> => {
-    const response = await authenticatedFetch(`${API_BASE_URL}/${sparePartId}`, { method: "DELETE" });
+    const response = await authenticatedFetch(`${API_BASE_URL}/${encodeURIComponent(sparePartId)}`, { method: "DELETE" });
 
     if (!response.ok) {
       throw await parseSparePartsApiError(response, "No se pudo eliminar el repuesto.");

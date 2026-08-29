@@ -32,7 +32,7 @@ export const useVehicleParts = () => {
     try {
       let url = `${API_BASE_URL}/api/v1/vehicle_parts/`;
       if (vehiclePlate) {
-        url = `${API_BASE_URL}/api/v1/vehicle_parts/vehicle/${vehiclePlate}`;
+        url = `${API_BASE_URL}/api/v1/vehicle_parts/vehicle/${encodeURIComponent(vehiclePlate)}`;
       }
       
       const response = await authenticatedFetch(url, {
@@ -90,7 +90,7 @@ export const useVehicleParts = () => {
 
   const updatePart = async (partId: string, partData: Partial<VehiclePart>) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/${partId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/${encodeURIComponent(partId)}`, {
         method: 'PUT',
         body: JSON.stringify(partData),
       });
@@ -113,7 +113,7 @@ export const useVehicleParts = () => {
 
   const deletePart = async (part: VehiclePart) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/${part.id}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicle_parts/${encodeURIComponent(part.id)}`, {
         method: 'DELETE',
       });
 

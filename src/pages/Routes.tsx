@@ -107,7 +107,7 @@ export default function Routes() {
   const handleDelete = async (route: Route) => {
     try {
       const rid = (route as any).id || (route as any).route_id;
-      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${rid}`, {
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${encodeURIComponent(rid)}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -158,7 +158,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       };
       
       const eid = (editingRoute as any).id || (editingRoute as any).route_id;
-      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${eid}`, {
+      const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${encodeURIComponent(eid)}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

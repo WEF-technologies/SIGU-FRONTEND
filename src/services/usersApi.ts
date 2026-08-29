@@ -74,7 +74,7 @@ export const useDeleteUser = () => {
   
   return useMutation({
     mutationFn: async (userId: string): Promise<void> => {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/users/${userId}`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/users/${encodeURIComponent(userId)}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
