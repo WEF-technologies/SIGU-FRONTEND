@@ -221,7 +221,7 @@ export default function Vehicles() {
 
   const handleDelete = async (vehicle: Vehicle) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${vehicle.plate_number}`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(vehicle.plate_number)}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -254,7 +254,7 @@ export default function Vehicles() {
 
   const handleUpdateKilometers = async (plateNumber: string, kilometers: number) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${plateNumber}/kilometers`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(plateNumber)}/kilometers`, {
         method: "PUT",
         body: JSON.stringify({ kilometers }),
       });
@@ -332,7 +332,7 @@ export default function Vehicles() {
     e.preventDefault();
     try {
       if (editingVehicle) {
-        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${editingVehicle.plate_number}`, {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(editingVehicle.plate_number)}`, {
           method: "PUT",
           body: JSON.stringify({ ...formData, kilometers: formData.current_kilometers }),
         });

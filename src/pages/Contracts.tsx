@@ -134,7 +134,7 @@ export default function Contracts() {
 
   const handleDeleteShift = async (shift: Shift) => {
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${shift.id}`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${encodeURIComponent(shift.id)}`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -158,7 +158,7 @@ export default function Contracts() {
     try {
       if (editingShift) {
         // EDITAR turno (PUT)
-        const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${editingShift.id}`, {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${encodeURIComponent(editingShift.id)}`, {
           method: "PUT",
           body: JSON.stringify(completeShiftData),
         });

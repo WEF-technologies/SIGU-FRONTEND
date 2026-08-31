@@ -132,7 +132,7 @@ export const useTools = () => {
 
   const fetchToolById = async (toolId: string) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/tools/${toolId}`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/tools/${encodeURIComponent(toolId)}`);
 
       if (response.ok) {
         return (await response.json()) as Tool;
@@ -189,7 +189,7 @@ export const useTools = () => {
 
   const updateTool = async (toolId: string, payload: ToolPayload) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/tools/${toolId}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/tools/${encodeURIComponent(toolId)}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
@@ -228,7 +228,7 @@ export const useTools = () => {
 
   const deleteTool = async (tool: Tool) => {
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/tools/${tool.id}`, {
+      const response = await authenticatedFetch(`${API_BASE_URL}/tools/${encodeURIComponent(tool.id)}`, {
         method: "DELETE",
       });
 

@@ -1,4 +1,5 @@
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { getSafeExternalUrl } from "@/lib/utils";
 import { Supplier, SupplierFilters, SupplierPayload } from "@/types";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1/suppliers`;
@@ -188,7 +189,8 @@ export const normalizeSupplier = (value: unknown): Supplier => {
     destacado: readBoolean(supplier, ["destacado", "featured"]),
     description: readNullableString(supplier, ["description"]) ?? null,
     delivery_time_notes: readNullableString(supplier, ["delivery_time_notes"]) ?? null,
-    chat_url: readString(supplier, ["chat_url", "whatsapp_url"]),
+    // Solo http/https: evita que un chat_url malicioso (javascript:, data:) llegue a un href.
+    chat_url: getSafeExternalUrl(readString(supplier, ["chat_url", "whatsapp_url"])) ?? "",
     notes: readNullableString(supplier, ["notes"]) ?? null,
     created_at: readString(supplier, ["created_at"]),
     updated_at: readString(supplier, ["updated_at"]),

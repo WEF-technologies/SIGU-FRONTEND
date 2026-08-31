@@ -226,6 +226,9 @@ export default function Dashboard() {
 
   const criticalAlerts = alerts.filter((a) => a.severity >= 3);
   const nearAlerts = alerts.filter((a) => a.severity === 2);
+  const actionableDriverAlerts = driverAlerts.filter(
+    (d) => d.status_license !== "ok" || d.status_defensive !== "ok"
+  );
   const criticalDriverAlerts = driverAlerts.filter(
     (d) => d.status_license === "due" || d.status_defensive === "due"
   );
@@ -281,7 +284,7 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             className="bg-white/10 border-white/30 text-white hover:bg-white/20 shrink-0 text-xs"
-            onClick={() => navigate("/mantenimiento")}
+            onClick={() => navigate(criticalAlerts.length > 0 ? "/mantenimiento" : "/choferes")}
           >
             Revisar <ChevronRight className="w-3.5 h-3.5 ml-1" />
           </Button>
@@ -650,9 +653,9 @@ export default function Dashboard() {
             <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
               <UserCheck className="w-5 h-5" />
               Alertas de Choferes
-              {driverAlerts.filter(d => d.status_license !== 'ok' || d.status_defensive !== 'ok').length > 0 && (
+              {actionableDriverAlerts.length > 0 && (
                 <Badge className="bg-red-100 text-red-700">
-                  {driverAlerts.filter(d => d.status_license !== 'ok' || d.status_defensive !== 'ok').length}
+                  {actionableDriverAlerts.length}
                 </Badge>
               )}
             </CardTitle>
@@ -671,15 +674,24 @@ export default function Dashboard() {
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />
             </div>
+          ) : actionableDriverAlerts.length === 0 ? (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-3">
+              Todos los choferes tienen sus documentos al día.
+            </div>
           ) : (
-            <DriverAlerts alerts={driverAlerts.slice(0, 5)} />
+            <DriverAlerts
+              alerts={actionableDriverAlerts.slice(0, 5)}
+              onSelectDriver={(documentNumber) =>
+                navigate(`/choferes?driver=${encodeURIComponent(documentNumber)}`)
+              }
+            />
           )}
-          {!isLoading && driverAlerts.length > 5 && (
+          {!isLoading && actionableDriverAlerts.length > 5 && (
             <button
               className="mt-3 text-sm text-primary hover:underline"
               onClick={() => navigate("/choferes")}
             >
-              Ver todas las alertas ({driverAlerts.length})
+              Ver todas las alertas ({actionableDriverAlerts.length})
             </button>
           )}
         </CardContent>

@@ -137,7 +137,7 @@ export const fuelApi = {
   getLogById: async (authenticatedFetch: AuthenticatedFetch, logId: string): Promise<FuelLog> => {
     return requestJson<FuelLog>(
       authenticatedFetch,
-      `${API_BASE_URL}/logs/${logId}`,
+      `${API_BASE_URL}/logs/${encodeURIComponent(logId)}`,
       { method: "GET" },
       "No se pudo cargar el detalle de la carga."
     );
@@ -177,7 +177,7 @@ export const fuelApi = {
   getReadingById: async (authenticatedFetch: AuthenticatedFetch, readingId: string): Promise<FuelReading> => {
     return requestJson<FuelReading>(
       authenticatedFetch,
-      `${API_BASE_URL}/readings/${readingId}`,
+      `${API_BASE_URL}/readings/${encodeURIComponent(readingId)}`,
       { method: "GET" },
       "No se pudo cargar el detalle de la lectura."
     );
@@ -207,7 +207,7 @@ export const fuelApi = {
 
     return requestJson<FuelVehicleStatus>(
       authenticatedFetch,
-      `${API_BASE_URL}/vehicles/${vehicleId}/status${query}`,
+      `${API_BASE_URL}/vehicles/${encodeURIComponent(vehicleId)}/status${query}`,
       { method: "GET" },
       "No se pudo consultar el estado de combustible de la unidad."
     );

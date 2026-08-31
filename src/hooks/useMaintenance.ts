@@ -545,7 +545,7 @@ export function useMaintenance() {
   };
 
   const updateMaintenance = async (id: string, formData: any) => {
-    const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${id}`, {
+    const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${encodeURIComponent(id)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(buildMaintenancePayload(formData)),
@@ -573,7 +573,7 @@ export function useMaintenance() {
 
   const deleteMaintenance = async (maintenanceItem: MaintenanceType) => {
     try {
-      const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${maintenanceItem.id}`, {
+      const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${encodeURIComponent(maintenanceItem.id)}`, {
         method: "DELETE",
       });
       if (response.ok) {

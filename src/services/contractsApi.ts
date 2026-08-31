@@ -27,7 +27,7 @@ export const contractsApi = {
 
   // Obtener un contrato por ID
   async getContract(id: string): Promise<Contract> {
-    const response = await fetch(`${API_BASE_URL}/contracts/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(id)}`, {
       method: 'GET',
       ...apiConfig,
     });
@@ -56,7 +56,7 @@ export const contractsApi = {
 
   // Actualizar un contrato
   async updateContract(id: string, contractData: Partial<Contract>): Promise<Contract> {
-    const response = await fetch(`${API_BASE_URL}/contracts/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(id)}`, {
       method: 'PUT',
       ...apiConfig,
       body: JSON.stringify(contractData),
@@ -71,7 +71,7 @@ export const contractsApi = {
 
   // Eliminar un contrato
   async deleteContract(id: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/contracts/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       ...apiConfig,
     });
@@ -111,7 +111,7 @@ export const contractsApi = {
 
   // Obtener rutas de un contrato
   async getContractRoutes(contractId: string): Promise<Route[]> {
-    const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/routes`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(contractId)}/routes`, {
       method: 'GET',
       ...apiConfig,
     });
@@ -125,7 +125,7 @@ export const contractsApi = {
 
   // Obtener turnos de un contrato
   async getContractShifts(contractId: string): Promise<Shift[]> {
-    const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/shifts`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(contractId)}/shifts`, {
       method: 'GET',
       ...apiConfig,
     });
@@ -142,7 +142,7 @@ export const contractsApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/document`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(contractId)}/document`, {
       method: 'POST',
       body: formData,
     });
@@ -157,7 +157,7 @@ export const contractsApi = {
 
   // Descargar documento del contrato
   async downloadContractDocument(contractId: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/contracts/${contractId}/document`, {
+    const response = await fetch(`${API_BASE_URL}/contracts/${encodeURIComponent(contractId)}/document`, {
       method: 'GET',
     });
 

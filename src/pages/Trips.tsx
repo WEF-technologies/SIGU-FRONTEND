@@ -119,7 +119,7 @@ export default function Trips() {
 
     for (let page = 0; page < MAX_TRIPS_PAGES; page += 1) {
       const response = await authenticatedFetch(
-        `${API_URL}api/v1/trips/?limit=${TRIPS_PAGE_SIZE}&offset=${offset}`
+        `${API_URL}/api/v1/trips/?limit=${TRIPS_PAGE_SIZE}&offset=${offset}`
       );
 
       if (!response.ok) {
@@ -189,7 +189,7 @@ export default function Trips() {
     setApplyingKm(trip.id);
     try {
       const encodedTripId = encodeURIComponent(trip.id);
-      const response = await authenticatedFetch(`${API_URL}api/v1/trips/${encodedTripId}`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/trips/${encodedTripId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -383,7 +383,7 @@ export default function Trips() {
   const handleDelete = async (trip: Trip) => {
     if (!confirm("¿Está seguro de eliminar este viaje?")) return;
     try {
-      const response = await authenticatedFetch(`${API_URL}api/v1/trips/${trip.id}`, { method: "DELETE" });
+      const response = await authenticatedFetch(`${API_URL}/api/v1/trips/${encodeURIComponent(trip.id)}`, { method: "DELETE" });
       if (response.ok || response.status === 204) {
         setTrips((prev) => prev.filter((t) => t.id !== trip.id));
         toast({ title: "Viaje eliminado" });
@@ -427,7 +427,7 @@ export default function Trips() {
 
     try {
       if (editingTrip) {
-        const response = await authenticatedFetch(`${API_URL}api/v1/trips/${editingTrip.id}`, {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/trips/${encodeURIComponent(editingTrip.id)}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updatePayload),

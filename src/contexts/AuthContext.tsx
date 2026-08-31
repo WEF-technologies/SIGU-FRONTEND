@@ -92,7 +92,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       user_id,
     } = data;
 
-    const userResponse = await fetch(`${API_URL}/api/v1/users/${user_id}`, {
+    const userResponse = await fetch(`${API_URL}/api/v1/users/${encodeURIComponent(user_id)}`, {
       headers: {
         Authorization: `Bearer ${receivedToken}`,
         'Content-Type': 'application/json',
