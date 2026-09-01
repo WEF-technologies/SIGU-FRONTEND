@@ -11,8 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Gauge, AlertTriangle } from "lucide-react";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "";
-const API_URL = BASE_URL.endsWith("/") ? BASE_URL : BASE_URL + "/";
+const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const TRIPS_PAGE_SIZE = 500;
 const MAX_TRIPS_PAGES = 20;
 
@@ -153,9 +152,9 @@ export default function Trips() {
       try {
         const [tripsData, routesRes, vehiclesRes, driversRes] = await Promise.all([
           fetchTrips(),
-          authenticatedFetch(`${API_URL}api/v1/routes/`),
-          authenticatedFetch(`${API_URL}api/v1/vehicles/`),
-          authenticatedFetch(`${API_URL}api/v1/drivers/`),
+          authenticatedFetch(`${API_URL}/api/v1/routes/`),
+          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
+          authenticatedFetch(`${API_URL}/api/v1/drivers/`),
         ]);
         setTrips(tripsData);
         if (routesRes.ok) setRoutes(await routesRes.json());
@@ -229,7 +228,7 @@ export default function Trips() {
         );
 
         // Refrescar vehículos para mostrar km actualizado
-        const vehiclesRes = await authenticatedFetch(`${API_URL}api/v1/vehicles/`);
+        const vehiclesRes = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
         if (vehiclesRes.ok) setVehicles(await vehiclesRes.json());
 
         toast({
@@ -445,7 +444,7 @@ export default function Trips() {
           toast({ title: "Error al actualizar", description: message, variant: "destructive" });
         }
       } else {
-        const response = await authenticatedFetch(`${API_URL}api/v1/trips/`, {
+        const response = await authenticatedFetch(`${API_URL}/api/v1/trips/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(createPayload),
@@ -466,7 +465,7 @@ export default function Trips() {
 
       // Refrescar vehículos al completar un viaje para ver los km actualizados
       if (operationSucceeded && data.status === "completed") {
-        const res = await authenticatedFetch(`${API_URL}api/v1/vehicles/`);
+        const res = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
         if (res.ok) setVehicles(await res.json());
       }
     } catch (error) {

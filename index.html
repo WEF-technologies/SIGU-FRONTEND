@@ -4,6 +4,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      CSP declarada aquí y no en cabeceras de vercel.json: `routes` (necesario para
+      el proxy /api, que preserva la barra final de los endpoints) es excluyente con
+      `headers`. Como meta se ignoran frame-ancestors/HSTS; esos van en Vercel →
+      Project Settings → Headers, que no toca el enrutamiento.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://sigu-back.vercel.app; object-src 'none'; base-uri 'self'; form-action 'self'"
+    />
     <title>SERVI-MONT M2D C.A. — Sistema de Gestión Vehicular</title>
     <meta name="description" content="Sistema integral de gestión de flota vehicular — SERVI-MONT M2D C.A." />
     <meta name="author" content="SERVI-MONT M2D C.A." />

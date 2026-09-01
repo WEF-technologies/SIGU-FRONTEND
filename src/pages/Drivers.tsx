@@ -12,6 +12,7 @@ import {
   formatAlertDate,
   getDriverAlertStatusColor,
   getDriverAlertStatusText,
+  getWorstStatus,
   hasActiveAlert,
 } from "@/components/drivers/driverAlertStatus";
 import { Driver, Contract, DriverAlert } from "@/types";
@@ -48,6 +49,7 @@ export default function Drivers() {
   const [createPrefill, setCreatePrefill] = useState<Partial<Driver> | null>(null);
   const [openGroup, setOpenGroup] = useState<string>("");
   const [highlightedDriver, setHighlightedDriver] = useState<string | null>(null);
+  const [showAlertDetails, setShowAlertDetails] = useState(false);
   const handledDriverParam = useRef<string | null>(null);
 
   useEffect(() => {
@@ -111,6 +113,20 @@ export default function Drivers() {
     () => drivers.filter((d) => !d.contract_id || !contractIds.has(d.contract_id)),
     [drivers, contractIds]
   );
+
+  /** Conteo de choferes con alerta, por su estado más grave. */
+  const alertCounts = useMemo(() => {
+    let due = 0;
+    let near = 0;
+    let missing = 0;
+    for (const alert of alertsByDocument.values()) {
+      const worst = getWorstStatus(alert);
+      if (worst === "due") due += 1;
+      else if (worst === "near") near += 1;
+      else if (worst === "missing") missing += 1;
+    }
+    return { due, near, missing, total: alertsByDocument.size };
+  }, [alertsByDocument]);
 
   const getGroupForDriver = useCallback(
     (driver: Driver) =>
@@ -330,7 +346,48 @@ export default function Drivers() {
 
   return (
     <div>
-      <DriverAlerts alerts={alerts} onSelectDriver={focusDriver} />
+      {/* Resumen compacto: las alertas conviven con el listado sin taparlo */}
+      {alertCounts.total > 0 && (
+        <div
+          className={`mb-4 rounded-lg border ${
+            alertCounts.due > 0 ? "border-red-300 bg-red-50" : "border-yellow-300 bg-yellow-50"
+          }`}
+        >
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <AlertTriangle
+              className={`h-5 w-5 shrink-0 ${alertCounts.due > 0 ? "text-red-600" : "text-yellow-600"}`}
+            />
+            <div className="flex-1 min-w-40 text-sm font-medium text-gray-900">
+              {alertCounts.total} chofer{alertCounts.total !== 1 ? "es" : ""} con alertas de documentos
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {alertCounts.due > 0 && (
+                <Badge className="bg-red-100 text-red-700 border border-red-200">
+                  {alertCounts.due} vencido{alertCounts.due !== 1 ? "s" : ""}
+                </Badge>
+              )}
+              {alertCounts.near > 0 && (
+                <Badge className="bg-yellow-100 text-yellow-800 border border-yellow-200">
+                  {alertCounts.near} próximo{alertCounts.near !== 1 ? "s" : ""}
+                </Badge>
+              )}
+              {alertCounts.missing > 0 && (
+                <Badge className="bg-gray-100 text-gray-800 border border-gray-200">
+                  {alertCounts.missing} sin registrar
+                </Badge>
+              )}
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setShowAlertDetails((v) => !v)}>
+              {showAlertDetails ? "Ocultar detalle" : "Ver detalle"}
+            </Button>
+          </div>
+          {showAlertDetails && (
+            <div className="max-h-80 overflow-y-auto px-4 pt-1">
+              <DriverAlerts alerts={alerts} onSelectDriver={focusDriver} />
+            </div>
+          )}
+        </div>
+      )}
       <div className="space-y-4">
         <Accordion
           type="single"
