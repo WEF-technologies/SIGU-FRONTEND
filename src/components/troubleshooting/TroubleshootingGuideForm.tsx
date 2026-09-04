@@ -19,6 +19,8 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 
 interface TroubleshootingGuideFormProps {
   editingGuide?: TroubleshootingGuide | null;
+  /** Categorias ya usadas en el manual, para no crear variantes casi iguales. */
+  categorySuggestions?: string[];
   onSubmit: (payload: TroubleshootingGuidePayload) => Promise<boolean>;
   onCancel: () => void;
 }
@@ -58,6 +60,7 @@ const selectClassName =
 
 export function TroubleshootingGuideForm({
   editingGuide,
+  categorySuggestions = [...TROUBLESHOOTING_CATEGORY_SUGGESTIONS],
   onSubmit,
   onCancel,
 }: TroubleshootingGuideFormProps) {
@@ -201,7 +204,7 @@ export function TroubleshootingGuideForm({
             required
           />
           <datalist id="guide-category-suggestions">
-            {TROUBLESHOOTING_CATEGORY_SUGGESTIONS.map((suggestion) => (
+            {categorySuggestions.map((suggestion) => (
               <option key={suggestion} value={suggestion}>
                 {formatCategory(suggestion)}
               </option>

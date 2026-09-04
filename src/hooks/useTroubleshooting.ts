@@ -1,135 +1,255 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
-import { troubleshootingApi, TroubleshootingApiError } from "@/services/troubleshootingApi";
+import { ApiError, isClientError, isSessionExpiredError } from "@/lib/apiClient";
+import {
+  GuidePage,
+  isModuleNotDeployed,
+  troubleshootingApi,
+} from "@/services/troubleshootingApi";
 import {
   TroubleshootingGuide,
   TroubleshootingGuideFilters,
   TroubleshootingGuidePayload,
 } from "@/types";
 
-const isSessionExpiredError = (error: unknown) =>
-  error instanceof Error && error.message === "Sesión expirada";
+export const DEFAULT_GUIDE_PAGE_SIZE = 20;
+
+/** Limite del panel de criticas: es un acceso rapido, no un listado completo. */
+const CRITICAL_GUIDES_LIMIT = 12;
+
+/**
+ * Llaves de cache jerarquicas: invalidar `all` refresca listado y criticas a la
+ * vez, sin que cada mutacion tenga que enumerar las combinaciones de filtros.
+ */
+export const troubleshootingKeys = {
+  all: ["troubleshooting"] as const,
+  lists: () => [...troubleshootingKeys.all, "list"] as const,
+  list: (filters: TroubleshootingGuideFilters, page: number, pageSize: number) =>
+    [...troubleshootingKeys.lists(), { filters, page, pageSize }] as const,
+  critical: () => [...troubleshootingKeys.all, "critical"] as const,
+};
+
+const emptyPage = (page: number, pageSize: number): GuidePage => ({
+  items: [],
+  hasMore: false,
+  page,
+  pageSize,
+});
+
+/** Una sesion caida ya redirige al login y un 4xx no mejora al repetirlo. */
+const shouldRetry = (failureCount: number, error: unknown) => {
+  if (isSessionExpiredError(error) || isClientError(error)) return false;
+  return failureCount < 2;
+};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof TroubleshootingApiError) return error.message;
+  if (error instanceof ApiError) return error.message;
   if (error instanceof Error && error.message) return error.message;
   return fallback;
 };
 
-// El módulo puede no estar desplegado todavía en el backend: se muestra vacío
-// en vez de un toast de error en cada carga.
-const isMissingEndpointError = (error: unknown) =>
-  error instanceof TroubleshootingApiError && error.status === 404;
-
-export const useTroubleshooting = () => {
-  const authenticatedFetch = useAuthenticatedFetch();
+/**
+ * `useQuery` de v5 ya no acepta `onError`, asi que el aviso se emite aqui: una
+ * sola vez por error y en silencio cuando la sesion expiro (eso ya lo maneja
+ * `useAuthenticatedFetch` cerrando sesion).
+ */
+export const useApiErrorToast = (error: unknown, fallbackMessage: string) => {
   const { toast } = useToast();
-
-  const [guides, setGuides] = useState<TroubleshootingGuide[]>([]);
-  const [isLoadingGuides, setIsLoadingGuides] = useState(false);
-
-  const lastFiltersRef = useRef<TroubleshootingGuideFilters>({});
-
-  const fetchGuides = async (filters: TroubleshootingGuideFilters = {}) => {
-    lastFiltersRef.current = filters;
-    setIsLoadingGuides(true);
-
-    try {
-      const data = await troubleshootingApi.list(authenticatedFetch, filters);
-      setGuides(Array.isArray(data) ? data : []);
-      return true;
-    } catch (error) {
-      if (!isMissingEndpointError(error) && !isSessionExpiredError(error)) {
-        console.error("Error fetching troubleshooting guides:", error);
-        toast({
-          title: "Error",
-          description: getErrorMessage(error, "No se pudo cargar el manual de fallas."),
-          variant: "destructive",
-        });
-      }
-      setGuides([]);
-      return false;
-    } finally {
-      setIsLoadingGuides(false);
-    }
-  };
-
-  const createGuide = async (payload: TroubleshootingGuidePayload) => {
-    try {
-      await troubleshootingApi.create(authenticatedFetch, payload);
-      toast({
-        title: "Falla registrada",
-        description: `${payload.code} fue agregada al manual.`,
-      });
-      await fetchGuides(lastFiltersRef.current);
-      return true;
-    } catch (error) {
-      console.error("Error creating troubleshooting guide:", error);
-      toast({
-        title: "Error",
-        description: getErrorMessage(error, "No se pudo registrar la falla."),
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  const updateGuide = async (guideId: string, payload: TroubleshootingGuidePayload) => {
-    try {
-      await troubleshootingApi.update(authenticatedFetch, guideId, payload);
-      toast({
-        title: "Falla actualizada",
-        description: `${payload.code} fue actualizada correctamente.`,
-      });
-      await fetchGuides(lastFiltersRef.current);
-      return true;
-    } catch (error) {
-      console.error("Error updating troubleshooting guide:", error);
-      toast({
-        title: "Error",
-        description: getErrorMessage(error, "No se pudo actualizar la falla."),
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  const deleteGuide = async (guide: TroubleshootingGuide) => {
-    try {
-      await troubleshootingApi.remove(authenticatedFetch, guide.id);
-      toast({
-        title: "Falla eliminada",
-        description: `${guide.code} fue eliminada del manual.`,
-      });
-      await fetchGuides(lastFiltersRef.current);
-      return true;
-    } catch (error) {
-      console.error("Error deleting troubleshooting guide:", error);
-      toast({
-        title: "Error",
-        description: getErrorMessage(error, "No se pudo eliminar la falla."),
-        variant: "destructive",
-      });
-      return false;
-    }
-  };
-
-  const refreshAll = async () => {
-    await fetchGuides(lastFiltersRef.current);
-  };
+  const lastReportedError = useRef<unknown>(null);
 
   useEffect(() => {
-    void fetchGuides({});
-  }, []);
+    if (!error) {
+      lastReportedError.current = null;
+      return;
+    }
+
+    if (error === lastReportedError.current) return;
+    lastReportedError.current = error;
+
+    if (isSessionExpiredError(error)) return;
+
+    console.error("Troubleshooting request failed:", error);
+    toast({
+      title: "Error",
+      description: getErrorMessage(error, fallbackMessage),
+      variant: "destructive",
+    });
+  }, [error, fallbackMessage, toast]);
+};
+
+interface UseGuidesPageOptions {
+  filters: TroubleshootingGuideFilters;
+  page: number;
+  pageSize?: number;
+}
+
+/** Una pagina del manual, filtrada en el servidor. */
+export const useGuidesPage = ({
+  filters,
+  page,
+  pageSize = DEFAULT_GUIDE_PAGE_SIZE,
+}: UseGuidesPageOptions) => {
+  const authenticatedFetch = useAuthenticatedFetch();
+
+  const query = useQuery({
+    queryKey: troubleshootingKeys.list(filters, page, pageSize),
+    queryFn: async ({ signal }) => {
+      try {
+        return await troubleshootingApi.list(authenticatedFetch, {
+          filters,
+          page,
+          pageSize,
+          signal,
+        });
+      } catch (error) {
+        // El modulo puede no estar desplegado todavia: se muestra vacio.
+        if (isModuleNotDeployed(error)) return emptyPage(page, pageSize);
+        throw error;
+      }
+    },
+    // Mantiene la pagina anterior en pantalla mientras llega la nueva.
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+    retry: shouldRetry,
+  });
+
+  useApiErrorToast(query.error, "No se pudo cargar el manual de fallas.");
+
+  return query;
+};
+
+/**
+ * Fallas criticas activas, con su propia consulta para que el panel de acceso
+ * rapido no dependa de los filtros que el usuario tenga puestos.
+ */
+export const useCriticalGuides = () => {
+  const authenticatedFetch = useAuthenticatedFetch();
+
+  return useQuery({
+    queryKey: troubleshootingKeys.critical(),
+    queryFn: async ({ signal }) => {
+      try {
+        const result = await troubleshootingApi.list(authenticatedFetch, {
+          filters: { severity: "critica", status: "activa" },
+          page: 0,
+          pageSize: CRITICAL_GUIDES_LIMIT,
+          signal,
+        });
+        return result;
+      } catch (error) {
+        if (isModuleNotDeployed(error)) return emptyPage(0, CRITICAL_GUIDES_LIMIT);
+        throw error;
+      }
+    },
+    staleTime: 60_000,
+    retry: shouldRetry,
+  });
+};
+
+/**
+ * Altas, ediciones y bajas. Devuelven boolean para que la UI sepa si cerrar el
+ * formulario; el aviso de exito o error se emite aqui, en un solo lugar.
+ */
+export const useGuideMutations = () => {
+  const authenticatedFetch = useAuthenticatedFetch();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const invalidateGuides = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: troubleshootingKeys.all }),
+    [queryClient]
+  );
+
+  const notifyError = useCallback(
+    (error: unknown, fallback: string) => {
+      if (isSessionExpiredError(error)) return;
+
+      console.error(fallback, error);
+      toast({
+        title: "Error",
+        description: getErrorMessage(error, fallback),
+        variant: "destructive",
+      });
+    },
+    [toast]
+  );
+
+  const createMutation = useMutation({
+    mutationFn: (payload: TroubleshootingGuidePayload) =>
+      troubleshootingApi.create(authenticatedFetch, payload),
+    onSuccess: async (guide) => {
+      toast({ title: "Falla registrada", description: `${guide.code} fue agregada al manual.` });
+      await invalidateGuides();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: TroubleshootingGuidePayload }) =>
+      troubleshootingApi.update(authenticatedFetch, id, payload),
+    onSuccess: async (guide) => {
+      toast({
+        title: "Falla actualizada",
+        description: `${guide.code} fue actualizada correctamente.`,
+      });
+      await invalidateGuides();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (guide: TroubleshootingGuide) =>
+      troubleshootingApi.remove(authenticatedFetch, guide.id),
+    onSuccess: async (_result, guide) => {
+      toast({ title: "Falla eliminada", description: `${guide.code} fue eliminada del manual.` });
+      await invalidateGuides();
+    },
+  });
+
+  const createGuide = useCallback(
+    async (payload: TroubleshootingGuidePayload) => {
+      try {
+        await createMutation.mutateAsync(payload);
+        return true;
+      } catch (error) {
+        notifyError(error, "No se pudo registrar la falla.");
+        return false;
+      }
+    },
+    [createMutation, notifyError]
+  );
+
+  const updateGuide = useCallback(
+    async (id: string, payload: TroubleshootingGuidePayload) => {
+      try {
+        await updateMutation.mutateAsync({ id, payload });
+        return true;
+      } catch (error) {
+        notifyError(error, "No se pudo actualizar la falla.");
+        return false;
+      }
+    },
+    [notifyError, updateMutation]
+  );
+
+  const deleteGuide = useCallback(
+    async (guide: TroubleshootingGuide) => {
+      try {
+        await deleteMutation.mutateAsync(guide);
+        return true;
+      } catch (error) {
+        notifyError(error, "No se pudo eliminar la falla.");
+        return false;
+      }
+    },
+    [deleteMutation, notifyError]
+  );
 
   return {
-    guides,
-    isLoadingGuides,
-    fetchGuides,
     createGuide,
     updateGuide,
     deleteGuide,
-    refreshAll,
+    isSaving: createMutation.isPending || updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
   };
 };

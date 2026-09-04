@@ -40,16 +40,6 @@ export const getStatusBadgeClass = (status: GuideStatus | string) =>
     ? "border-slate-200 bg-slate-50 text-slate-600"
     : "border-emerald-200 bg-emerald-50 text-emerald-700";
 
-/** Orden de mayor a menor urgencia, para listar primero lo que frena la unidad. */
-const severityWeight: Record<string, number> = {
-  critica: 4,
-  alta: 3,
-  media: 2,
-  baja: 1,
-};
-
-export const getSeverityWeight = (severity: GuideSeverity | string) => severityWeight[severity] ?? 0;
-
 export const formatGuideDate = (value?: string | null) => {
   if (!value) return "-";
 

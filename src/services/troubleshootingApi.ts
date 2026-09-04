@@ -1,4 +1,18 @@
-import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import {
+  ApiError,
+  AuthenticatedFetch,
+  buildQueryString,
+  clampText,
+  extractEntity,
+  extractItems,
+  isRecord,
+  normalizeText,
+  readBoolean,
+  readNullableString,
+  readString,
+  requestJson,
+  requestVoid,
+} from "@/lib/apiClient";
 import {
   GUIDE_SEVERITY_OPTIONS,
   GUIDE_STATUS_OPTIONS,
@@ -12,117 +26,35 @@ import {
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1/troubleshooting`;
 
-type AuthenticatedFetch = (url: string, options?: RequestInit) => Promise<Response>;
+/** Tope duro del backend para `limit`; se respeta al pedir una pagina. */
+const MAX_BACKEND_LIMIT = 500;
 
-interface BackendErrorPayload {
-  status?: number;
-  message?: unknown;
-  detail?: unknown;
-  error?: unknown;
-  code?: string;
-  details?: unknown;
+export interface GuidePageRequest {
+  filters?: TroubleshootingGuideFilters;
+  page?: number;
+  pageSize?: number;
+  signal?: AbortSignal;
 }
 
-export class TroubleshootingApiError extends Error {
-  status: number;
-  code?: string;
-  details?: unknown;
-
-  constructor(status: number, message: string, code?: string, details?: unknown) {
-    super(message);
-    this.name = "TroubleshootingApiError";
-    this.status = status;
-    this.code = code;
-    this.details = details;
-  }
+export interface GuidePage {
+  items: TroubleshootingGuide[];
+  /** El backend no devuelve total, asi que se deduce pidiendo un registro extra. */
+  hasMore: boolean;
+  page: number;
+  pageSize: number;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const SEVERITY_VALUES: readonly string[] = GUIDE_SEVERITY_OPTIONS.map((option) => option.value);
+const STATUS_VALUES: readonly string[] = GUIDE_STATUS_OPTIONS.map((option) => option.value);
 
-const normalizeText = (value?: string | null) => {
-  if (typeof value !== "string") return null;
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
+const readSeverity = (record: Record<string, unknown>): GuideSeverity => {
+  const raw = readString(record, ["severity"]).trim().toLowerCase();
+  return SEVERITY_VALUES.includes(raw) ? (raw as GuideSeverity) : "media";
 };
 
-const buildQueryString = (params: Record<string, string | number | boolean | undefined>) => {
-  const query = new URLSearchParams();
-
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === "") return;
-    query.append(key, String(value));
-  });
-
-  const queryString = query.toString();
-  return queryString ? `?${queryString}` : "";
-};
-
-const parseTroubleshootingApiError = async (
-  response: Response,
-  fallbackMessage: string
-): Promise<TroubleshootingApiError> => {
-  let payload: BackendErrorPayload | null = null;
-
-  try {
-    payload = await response.json();
-  } catch {
-    payload = null;
-  }
-
-  const message = localizeApiErrorPayload(payload, fallbackMessage);
-  return new TroubleshootingApiError(response.status, message, payload?.code, payload?.details);
-};
-
-const requestJson = async (
-  authenticatedFetch: AuthenticatedFetch,
-  url: string,
-  options: RequestInit,
-  fallbackMessage: string
-) => {
-  const response = await authenticatedFetch(url, options);
-
-  if (!response.ok) {
-    throw await parseTroubleshootingApiError(response, fallbackMessage);
-  }
-
-  return response.json();
-};
-
-const readString = (record: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string") return value;
-  }
-
-  return "";
-};
-
-const readNullableString = (record: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string") return value;
-    if (value === null) return null;
-  }
-
-  return undefined;
-};
-
-const readBoolean = (record: Record<string, unknown>, keys: string[]) => {
-  for (const key of keys) {
-    const value = record[key];
-
-    if (typeof value === "boolean") return value;
-    if (typeof value === "number") return value > 0;
-    if (typeof value === "string") {
-      const normalized = value.trim().toLowerCase();
-      if (["true", "1", "si", "yes"].includes(normalized)) return true;
-      if (["false", "0", "no"].includes(normalized)) return false;
-    }
-  }
-
-  return false;
+const readStatus = (record: Record<string, unknown>): GuideStatus => {
+  const raw = readString(record, ["status"]).trim().toLowerCase();
+  return STATUS_VALUES.includes(raw) ? (raw as GuideStatus) : "activa";
 };
 
 const readSteps = (record: Record<string, unknown>, keys: string[]) => {
@@ -136,7 +68,7 @@ const readSteps = (record: Record<string, unknown>, keys: string[]) => {
         .filter(Boolean);
     }
 
-    // Tolera backends que devuelvan los pasos como texto con saltos de línea.
+    // Tolera un backend que devuelva los pasos como texto con saltos de linea.
     if (typeof value === "string") {
       return value
         .split(/\r?\n/)
@@ -148,45 +80,6 @@ const readSteps = (record: Record<string, unknown>, keys: string[]) => {
   return [];
 };
 
-const SEVERITY_VALUES = GUIDE_SEVERITY_OPTIONS.map((option) => option.value);
-const STATUS_VALUES = GUIDE_STATUS_OPTIONS.map((option) => option.value);
-
-const readSeverity = (record: Record<string, unknown>): GuideSeverity => {
-  const raw = readString(record, ["severity"]).trim().toLowerCase();
-  return (SEVERITY_VALUES as readonly string[]).includes(raw) ? (raw as GuideSeverity) : "media";
-};
-
-const readStatus = (record: Record<string, unknown>): GuideStatus => {
-  const raw = readString(record, ["status"]).trim().toLowerCase();
-  return (STATUS_VALUES as readonly string[]).includes(raw) ? (raw as GuideStatus) : "activa";
-};
-
-const extractItemsFromPayload = (payload: unknown): unknown[] => {
-  if (Array.isArray(payload)) return payload;
-  if (!isRecord(payload)) return [];
-
-  const directCandidates = [payload.items, payload.results, payload.data, payload.guides];
-  for (const candidate of directCandidates) {
-    if (Array.isArray(candidate)) return candidate;
-  }
-
-  if (isRecord(payload.data)) {
-    if (Array.isArray(payload.data.items)) return payload.data.items;
-    if (Array.isArray(payload.data.results)) return payload.data.results;
-    if (Array.isArray(payload.data.guides)) return payload.data.guides;
-  }
-
-  return [];
-};
-
-const extractEntityFromPayload = (payload: unknown) => {
-  if (isRecord(payload) && isRecord(payload.data)) {
-    return payload.data;
-  }
-
-  return payload;
-};
-
 export const normalizeGuide = (value: unknown): TroubleshootingGuide => {
   const guide = isRecord(value) ? value : {};
 
@@ -194,7 +87,7 @@ export const normalizeGuide = (value: unknown): TroubleshootingGuide => {
   const explicitId = readString(guide, ["id", "guide_id", "_id"]);
 
   return {
-    // El código es único en el backend, así que sirve de identidad si falta el id.
+    // El codigo es unico en el backend, asi que sirve de identidad si falta el id.
     id: explicitId || code || readString(guide, ["title"]) || "guide",
     code,
     title: readString(guide, ["title", "name"]),
@@ -214,68 +107,94 @@ export const normalizeGuide = (value: unknown): TroubleshootingGuide => {
 };
 
 const normalizeGuideList = (value: unknown): TroubleshootingGuide[] =>
-  extractItemsFromPayload(value).map((item) => normalizeGuide(item));
+  extractItems(value, ["guides"]).map((item) => normalizeGuide(item));
 
 /**
- * Aplica las mismas normalizaciones que hace el backend (código en mayúsculas,
- * etiquetas en minúsculas, pasos sin vacíos) para que lo mostrado tras guardar
- * coincida con lo persistido y para no gastar un round-trip en un 400 evitable.
+ * Aplica las mismas normalizaciones y limites del backend (codigo en mayusculas,
+ * etiquetas en minusculas, textos recortados, pasos sin vacios). Es defensa en
+ * profundidad: evita 4xx previsibles y que un pegado enorme viaje completo.
  */
-const sanitizeGuidePayload = (payload: TroubleshootingGuidePayload) => ({
-  code: payload.code.trim().toUpperCase(),
-  title: payload.title.trim(),
-  category: payload.category.trim().toLowerCase(),
-  symptom: payload.symptom.trim(),
-  probable_causes: normalizeText(payload.probable_causes),
-  resolution_steps: payload.resolution_steps
-    .map((step) => step.trim())
-    .filter(Boolean)
-    .slice(0, TROUBLESHOOTING_LIMITS.maxSteps),
-  severity: payload.severity,
-  requires_workshop: Boolean(payload.requires_workshop),
-  safety_notes: normalizeText(payload.safety_notes),
-  prevention_tips: normalizeText(payload.prevention_tips),
-  status: payload.status,
-  notes: normalizeText(payload.notes),
+const sanitizeGuidePayload = (payload: TroubleshootingGuidePayload) => {
+  const longText = (value?: string | null) => {
+    const normalized = normalizeText(value);
+    return normalized ? clampText(normalized, TROUBLESHOOTING_LIMITS.longText) : null;
+  };
+
+  return {
+    code: clampText(payload.code.trim().toUpperCase(), TROUBLESHOOTING_LIMITS.code),
+    title: clampText(payload.title.trim(), TROUBLESHOOTING_LIMITS.title),
+    category: clampText(payload.category.trim().toLowerCase(), TROUBLESHOOTING_LIMITS.category),
+    symptom: clampText(payload.symptom.trim(), TROUBLESHOOTING_LIMITS.longText),
+    probable_causes: longText(payload.probable_causes),
+    resolution_steps: payload.resolution_steps
+      .map((step) => clampText(step.trim(), TROUBLESHOOTING_LIMITS.longText))
+      .filter(Boolean)
+      .slice(0, TROUBLESHOOTING_LIMITS.maxSteps),
+    severity: payload.severity,
+    requires_workshop: Boolean(payload.requires_workshop),
+    safety_notes: longText(payload.safety_notes),
+    prevention_tips: longText(payload.prevention_tips),
+    status: payload.status,
+    notes: longText(payload.notes),
+  };
+};
+
+const buildFilterParams = (filters: TroubleshootingGuideFilters) => ({
+  q: normalizeText(filters.search) ?? undefined,
+  category: normalizeText(filters.category)?.toLowerCase() ?? undefined,
+  severity: normalizeText(filters.severity) ?? undefined,
+  status: normalizeText(filters.status) ?? undefined,
+  requires_workshop: filters.requires_workshop,
 });
 
 export const troubleshootingApi = {
+  /**
+   * Trae una pagina del manual. Pide `pageSize + 1` registros para saber si hay
+   * pagina siguiente sin que el backend exponga un total.
+   */
   list: async (
     authenticatedFetch: AuthenticatedFetch,
-    filters: TroubleshootingGuideFilters = {}
-  ): Promise<TroubleshootingGuide[]> => {
+    { filters = {}, page = 0, pageSize = 20, signal }: GuidePageRequest = {}
+  ): Promise<GuidePage> => {
+    const safePageSize = Math.min(Math.max(pageSize, 1), MAX_BACKEND_LIMIT - 1);
+    const safePage = Math.max(page, 0);
+
     const query = buildQueryString({
-      q: normalizeText(filters.search) ?? undefined,
-      category: normalizeText(filters.category)?.toLowerCase() ?? undefined,
-      severity: normalizeText(filters.severity) ?? undefined,
-      status: normalizeText(filters.status) ?? undefined,
-      requires_workshop: filters.requires_workshop,
-      limit: filters.limit,
-      offset: filters.offset,
+      ...buildFilterParams(filters),
+      limit: safePageSize + 1,
+      offset: safePage * safePageSize,
     });
 
     const payload = await requestJson(
       authenticatedFetch,
       `${API_BASE_URL}/${query}`,
-      { method: "GET" },
+      { method: "GET", signal },
       "No se pudo cargar el manual de fallas."
     );
 
-    return normalizeGuideList(payload);
+    const items = normalizeGuideList(payload);
+
+    return {
+      items: items.slice(0, safePageSize),
+      hasMore: items.length > safePageSize,
+      page: safePage,
+      pageSize: safePageSize,
+    };
   },
 
   getById: async (
     authenticatedFetch: AuthenticatedFetch,
-    guideId: string
+    guideId: string,
+    signal?: AbortSignal
   ): Promise<TroubleshootingGuide> => {
     const payload = await requestJson(
       authenticatedFetch,
       `${API_BASE_URL}/${encodeURIComponent(guideId)}`,
-      { method: "GET" },
+      { method: "GET", signal },
       "No se pudo cargar la falla solicitada."
     );
 
-    return normalizeGuide(extractEntityFromPayload(payload));
+    return normalizeGuide(extractEntity(payload));
   },
 
   create: async (
@@ -285,14 +204,11 @@ export const troubleshootingApi = {
     const response = await requestJson(
       authenticatedFetch,
       `${API_BASE_URL}/`,
-      {
-        method: "POST",
-        body: JSON.stringify(sanitizeGuidePayload(payload)),
-      },
+      { method: "POST", body: JSON.stringify(sanitizeGuidePayload(payload)) },
       "No se pudo registrar la falla."
     );
 
-    return normalizeGuide(extractEntityFromPayload(response));
+    return normalizeGuide(extractEntity(response));
   },
 
   update: async (
@@ -303,23 +219,23 @@ export const troubleshootingApi = {
     const response = await requestJson(
       authenticatedFetch,
       `${API_BASE_URL}/${encodeURIComponent(guideId)}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(sanitizeGuidePayload(payload)),
-      },
+      { method: "PUT", body: JSON.stringify(sanitizeGuidePayload(payload)) },
       "No se pudo actualizar la falla."
     );
 
-    return normalizeGuide(extractEntityFromPayload(response));
+    return normalizeGuide(extractEntity(response));
   },
 
   remove: async (authenticatedFetch: AuthenticatedFetch, guideId: string): Promise<void> => {
-    const response = await authenticatedFetch(`${API_BASE_URL}/${encodeURIComponent(guideId)}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      throw await parseTroubleshootingApiError(response, "No se pudo eliminar la falla.");
-    }
+    await requestVoid(
+      authenticatedFetch,
+      `${API_BASE_URL}/${encodeURIComponent(guideId)}`,
+      { method: "DELETE" },
+      "No se pudo eliminar la falla."
+    );
   },
 };
+
+/** Un 404 significa que el modulo aun no esta desplegado: se muestra vacio. */
+export const isModuleNotDeployed = (error: unknown) =>
+  error instanceof ApiError && error.status === 404;
