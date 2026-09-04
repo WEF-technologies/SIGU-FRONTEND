@@ -16,6 +16,7 @@ import {
   FlaskConical,
   Package,
   Building2,
+  LifeBuoy,
 } from "lucide-react";
 
 import {
@@ -47,6 +48,7 @@ const menuItems = [
   { title: "Herramientas", url: "/herramientas", icon: Hammer },
   { title: "Dotación", url: "/dotacion", icon: Package },
   { title: "Proveedores", url: "/proveedores", icon: Building2 },
+  { title: "Manual de fallas", url: "/manual-fallas", icon: LifeBuoy },
 ];
 
 export function AppSidebar() {

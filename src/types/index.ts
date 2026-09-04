@@ -798,5 +798,98 @@ export interface SupplierFilters {
   offset?: number;
 }
 
+/**
+ * Manual de fallas (troubleshooting).
+ * Refleja el contrato de /api/v1/troubleshooting: el backend normaliza el
+ * código a mayúsculas y categoría/severidad/estado a minúsculas, así que la UI
+ * guarda los valores ya normalizados y solo formatea al mostrarlos.
+ */
+export const GUIDE_SEVERITY_OPTIONS = [
+  { value: "baja", label: "Baja" },
+  { value: "media", label: "Media" },
+  { value: "alta", label: "Alta" },
+  { value: "critica", label: "Critica" },
+] as const;
+
+export type GuideSeverity = (typeof GUIDE_SEVERITY_OPTIONS)[number]["value"];
+
+export const GUIDE_STATUS_OPTIONS = [
+  { value: "activa", label: "Activa" },
+  { value: "inactiva", label: "Inactiva" },
+] as const;
+
+export type GuideStatus = (typeof GUIDE_STATUS_OPTIONS)[number]["value"];
+
+/** Sugerencias de categoría: el backend acepta texto libre, no un enum. */
+export const TROUBLESHOOTING_CATEGORY_SUGGESTIONS = [
+  "motor",
+  "frenos",
+  "sistema electrico",
+  "transmision",
+  "suspension",
+  "direccion",
+  "neumaticos",
+  "refrigeracion",
+  "combustible",
+  "aire acondicionado",
+  "luces",
+  "carroceria",
+  "hidraulico",
+  "otros",
+] as const;
+
+/** Límites del contrato del backend, replicados para validar antes de enviar. */
+export const TROUBLESHOOTING_LIMITS = {
+  code: 50,
+  title: 160,
+  category: 80,
+  longText: 5000,
+  maxSteps: 20,
+} as const;
+
+export interface TroubleshootingGuide {
+  id: string;
+  code: string;
+  title: string;
+  category: string;
+  symptom: string;
+  probable_causes?: string | null;
+  resolution_steps: string[];
+  severity: GuideSeverity;
+  requires_workshop: boolean;
+  safety_notes?: string | null;
+  prevention_tips?: string | null;
+  status: GuideStatus;
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TroubleshootingGuidePayload {
+  code: string;
+  title: string;
+  category: string;
+  symptom: string;
+  probable_causes?: string | null;
+  resolution_steps: string[];
+  severity: GuideSeverity;
+  requires_workshop: boolean;
+  safety_notes?: string | null;
+  prevention_tips?: string | null;
+  status: GuideStatus;
+  notes?: string | null;
+}
+
+export interface TroubleshootingGuideFilters {
+  /** Búsqueda libre; el backend la mapea al parámetro `q`. */
+  search?: string;
+  category?: string;
+  severity?: string;
+  status?: string;
+  requires_workshop?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
 export type MaintenanceType = 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
 export type EntityStatus = 'active' | 'inactive' | 'maintenance' | 'completed' | 'pending' | 'in_progress' | 'terminated';
