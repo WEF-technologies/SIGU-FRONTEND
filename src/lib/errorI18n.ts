@@ -68,6 +68,15 @@ const FIELD_LABELS: Record<string, string> = {
   destacado: "Destacado",
   chat_url: "Enlace de chat",
   notes: "Notas",
+  // Manual de fallas
+  title: "Titulo",
+  symptom: "Sintoma",
+  probable_causes: "Causas probables",
+  resolution_steps: "Pasos de resolucion",
+  severity: "Severidad",
+  requires_workshop: "Requiere taller",
+  safety_notes: "Notas de seguridad",
+  prevention_tips: "Recomendaciones de prevencion",
 };
 
 const cleanText = (value: string) => value.replace(/\s+/g, " ").trim();
