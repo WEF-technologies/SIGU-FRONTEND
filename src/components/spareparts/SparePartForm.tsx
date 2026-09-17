@@ -5,6 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SparePart, SparePartFitmentPayload, SparePartPayload, Vehicle } from "@/types";
 import { VehicleSelector } from "./VehicleSelector";
+import { VehicleFitmentRules } from "./VehicleFitmentRules";
+import { isFitmentEmpty } from "./fitmentMatching";
 
 interface SparePartFormProps {
   sparePart?: SparePart | null;
@@ -20,10 +22,6 @@ interface SparePartFormData {
   company_location: string;
   compatible_vehicles: string[];
   unit_price: string;
-  /**
-   * Las reglas técnicas ya no se editan aquí: el formulario las arrastra tal
-   * como vinieron para que guardar un repuesto no borre las que ya tenía.
-   */
   fitments: SparePartFitmentPayload[];
 }
 
@@ -79,7 +77,8 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
       compatible_vehicles: formData.compatible_vehicles,
       unit_price:
         parsedUnitPrice !== null && Number.isFinite(parsedUnitPrice) ? parsedUnitPrice : null,
-      fitments: formData.fitments,
+      // Una regla a medio llenar no cubre nada: mejor no guardarla.
+      fitments: formData.fitments.filter((fitment) => !isFitmentEmpty(fitment)),
     });
   };
 
@@ -171,18 +170,30 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
         </div>
       </div>
 
-      <div>
-        <Label htmlFor="vehicle-search">Vehículos que usan este repuesto</Label>
-        <p className="mb-2 text-sm text-gray-500">
-          Opcional. Sirve para encontrar el repuesto desde la ficha de cada unidad.
+      <div className="space-y-5 rounded-xl border border-gray-200 p-4">
+        <p className="text-sm font-medium text-gray-700">
+          ¿A qué unidades les sirve este repuesto?
         </p>
-        <VehicleSelector
-          inputId="vehicle-search"
+
+        <div>
+          <Label htmlFor="vehicle-search">Unidades concretas</Label>
+          <p className="mb-2 text-sm text-gray-500">
+            Opcional. Sirve para encontrar el repuesto desde la ficha de cada unidad.
+          </p>
+          <VehicleSelector
+            inputId="vehicle-search"
+            vehicles={vehicles}
+            selectedVehicles={formData.compatible_vehicles}
+            onSelectionChange={(selected) =>
+              setFormData((prev) => ({ ...prev, compatible_vehicles: selected }))
+            }
+          />
+        </div>
+
+        <VehicleFitmentRules
+          fitments={formData.fitments}
           vehicles={vehicles}
-          selectedVehicles={formData.compatible_vehicles}
-          onSelectionChange={(selected) =>
-            setFormData((prev) => ({ ...prev, compatible_vehicles: selected }))
-          }
+          onChange={(fitments) => setFormData((prev) => ({ ...prev, fitments }))}
         />
       </div>
 
