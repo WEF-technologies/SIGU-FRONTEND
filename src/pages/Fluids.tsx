@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import {
+  CreateFuelLogPayload,
   CreateFluidMovementPayload,
   CreateFluidProductPayload,
   CreateFluidRulePayload,
@@ -39,15 +40,16 @@ import {
 } from "@/components/fluids/fluidConstants";
 import { FluidProductForm } from "@/components/fluids/FluidProductForm";
 import { FluidRuleForm } from "@/components/fluids/FluidRuleForm";
-import { FluidServiceForm } from "@/components/fluids/FluidServiceForm";
 import { FluidMovementForm } from "@/components/fluids/FluidMovementForm";
+import { RegisterConsumptionForm } from "@/components/consumption/RegisterConsumptionForm";
+import { buildLastOdometerMap } from "@/components/consumption/lastOdometer";
+import { fuelApi } from "@/services/fuelApi";
 import {
   DEFAULT_PRODUCT_FORM,
   DEFAULT_RULE_FORM,
   FluidMovementFormValues,
   FluidProductFormValues,
   FluidRuleFormValues,
-  FluidServiceFormValues,
   mapProductToFormValues,
   mapRuleToFormValues,
 } from "@/components/fluids/fluidFormValues";
@@ -416,47 +418,58 @@ export default function Fluids() {
     }
   };
 
-  const handleSubmitService = async (values: FluidServiceFormValues) => {
-    const selectedVehicle = vehicleById.get(values.vehicle_id);
-    const quantity = parseNumber(values.quantity);
-    const odometerKm = parseNumber(values.odometer_km);
+  /** Último kilometraje conocido por unidad, para precargar el odómetro. */
+  const lastOdometerByVehicleId = useMemo(
+    () =>
+      buildLastOdometerMap(
+        vehicles,
+        services.map((service) => ({
+          vehicleId: service.vehicle_id,
+          vehiclePlate: service.vehicle_plate,
+          odometerKm: service.odometer_km,
+        }))
+      ),
+    [services, vehicles]
+  );
 
-    if (!selectedVehicle) {
-      toast({ title: "Unidad requerida", description: "Selecciona una unidad.", variant: "destructive" });
-      return;
-    }
-
-    if (!values.product_id) {
-      toast({ title: "Producto requerido", description: "Selecciona el producto de fluido.", variant: "destructive" });
-      return;
-    }
-
-    if (!quantity || quantity <= 0) {
-      toast({ title: "Cantidad inválida", description: "La cantidad debe ser mayor a cero.", variant: "destructive" });
-      return;
-    }
-
-    const payload: CreateFluidServicePayload = {
-      vehicle_plate: selectedVehicle.plate_number,
-      fluid_product_id: values.product_id,
-      serviced_at: values.serviced_at,
-      quantity_used: quantity,
-      ...(odometerKm ? { odometer_km: odometerKm } : {}),
-      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
-    };
-
+  const handleRegisterFluidService = async (payload: CreateFluidServicePayload) => {
     setIsSavingService(true);
     try {
       await fluidsApi.createService(authenticatedFetch, payload);
       toast({ title: "Servicio registrado", description: "Se registró el servicio de fluido." });
       setIsServiceModalOpen(false);
       await loadData(true);
+      return true;
     } catch (error) {
       toast({
         title: "Error al registrar servicio",
         description: getErrorMessage(error, "No se pudo registrar el servicio de fluido."),
         variant: "destructive",
       });
+      return false;
+    } finally {
+      setIsSavingService(false);
+    }
+  };
+
+  /**
+   * El mismo formulario permite anotar una carga de combustible: el acto es el
+   * mismo y no obliga a cambiar de módulo. Va directo a su propio endpoint.
+   */
+  const handleRegisterFuelLog = async (payload: CreateFuelLogPayload) => {
+    setIsSavingService(true);
+    try {
+      await fuelApi.createLog(authenticatedFetch, payload);
+      toast({ title: "Carga registrada", description: "Se registró la carga de combustible." });
+      setIsServiceModalOpen(false);
+      return true;
+    } catch (error) {
+      toast({
+        title: "Error al registrar carga",
+        description: getErrorMessage(error, "No se pudo registrar la carga de combustible."),
+        variant: "destructive",
+      });
+      return false;
     } finally {
       setIsSavingService(false);
     }
@@ -981,13 +994,15 @@ export default function Fluids() {
       <FormModal
         isOpen={isServiceModalOpen}
         onClose={() => setIsServiceModalOpen(false)}
-        title="Registrar servicio de fluido"
+        title="Registrar consumo"
       >
-        <FluidServiceForm
+        <RegisterConsumptionForm
           vehicles={vehicles}
-          products={products}
-          isSaving={isSavingService}
-          onSubmit={handleSubmitService}
+          fluidProducts={products}
+          lastOdometerByVehicleId={lastOdometerByVehicleId}
+          defaultKind="fluid"
+          onSubmitFuel={handleRegisterFuelLog}
+          onSubmitFluid={handleRegisterFluidService}
           onCancel={() => setIsServiceModalOpen(false)}
         />
       </FormModal>

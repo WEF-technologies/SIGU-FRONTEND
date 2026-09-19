@@ -38,11 +38,22 @@ import {
   Search,
 } from "lucide-react";
 import { useFuel } from "@/hooks/useFuel";
+import { useFluidProducts } from "@/hooks/useFluidProducts";
+import { buildLastOdometerMap } from "@/components/consumption/lastOdometer";
+import { fluidsApi } from "@/services/fluidsApi";
+import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
-import { FuelAnomalyFilters, FuelLog, FuelReading, FuelType, Vehicle } from "@/types";
+import {
+  CreateFluidServicePayload,
+  FuelAnomalyFilters,
+  FuelLog,
+  FuelReading,
+  FuelType,
+  Vehicle,
+} from "@/types";
 
-const FuelLogForm = lazy(async () => ({
-  default: (await import("@/components/fuel/FuelLogForm")).FuelLogForm,
+const RegisterConsumptionForm = lazy(async () => ({
+  default: (await import("@/components/consumption/RegisterConsumptionForm")).RegisterConsumptionForm,
 }));
 
 const FuelReadingForm = lazy(async () => ({
@@ -821,6 +832,50 @@ export default function FuelPage() {
 
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [isReadingModalOpen, setIsReadingModalOpen] = useState(false);
+
+  const authenticatedFetch = useAuthenticatedFetch();
+
+  // El catalogo de fluidos solo se pide al abrir el formulario: este modulo no
+  // lo necesita para nada mas.
+  const { products: fluidProducts, isLoading: isLoadingFluidProducts } =
+    useFluidProducts(isLogModalOpen);
+
+  /** Ultimo kilometraje conocido por unidad, para precargar el odometro. */
+  const lastOdometerByVehicleId = useMemo(
+    () =>
+      buildLastOdometerMap(
+        vehicles,
+        logs.map((log) => ({ vehicleId: log.vehicle_id, odometerKm: log.odometer_km }))
+      ),
+    [logs, vehicles]
+  );
+
+  /**
+   * El mismo formulario permite anotar un servicio de fluido, para no obligar a
+   * cambiar de modulo. Va directo a su propio endpoint.
+   */
+  const handleRegisterFluidService = async (payload: CreateFluidServicePayload) => {
+    try {
+      await fluidsApi.createService(authenticatedFetch, payload);
+      toast({
+        title: "Servicio registrado",
+        description: "Se registro el servicio de fluido.",
+      });
+      setIsLogModalOpen(false);
+      return true;
+    } catch (error) {
+      console.error("Error creating fluid service from fuel module:", error);
+      toast({
+        title: "Error al registrar servicio",
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : "No se pudo registrar el servicio de fluido.",
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
   const [activeTab, setActiveTab] = useState("logs");
   const [hasFetchedAnomalies, setHasFetchedAnomalies] = useState(false);
 
@@ -1242,7 +1297,7 @@ export default function FuelPage() {
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onSelect={() => setIsLogModalOpen(true)}>
                 <Droplets className="w-4 h-4 mr-2" />
-                Registrar carga
+                Registrar consumo
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setIsReadingModalOpen(true)}>
                 <Gauge className="w-4 h-4 mr-2" />
@@ -1935,17 +1990,20 @@ export default function FuelPage() {
       </Tabs>
 
       {isLogModalOpen ? (
-        <FormModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Registrar carga de combustible">
-          <Suspense fallback={<DeferredSectionLoader message="Cargando formulario de carga..." />}>
-            <FuelLogForm
+        <FormModal isOpen={isLogModalOpen} onClose={() => setIsLogModalOpen(false)} title="Registrar consumo">
+          <Suspense fallback={<DeferredSectionLoader message="Cargando formulario..." />}>
+            <RegisterConsumptionForm
               vehicles={vehicles}
-              onSubmit={async (payload) => {
+              fluidProducts={fluidProducts}
+              isLoadingProducts={isLoadingFluidProducts}
+              lastOdometerByVehicleId={lastOdometerByVehicleId}
+              defaultKind="fuel"
+              onSubmitFuel={async (payload) => {
                 const ok = await createLog(payload);
-                if (ok) {
-                  setIsLogModalOpen(false);
-                }
+                if (ok) setIsLogModalOpen(false);
                 return ok;
               }}
+              onSubmitFluid={handleRegisterFluidService}
               onCancel={() => setIsLogModalOpen(false)}
             />
           </Suspense>
