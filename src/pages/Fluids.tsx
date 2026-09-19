@@ -29,6 +29,29 @@ import {
 } from "@/types";
 import { FluidsApiError, fluidsApi } from "@/services/fluidsApi";
 import {
+  FLUID_TYPE_LABELS,
+  FLUID_TYPE_OPTIONS,
+  MOVEMENT_LABELS,
+  formatDate,
+  formatNumber,
+  parseNumber,
+  toDateOnlyLocalValue,
+} from "@/components/fluids/fluidConstants";
+import { FluidProductForm } from "@/components/fluids/FluidProductForm";
+import { FluidRuleForm } from "@/components/fluids/FluidRuleForm";
+import { FluidServiceForm } from "@/components/fluids/FluidServiceForm";
+import { FluidMovementForm } from "@/components/fluids/FluidMovementForm";
+import {
+  DEFAULT_PRODUCT_FORM,
+  DEFAULT_RULE_FORM,
+  FluidMovementFormValues,
+  FluidProductFormValues,
+  FluidRuleFormValues,
+  FluidServiceFormValues,
+  mapProductToFormValues,
+  mapRuleToFormValues,
+} from "@/components/fluids/fluidFormValues";
+import {
   Activity,
   AlertTriangle,
   Droplets,
@@ -43,147 +66,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 type TabKey = "products" | "rules" | "services" | "movements" | "alerts";
 
-const FLUID_TYPE_OPTIONS: Array<{ value: FluidType; label: string }> = [
-  { value: "engine_oil", label: "Aceite de motor" },
-  { value: "transmission_oil", label: "Aceite de transmisión" },
-  { value: "brake_fluid", label: "Líquido de frenos" },
-  { value: "hydraulic_oil", label: "Aceite hidráulico" },
-  { value: "coolant", label: "Refrigerante" },
-  { value: "other", label: "Otro" },
-];
 
-const MOVEMENT_OPTIONS: Array<{
-  value: Extract<FluidMovementType, "purchase" | "adjustment_in" | "adjustment_out">;
-  label: string;
-}> = [
-  { value: "purchase", label: "Compra" },
-  { value: "adjustment_in", label: "Ajuste entrada" },
-  { value: "adjustment_out", label: "Ajuste salida" },
-];
-
-const FLUID_TYPE_LABELS: Record<FluidType, string> = {
-  engine_oil: "Aceite motor",
-  transmission_oil: "Aceite transmisión",
-  brake_fluid: "Líquido frenos",
-  hydraulic_oil: "Aceite hidráulico",
-  coolant: "Refrigerante",
-  other: "Otro",
-};
-
-const MOVEMENT_LABELS: Record<FluidMovementType, string> = {
-  opening_balance: "Saldo inicial",
-  purchase: "Compra",
-  adjustment_in: "Ajuste entrada",
-  adjustment_out: "Ajuste salida",
-  service_use: "Uso por servicio",
-};
-
-interface ProductFormState {
-  code: string;
-  fluid_type: FluidType;
-  name: string;
-  description: string;
-  stock_quantity: string;
-  min_stock_quantity: string;
-  unit: string;
-  notes: string;
-}
-
-interface RuleFormState {
-  vehicle_id: string;
-  fluid_type: FluidType;
-  product_id: string;
-  capacity_liters: string;
-  interval_km: string;
-  interval_days: string;
-  notes: string;
-}
-
-interface ServiceFormState {
-  vehicle_id: string;
-  product_id: string;
-  quantity: string;
-  odometer_km: string;
-  serviced_at: string;
-  notes: string;
-}
-
-interface MovementFormState {
-  product_id: string;
-  movement_type: Extract<FluidMovementType, "purchase" | "adjustment_in" | "adjustment_out">;
-  quantity: string;
-  occurred_at: string;
-  reference: string;
-  notes: string;
-}
-
-const toDateOnlyLocalValue = (date: Date = new Date()) => {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
-};
-
-const DEFAULT_PRODUCT_FORM: ProductFormState = {
-  code: "",
-  fluid_type: "engine_oil",
-  name: "",
-  description: "",
-  stock_quantity: "",
-  min_stock_quantity: "",
-  unit: "litros",
-  notes: "",
-};
-
-const DEFAULT_RULE_FORM: RuleFormState = {
-  vehicle_id: "",
-  fluid_type: "engine_oil",
-  product_id: "",
-  capacity_liters: "",
-  interval_km: "",
-  interval_days: "",
-  notes: "",
-};
-
-const DEFAULT_SERVICE_FORM: ServiceFormState = {
-  vehicle_id: "",
-  product_id: "",
-  quantity: "",
-  odometer_km: "",
-  serviced_at: new Date().toISOString().split("T")[0],
-  notes: "",
-};
-
-const DEFAULT_MOVEMENT_FORM: MovementFormState = {
-  product_id: "",
-  movement_type: "purchase",
-  quantity: "",
-  occurred_at: toDateOnlyLocalValue(),
-  reference: "",
-  notes: "",
-};
-
-const parseNumber = (value: string): number | undefined => {
-  if (!value.trim()) return undefined;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return undefined;
-  return parsed;
-};
-
-const formatDate = (value?: string) => {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("es-ES", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-};
-
-const formatNumber = (value?: number | null) => {
-  if (value === null || value === undefined || Number.isNaN(value)) return "-";
-  return value.toLocaleString("es-ES", {
-    maximumFractionDigits: 2,
-  });
-};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof FluidsApiError) return error.message;
@@ -249,11 +132,6 @@ export default function Fluids() {
   const [editingProduct, setEditingProduct] = useState<FluidProduct | null>(null);
   const [editingRule, setEditingRule] = useState<FluidRule | null>(null);
 
-  const [productForm, setProductForm] = useState<ProductFormState>(DEFAULT_PRODUCT_FORM);
-  const [ruleForm, setRuleForm] = useState<RuleFormState>(DEFAULT_RULE_FORM);
-  const [serviceForm, setServiceForm] = useState<ServiceFormState>(DEFAULT_SERVICE_FORM);
-  const [movementForm, setMovementForm] = useState<MovementFormState>(DEFAULT_MOVEMENT_FORM);
-
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isSavingRule, setIsSavingRule] = useState(false);
   const [isSavingService, setIsSavingService] = useState(false);
@@ -263,23 +141,6 @@ export default function Fluids() {
     () => new Map(vehicles.map((vehicle) => [vehicle.id, vehicle])),
     [vehicles]
   );
-
-  const productsByFluidType = useMemo(() => {
-    const grouped = new Map<FluidType, FluidProduct[]>();
-    FLUID_TYPE_OPTIONS.forEach((option) => grouped.set(option.value, []));
-
-    products.forEach((product) => {
-      const current = grouped.get(product.fluid_type) ?? [];
-      current.push(product);
-      grouped.set(product.fluid_type, current);
-    });
-
-    grouped.forEach((value) => {
-      value.sort((a, b) => a.code.localeCompare(b.code, "es", { sensitivity: "base" }));
-    });
-
-    return grouped;
-  }, [products]);
 
   const loadVehicles = useCallback(async (): Promise<Vehicle[]> => {
     const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicles/`);
@@ -363,47 +224,21 @@ export default function Fluids() {
 
   const openNewProductModal = () => {
     setEditingProduct(null);
-    setProductForm(DEFAULT_PRODUCT_FORM);
     setIsProductModalOpen(true);
   };
 
   const openEditProductModal = (product: FluidProduct) => {
     setEditingProduct(product);
-    setProductForm({
-      code: product.code,
-      fluid_type: product.fluid_type,
-      name: product.name ?? "",
-      description: product.description ?? "",
-      stock_quantity: product.stock_quantity.toString(),
-      min_stock_quantity: product.min_stock_quantity.toString(),
-      unit: product.unit ?? "",
-      notes: product.notes ?? "",
-    });
     setIsProductModalOpen(true);
   };
 
   const openNewRuleModal = () => {
     setEditingRule(null);
-    setRuleForm(DEFAULT_RULE_FORM);
     setIsRuleModalOpen(true);
   };
 
   const openEditRuleModal = (rule: FluidRule) => {
-    const matchedVehicleId =
-      rule.vehicle_id ??
-      vehicles.find((vehicle) => vehicle.plate_number === rule.vehicle_plate)?.id ??
-      "";
-
     setEditingRule(rule);
-    setRuleForm({
-      vehicle_id: matchedVehicleId,
-      fluid_type: rule.fluid_type,
-      product_id: rule.product_id ?? "",
-      capacity_liters: rule.capacity_liters ? String(rule.capacity_liters) : "",
-      interval_km: rule.interval_km ? String(rule.interval_km) : "",
-      interval_days: rule.interval_days ? String(rule.interval_days) : "",
-      notes: rule.notes ?? "",
-    });
     setIsRuleModalOpen(true);
   };
 
@@ -442,16 +277,14 @@ export default function Fluids() {
     }
   };
 
-  const handleSubmitProduct = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    if (!productForm.code.trim()) {
+  const handleSubmitProduct = async (values: FluidProductFormValues) => {
+    if (!values.code.trim()) {
       toast({ title: "Código requerido", description: "Ingresa el código del producto.", variant: "destructive" });
       return;
     }
 
-    const stockQuantity = parseNumber(productForm.stock_quantity);
-    const minStockQuantity = parseNumber(productForm.min_stock_quantity);
+    const stockQuantity = parseNumber(values.stock_quantity);
+    const minStockQuantity = parseNumber(values.min_stock_quantity);
 
     if (stockQuantity !== undefined && stockQuantity < 0) {
       toast({ title: "Stock inválido", description: "El stock no puede ser negativo.", variant: "destructive" });
@@ -464,18 +297,18 @@ export default function Fluids() {
     }
 
     const specification =
-      productForm.description.trim() || productForm.name.trim() || productForm.code.trim().toUpperCase();
+      values.description.trim() || values.name.trim() || values.code.trim().toUpperCase();
 
     const payload: CreateFluidProductPayload | UpdateFluidProductPayload = {
-      code: productForm.code.trim().toUpperCase(),
-      fluid_type: productForm.fluid_type,
+      code: values.code.trim().toUpperCase(),
+      fluid_type: values.fluid_type,
       ...(specification ? { specification } : {}),
-      ...(productForm.name.trim() ? { name: productForm.name.trim() } : {}),
-      ...(productForm.description.trim() ? { description: productForm.description.trim() } : {}),
+      ...(values.name.trim() ? { name: values.name.trim() } : {}),
+      ...(values.description.trim() ? { description: values.description.trim() } : {}),
       ...(stockQuantity !== undefined ? { stock_quantity: stockQuantity } : {}),
       ...(minStockQuantity !== undefined ? { min_stock_quantity: minStockQuantity } : {}),
-      ...(productForm.unit.trim() ? { unit: productForm.unit.trim() } : {}),
-      ...(productForm.notes.trim() ? { notes: productForm.notes.trim() } : {}),
+      ...(values.unit.trim() ? { unit: values.unit.trim() } : {}),
+      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
     };
 
     setIsSavingProduct(true);
@@ -489,7 +322,6 @@ export default function Fluids() {
       }
 
       setIsProductModalOpen(false);
-      setProductForm(DEFAULT_PRODUCT_FORM);
       setEditingProduct(null);
       await loadData(true);
     } catch (error) {
@@ -503,12 +335,10 @@ export default function Fluids() {
     }
   };
 
-  const handleSubmitRule = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const capacityLiters = parseNumber(ruleForm.capacity_liters);
-    const intervalKm = parseNumber(ruleForm.interval_km);
-    const intervalDays = parseNumber(ruleForm.interval_days);
+  const handleSubmitRule = async (values: FluidRuleFormValues) => {
+    const capacityLiters = parseNumber(values.capacity_liters);
+    const intervalKm = parseNumber(values.interval_km);
+    const intervalDays = parseNumber(values.interval_days);
 
     if (!capacityLiters || capacityLiters <= 0) {
       toast({
@@ -528,7 +358,7 @@ export default function Fluids() {
       return;
     }
 
-    const selectedVehicle = vehicleById.get(ruleForm.vehicle_id);
+    const selectedVehicle = vehicleById.get(values.vehicle_id);
     if (!editingRule && !selectedVehicle) {
       toast({
         title: "Unidad requerida",
@@ -539,27 +369,27 @@ export default function Fluids() {
     }
 
     const createPayload: CreateFluidRulePayload = {
-      fluid_type: ruleForm.fluid_type,
+      fluid_type: values.fluid_type,
       capacity_liters: capacityLiters,
       ...(selectedVehicle?.id ? { vehicle_id: selectedVehicle.id } : {}),
       ...(selectedVehicle?.id ? { unit_id: selectedVehicle.id } : {}),
       ...(selectedVehicle?.plate_number ? { vehicle_plate: selectedVehicle.plate_number } : {}),
       ...(selectedVehicle?.plate_number ? { plate_number: selectedVehicle.plate_number } : {}),
-      ...(ruleForm.product_id ? { product_id: ruleForm.product_id } : {}),
-      ...(ruleForm.product_id ? { fluid_product_id: ruleForm.product_id } : {}),
+      ...(values.product_id ? { product_id: values.product_id } : {}),
+      ...(values.product_id ? { fluid_product_id: values.product_id } : {}),
       ...(intervalKm ? { interval_km: intervalKm } : {}),
       ...(intervalDays ? { interval_days: intervalDays } : {}),
-      ...(ruleForm.notes.trim() ? { notes: ruleForm.notes.trim() } : {}),
+      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
     };
 
     const updatePayload: UpdateFluidRulePayload = {
-      fluid_type: ruleForm.fluid_type,
+      fluid_type: values.fluid_type,
       capacity_liters: capacityLiters,
-      ...(ruleForm.product_id ? { product_id: ruleForm.product_id } : {}),
-      ...(ruleForm.product_id ? { fluid_product_id: ruleForm.product_id } : {}),
+      ...(values.product_id ? { product_id: values.product_id } : {}),
+      ...(values.product_id ? { fluid_product_id: values.product_id } : {}),
       ...(intervalKm ? { interval_km: intervalKm } : {}),
       ...(intervalDays ? { interval_days: intervalDays } : {}),
-      ...(ruleForm.notes.trim() ? { notes: ruleForm.notes.trim() } : {}),
+      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
     };
 
     setIsSavingRule(true);
@@ -573,7 +403,6 @@ export default function Fluids() {
       }
 
       setIsRuleModalOpen(false);
-      setRuleForm(DEFAULT_RULE_FORM);
       setEditingRule(null);
       await loadData(true);
     } catch (error) {
@@ -587,19 +416,17 @@ export default function Fluids() {
     }
   };
 
-  const handleSubmitService = async (event: React.FormEvent) => {
-    event.preventDefault();
-
-    const selectedVehicle = vehicleById.get(serviceForm.vehicle_id);
-    const quantity = parseNumber(serviceForm.quantity);
-    const odometerKm = parseNumber(serviceForm.odometer_km);
+  const handleSubmitService = async (values: FluidServiceFormValues) => {
+    const selectedVehicle = vehicleById.get(values.vehicle_id);
+    const quantity = parseNumber(values.quantity);
+    const odometerKm = parseNumber(values.odometer_km);
 
     if (!selectedVehicle) {
       toast({ title: "Unidad requerida", description: "Selecciona una unidad.", variant: "destructive" });
       return;
     }
 
-    if (!serviceForm.product_id) {
+    if (!values.product_id) {
       toast({ title: "Producto requerido", description: "Selecciona el producto de fluido.", variant: "destructive" });
       return;
     }
@@ -611,11 +438,11 @@ export default function Fluids() {
 
     const payload: CreateFluidServicePayload = {
       vehicle_plate: selectedVehicle.plate_number,
-      fluid_product_id: serviceForm.product_id,
-      serviced_at: serviceForm.serviced_at,
+      fluid_product_id: values.product_id,
+      serviced_at: values.serviced_at,
       quantity_used: quantity,
       ...(odometerKm ? { odometer_km: odometerKm } : {}),
-      ...(serviceForm.notes.trim() ? { notes: serviceForm.notes.trim() } : {}),
+      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
     };
 
     setIsSavingService(true);
@@ -623,7 +450,6 @@ export default function Fluids() {
       await fluidsApi.createService(authenticatedFetch, payload);
       toast({ title: "Servicio registrado", description: "Se registró el servicio de fluido." });
       setIsServiceModalOpen(false);
-      setServiceForm(DEFAULT_SERVICE_FORM);
       await loadData(true);
     } catch (error) {
       toast({
@@ -636,13 +462,11 @@ export default function Fluids() {
     }
   };
 
-  const handleSubmitMovement = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleSubmitMovement = async (values: FluidMovementFormValues) => {
+    const quantity = parseNumber(values.quantity);
+    const occurredAt = values.occurred_at?.trim() || toDateOnlyLocalValue();
 
-    const quantity = parseNumber(movementForm.quantity);
-    const occurredAt = movementForm.occurred_at?.trim() || toDateOnlyLocalValue();
-
-    if (!movementForm.product_id) {
+    if (!values.product_id) {
       toast({ title: "Producto requerido", description: "Selecciona un producto.", variant: "destructive" });
       return;
     }
@@ -653,13 +477,13 @@ export default function Fluids() {
     }
 
     const payload: CreateFluidMovementPayload = {
-      product_id: movementForm.product_id,
-      fluid_product_id: movementForm.product_id,
-      movement_type: movementForm.movement_type,
+      product_id: values.product_id,
+      fluid_product_id: values.product_id,
+      movement_type: values.movement_type,
       quantity,
       occurred_at: occurredAt,
-      ...(movementForm.reference.trim() ? { reference: movementForm.reference.trim() } : {}),
-      ...(movementForm.notes.trim() ? { notes: movementForm.notes.trim() } : {}),
+      ...(values.reference.trim() ? { reference: values.reference.trim() } : {}),
+      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
     };
 
     setIsSavingMovement(true);
@@ -667,7 +491,6 @@ export default function Fluids() {
       await fluidsApi.createMovement(authenticatedFetch, payload);
       toast({ title: "Movimiento registrado", description: "Se registró el movimiento de inventario." });
       setIsMovementModalOpen(false);
-      setMovementForm(DEFAULT_MOVEMENT_FORM);
       await loadData(true);
     } catch (error) {
       toast({
@@ -922,11 +745,6 @@ export default function Fluids() {
     },
   ];
 
-  const filteredProductsForRule = useMemo(
-    () => productsByFluidType.get(ruleForm.fluid_type) ?? [],
-    [productsByFluidType, ruleForm.fluid_type]
-  );
-
   const totalEntities = products.length + rules.length + services.length + movements.length;
 
   return (
@@ -1135,115 +953,13 @@ export default function Fluids() {
         onClose={() => setIsProductModalOpen(false)}
         title={editingProduct ? "Editar producto de fluido" : "Nuevo producto de fluido"}
       >
-        <form onSubmit={handleSubmitProduct} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Código</Label>
-              <Input
-                value={productForm.code}
-                onChange={(event) =>
-                  setProductForm((prev) => ({ ...prev, code: event.target.value.toUpperCase() }))
-                }
-                required
-              />
-            </div>
-            <div>
-              <Label>Tipo de fluido</Label>
-              <Select
-                value={productForm.fluid_type}
-                onValueChange={(value) =>
-                  setProductForm((prev) => ({ ...prev, fluid_type: value as FluidType }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FLUID_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Nombre</Label>
-              <Input
-                value={productForm.name}
-                onChange={(event) => setProductForm((prev) => ({ ...prev, name: event.target.value }))}
-                placeholder="Opcional"
-              />
-            </div>
-            <div>
-              <Label>Unidad</Label>
-              <Input
-                value={productForm.unit}
-                onChange={(event) => setProductForm((prev) => ({ ...prev, unit: event.target.value }))}
-                placeholder="litros"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Descripción</Label>
-            <Input
-              value={productForm.description}
-              onChange={(event) =>
-                setProductForm((prev) => ({ ...prev, description: event.target.value }))
-              }
-              placeholder="Opcional"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Stock inicial</Label>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={productForm.stock_quantity}
-                onChange={(event) =>
-                  setProductForm((prev) => ({ ...prev, stock_quantity: event.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label>Stock mínimo</Label>
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={productForm.min_stock_quantity}
-                onChange={(event) =>
-                  setProductForm((prev) => ({ ...prev, min_stock_quantity: event.target.value }))
-                }
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Notas</Label>
-            <Textarea
-              rows={3}
-              value={productForm.notes}
-              onChange={(event) => setProductForm((prev) => ({ ...prev, notes: event.target.value }))}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsProductModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSavingProduct}>
-              {isSavingProduct ? "Guardando..." : editingProduct ? "Actualizar" : "Crear"}
-            </Button>
-          </div>
-        </form>
+        <FluidProductForm
+          initialValues={editingProduct ? mapProductToFormValues(editingProduct) : DEFAULT_PRODUCT_FORM}
+          isEditing={Boolean(editingProduct)}
+          isSaving={isSavingProduct}
+          onSubmit={handleSubmitProduct}
+          onCancel={() => setIsProductModalOpen(false)}
+        />
       </FormModal>
 
       <FormModal
@@ -1251,134 +967,15 @@ export default function Fluids() {
         onClose={() => setIsRuleModalOpen(false)}
         title={editingRule ? "Editar regla de fluido" : "Nueva regla de fluido"}
       >
-        <form onSubmit={handleSubmitRule} className="space-y-4">
-          {!editingRule ? (
-            <div>
-              <Label>Unidad</Label>
-              <Select
-                value={ruleForm.vehicle_id}
-                onValueChange={(value) => setRuleForm((prev) => ({ ...prev, vehicle_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona unidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicles.map((vehicle) => (
-                    <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plate_number} · {vehicle.brand} {vehicle.model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Tipo de fluido</Label>
-              <Select
-                value={ruleForm.fluid_type}
-                onValueChange={(value) =>
-                  setRuleForm((prev) => ({
-                    ...prev,
-                    fluid_type: value as FluidType,
-                    product_id: "",
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FLUID_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Producto asociado (opcional)</Label>
-              <Select
-                value={ruleForm.product_id || "none"}
-                onValueChange={(value) =>
-                  setRuleForm((prev) => ({ ...prev, product_id: value === "none" ? "" : value }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Sin producto fijo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin producto fijo</SelectItem>
-                  {filteredProductsForRule.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.code} · {product.name || product.description || FLUID_TYPE_LABELS[product.fluid_type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label>Capacidad (L)</Label>
-              <Input
-                type="number"
-                min={0.01}
-                step="0.01"
-                value={ruleForm.capacity_liters}
-                onChange={(event) =>
-                  setRuleForm((prev) => ({ ...prev, capacity_liters: event.target.value }))
-                }
-                required
-              />
-            </div>
-            <div>
-              <Label>Intervalo km</Label>
-              <Input
-                type="number"
-                min={0}
-                value={ruleForm.interval_km}
-                onChange={(event) =>
-                  setRuleForm((prev) => ({ ...prev, interval_km: event.target.value }))
-                }
-                placeholder="Opcional"
-              />
-            </div>
-            <div>
-              <Label>Intervalo días</Label>
-              <Input
-                type="number"
-                min={0}
-                value={ruleForm.interval_days}
-                onChange={(event) =>
-                  setRuleForm((prev) => ({ ...prev, interval_days: event.target.value }))
-                }
-                placeholder="Opcional"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Notas</Label>
-            <Textarea
-              rows={3}
-              value={ruleForm.notes}
-              onChange={(event) => setRuleForm((prev) => ({ ...prev, notes: event.target.value }))}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsRuleModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSavingRule}>
-              {isSavingRule ? "Guardando..." : editingRule ? "Actualizar" : "Crear"}
-            </Button>
-          </div>
-        </form>
+        <FluidRuleForm
+          initialValues={editingRule ? mapRuleToFormValues(editingRule, vehicles) : DEFAULT_RULE_FORM}
+          vehicles={vehicles}
+          products={products}
+          isEditing={Boolean(editingRule)}
+          isSaving={isSavingRule}
+          onSubmit={handleSubmitRule}
+          onCancel={() => setIsRuleModalOpen(false)}
+        />
       </FormModal>
 
       <FormModal
@@ -1386,100 +983,13 @@ export default function Fluids() {
         onClose={() => setIsServiceModalOpen(false)}
         title="Registrar servicio de fluido"
       >
-        <form onSubmit={handleSubmitService} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Unidad</Label>
-              <Select
-                value={serviceForm.vehicle_id}
-                onValueChange={(value) => setServiceForm((prev) => ({ ...prev, vehicle_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona unidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicles.map((vehicle) => (
-                    <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.plate_number} · {vehicle.brand} {vehicle.model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Producto</Label>
-              <Select
-                value={serviceForm.product_id}
-                onValueChange={(value) => setServiceForm((prev) => ({ ...prev, product_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona producto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.code} · {FLUID_TYPE_LABELS[product.fluid_type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <Label>Cantidad (L)</Label>
-              <Input
-                type="number"
-                min={0.01}
-                step="0.01"
-                value={serviceForm.quantity}
-                onChange={(event) => setServiceForm((prev) => ({ ...prev, quantity: event.target.value }))}
-                required
-              />
-            </div>
-            <div>
-              <Label>Odómetro (km)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={serviceForm.odometer_km}
-                onChange={(event) =>
-                  setServiceForm((prev) => ({ ...prev, odometer_km: event.target.value }))
-                }
-                placeholder="Opcional"
-              />
-            </div>
-            <div>
-              <Label>Fecha de servicio</Label>
-              <Input
-                type="date"
-                value={serviceForm.serviced_at}
-                onChange={(event) =>
-                  setServiceForm((prev) => ({ ...prev, serviced_at: event.target.value }))
-                }
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Notas</Label>
-            <Textarea
-              rows={3}
-              value={serviceForm.notes}
-              onChange={(event) => setServiceForm((prev) => ({ ...prev, notes: event.target.value }))}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsServiceModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSavingService}>
-              {isSavingService ? "Registrando..." : "Registrar"}
-            </Button>
-          </div>
-        </form>
+        <FluidServiceForm
+          vehicles={vehicles}
+          products={products}
+          isSaving={isSavingService}
+          onSubmit={handleSubmitService}
+          onCancel={() => setIsServiceModalOpen(false)}
+        />
       </FormModal>
 
       <FormModal
@@ -1487,109 +997,12 @@ export default function Fluids() {
         onClose={() => setIsMovementModalOpen(false)}
         title="Registrar movimiento de inventario"
       >
-        <form onSubmit={handleSubmitMovement} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Producto</Label>
-              <Select
-                value={movementForm.product_id}
-                onValueChange={(value) => setMovementForm((prev) => ({ ...prev, product_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona producto" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.code} · {FLUID_TYPE_LABELS[product.fluid_type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Tipo de movimiento</Label>
-              <Select
-                value={movementForm.movement_type}
-                onValueChange={(value) =>
-                  setMovementForm((prev) => ({
-                    ...prev,
-                    movement_type: value as MovementFormState["movement_type"],
-                  }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MOVEMENT_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Cantidad</Label>
-              <Input
-                type="number"
-                min={0.01}
-                step="0.01"
-                value={movementForm.quantity}
-                onChange={(event) =>
-                  setMovementForm((prev) => ({ ...prev, quantity: event.target.value }))
-                }
-                required
-              />
-            </div>
-            <div>
-              <Label>Fecha</Label>
-              <Input
-                type="date"
-                value={movementForm.occurred_at}
-                onChange={(event) =>
-                  setMovementForm((prev) => ({ ...prev, occurred_at: event.target.value }))
-                }
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <Label>Referencia</Label>
-              <Input
-                value={movementForm.reference}
-                onChange={(event) =>
-                  setMovementForm((prev) => ({ ...prev, reference: event.target.value }))
-                }
-                placeholder="Factura, guía, ajuste, etc."
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label>Notas</Label>
-            <Textarea
-              rows={3}
-              value={movementForm.notes}
-              onChange={(event) => setMovementForm((prev) => ({ ...prev, notes: event.target.value }))}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setIsMovementModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSavingMovement}>
-              {isSavingMovement ? "Registrando..." : "Registrar"}
-            </Button>
-          </div>
-        </form>
+        <FluidMovementForm
+          products={products}
+          isSaving={isSavingMovement}
+          onSubmit={handleSubmitMovement}
+          onCancel={() => setIsMovementModalOpen(false)}
+        />
       </FormModal>
     </div>
   );
