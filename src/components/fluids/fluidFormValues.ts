@@ -77,24 +77,6 @@ export const mapRuleToFormValues = (rule: FluidRule, vehicles: Vehicle[]): Fluid
   notes: rule.notes ?? "",
 });
 
-export interface FluidServiceFormValues {
-  vehicle_id: string;
-  product_id: string;
-  quantity: string;
-  odometer_km: string;
-  serviced_at: string;
-  notes: string;
-}
-
-export const createDefaultServiceForm = (): FluidServiceFormValues => ({
-  vehicle_id: "",
-  product_id: "",
-  quantity: "",
-  odometer_km: "",
-  serviced_at: toDateOnlyLocalValue(),
-  notes: "",
-});
-
 export interface FluidMovementFormValues {
   product_id: string;
   movement_type: ManualFluidMovementType;

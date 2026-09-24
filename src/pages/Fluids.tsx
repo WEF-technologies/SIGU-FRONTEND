@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SectionSwitch } from "@/components/shared/SectionSwitch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import {
+  CreateFuelLogPayload,
   CreateFluidMovementPayload,
   CreateFluidProductPayload,
   CreateFluidRulePayload,
@@ -39,15 +41,16 @@ import {
 } from "@/components/fluids/fluidConstants";
 import { FluidProductForm } from "@/components/fluids/FluidProductForm";
 import { FluidRuleForm } from "@/components/fluids/FluidRuleForm";
-import { FluidServiceForm } from "@/components/fluids/FluidServiceForm";
 import { FluidMovementForm } from "@/components/fluids/FluidMovementForm";
+import { RegisterConsumptionForm } from "@/components/consumption/RegisterConsumptionForm";
+import { buildLastOdometerMap } from "@/components/consumption/lastOdometer";
+import { fuelApi } from "@/services/fuelApi";
 import {
   DEFAULT_PRODUCT_FORM,
   DEFAULT_RULE_FORM,
   FluidMovementFormValues,
   FluidProductFormValues,
   FluidRuleFormValues,
-  FluidServiceFormValues,
   mapProductToFormValues,
   mapRuleToFormValues,
 } from "@/components/fluids/fluidFormValues";
@@ -64,7 +67,11 @@ import {
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-type TabKey = "products" | "rules" | "services" | "movements" | "alerts";
+// Las pestañas responden a "que quiero hacer"; la vista interna elige el
+// detalle dentro de esa respuesta.
+type TabKey = "inventario" | "unidades" | "pendientes";
+type InventoryView = "products" | "movements";
+type UnitsView = "services" | "rules";
 
 
 
@@ -112,7 +119,9 @@ export default function Fluids() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("products");
+  const [activeTab, setActiveTab] = useState<TabKey>("unidades");
+  const [inventoryView, setInventoryView] = useState<InventoryView>("products");
+  const [unitsView, setUnitsView] = useState<UnitsView>("services");
 
   const [products, setProducts] = useState<FluidProduct[]>([]);
   const [rules, setRules] = useState<FluidRule[]>([]);
@@ -416,47 +425,58 @@ export default function Fluids() {
     }
   };
 
-  const handleSubmitService = async (values: FluidServiceFormValues) => {
-    const selectedVehicle = vehicleById.get(values.vehicle_id);
-    const quantity = parseNumber(values.quantity);
-    const odometerKm = parseNumber(values.odometer_km);
+  /** Último kilometraje conocido por unidad, para precargar el odómetro. */
+  const lastOdometerByVehicleId = useMemo(
+    () =>
+      buildLastOdometerMap(
+        vehicles,
+        services.map((service) => ({
+          vehicleId: service.vehicle_id,
+          vehiclePlate: service.vehicle_plate,
+          odometerKm: service.odometer_km,
+        }))
+      ),
+    [services, vehicles]
+  );
 
-    if (!selectedVehicle) {
-      toast({ title: "Unidad requerida", description: "Selecciona una unidad.", variant: "destructive" });
-      return;
-    }
-
-    if (!values.product_id) {
-      toast({ title: "Producto requerido", description: "Selecciona el producto de fluido.", variant: "destructive" });
-      return;
-    }
-
-    if (!quantity || quantity <= 0) {
-      toast({ title: "Cantidad inválida", description: "La cantidad debe ser mayor a cero.", variant: "destructive" });
-      return;
-    }
-
-    const payload: CreateFluidServicePayload = {
-      vehicle_plate: selectedVehicle.plate_number,
-      fluid_product_id: values.product_id,
-      serviced_at: values.serviced_at,
-      quantity_used: quantity,
-      ...(odometerKm ? { odometer_km: odometerKm } : {}),
-      ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
-    };
-
+  const handleRegisterFluidService = async (payload: CreateFluidServicePayload) => {
     setIsSavingService(true);
     try {
       await fluidsApi.createService(authenticatedFetch, payload);
       toast({ title: "Servicio registrado", description: "Se registró el servicio de fluido." });
       setIsServiceModalOpen(false);
       await loadData(true);
+      return true;
     } catch (error) {
       toast({
         title: "Error al registrar servicio",
         description: getErrorMessage(error, "No se pudo registrar el servicio de fluido."),
         variant: "destructive",
       });
+      return false;
+    } finally {
+      setIsSavingService(false);
+    }
+  };
+
+  /**
+   * El mismo formulario permite anotar una carga de combustible: el acto es el
+   * mismo y no obliga a cambiar de módulo. Va directo a su propio endpoint.
+   */
+  const handleRegisterFuelLog = async (payload: CreateFuelLogPayload) => {
+    setIsSavingService(true);
+    try {
+      await fuelApi.createLog(authenticatedFetch, payload);
+      toast({ title: "Carga registrada", description: "Se registró la carga de combustible." });
+      setIsServiceModalOpen(false);
+      return true;
+    } catch (error) {
+      toast({
+        title: "Error al registrar carga",
+        description: getErrorMessage(error, "No se pudo registrar la carga de combustible."),
+        variant: "destructive",
+      });
+      return false;
     } finally {
       setIsSavingService(false);
     }
@@ -753,7 +773,7 @@ export default function Fluids() {
         <div>
           <h1 className="text-3xl font-bold text-primary-900">Control de Fluidos</h1>
           <p className="text-gray-600 mt-1">
-            Productos, reglas por unidad, servicios, movimientos y alertas del sistema de fluidos.
+            Lo que se le echo a cada unidad, el inventario de productos y lo que queda por atender.
           </p>
         </div>
         <Button
@@ -810,123 +830,155 @@ export default function Fluids() {
       </div>
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-2 lg:grid-cols-5 w-full lg:w-auto">
-          <TabsTrigger value="products" className="gap-2">Productos <Badge>{products.length}</Badge></TabsTrigger>
-          <TabsTrigger value="rules" className="gap-2">Reglas <Badge>{rules.length}</Badge></TabsTrigger>
-          <TabsTrigger value="services" className="gap-2">Servicios <Badge>{services.length}</Badge></TabsTrigger>
-          <TabsTrigger value="movements" className="gap-2">Movimientos <Badge>{movements.length}</Badge></TabsTrigger>
-          <TabsTrigger value="alerts" className="gap-2">Alertas <Badge>{alerts.length}</Badge></TabsTrigger>
+        <TabsList className="grid h-auto grid-cols-3 w-full lg:w-auto">
+          <TabsTrigger value="unidades" className="gap-2">
+            Por unidad <Badge>{services.length + rules.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="inventario" className="gap-2">
+            Inventario <Badge>{products.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="pendientes" className="gap-2">
+            Pendientes <Badge>{alerts.length}</Badge>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="products" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <CardTitle>Catálogo e inventario de fluidos</CardTitle>
-                <Button onClick={openNewProductModal}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nuevo producto
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                data={products}
-                columns={productColumns}
-                title=""
-                isLoading={isLoadingData}
-                hideAddButton
-                searchFields={["code", "name", "description", "fluid_type", "notes"]}
-                searchPlaceholder="Buscar por código, tipo o descripción..."
-                defaultSort={{ key: "code", direction: "asc" }}
-                initialPageSize={20}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="unidades" className="space-y-4">
+          <SectionSwitch<UnitsView>
+            aria-label="Vista por unidad"
+            value={unitsView}
+            onChange={setUnitsView}
+            options={[
+              { value: "services", label: "Servicios", count: services.length },
+              { value: "rules", label: "Reglas de cambio", count: rules.length },
+            ]}
+          />
+
+          {unitsView === "services" ? (
+            <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <CardTitle>Servicios realizados</CardTitle>
+                  <Button onClick={() => setIsServiceModalOpen(true)}>
+                    <Activity className="w-4 h-4 mr-2" />
+                    Registrar consumo
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  data={services}
+                  columns={serviceColumns}
+                  title=""
+                  isLoading={isLoadingData}
+                  hideAddButton
+                  searchFields={["vehicle_plate", "product_code", "fluid_type", "notes"]}
+                  searchPlaceholder="Buscar por unidad, producto o tipo..."
+                  defaultSort={{ key: "created_at", direction: "desc" }}
+                  initialPageSize={20}
+                />
+              </CardContent>
+            </Card>
+            </div>
+          ) : (
+            <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <CardTitle>Reglas por vehículo</CardTitle>
+                  <Button onClick={openNewRuleModal}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nueva regla
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  data={rules}
+                  columns={ruleColumns}
+                  title=""
+                  isLoading={isLoadingData}
+                  hideAddButton
+                  searchFields={["vehicle_plate", "fluid_type", "product_code", "notes"]}
+                  searchPlaceholder="Buscar por unidad, tipo o producto..."
+                  defaultSort={{ key: "created_at", direction: "desc" }}
+                  initialPageSize={20}
+                />
+              </CardContent>
+            </Card>
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="rules" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <CardTitle>Reglas por vehículo</CardTitle>
-                <Button onClick={openNewRuleModal}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nueva regla
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                data={rules}
-                columns={ruleColumns}
-                title=""
-                isLoading={isLoadingData}
-                hideAddButton
-                searchFields={["vehicle_plate", "fluid_type", "product_code", "notes"]}
-                searchPlaceholder="Buscar por unidad, tipo o producto..."
-                defaultSort={{ key: "created_at", direction: "desc" }}
-                initialPageSize={20}
-              />
-            </CardContent>
-          </Card>
+        <TabsContent value="inventario" className="space-y-4">
+          <SectionSwitch<InventoryView>
+            aria-label="Vista de inventario"
+            value={inventoryView}
+            onChange={setInventoryView}
+            options={[
+              { value: "products", label: "Productos", count: products.length },
+              { value: "movements", label: "Movimientos", count: movements.length },
+            ]}
+          />
+
+          {inventoryView === "products" ? (
+            <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <CardTitle>Catálogo e inventario de fluidos</CardTitle>
+                  <Button onClick={openNewProductModal}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuevo producto
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  data={products}
+                  columns={productColumns}
+                  title=""
+                  isLoading={isLoadingData}
+                  hideAddButton
+                  searchFields={["code", "name", "description", "fluid_type", "notes"]}
+                  searchPlaceholder="Buscar por código, tipo o descripción..."
+                  defaultSort={{ key: "code", direction: "asc" }}
+                  initialPageSize={20}
+                />
+              </CardContent>
+            </Card>
+            </div>
+          ) : (
+            <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <CardTitle>Movimientos de inventario</CardTitle>
+                  <Button onClick={() => setIsMovementModalOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nuevo movimiento
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <DataTable
+                  data={movements}
+                  columns={movementColumns}
+                  title=""
+                  isLoading={isLoadingData}
+                  hideAddButton
+                  searchFields={["product_code", "movement_type", "notes", "reference"]}
+                  searchPlaceholder="Buscar por producto, tipo o referencia..."
+                  defaultSort={{ key: "created_at", direction: "desc" }}
+                  initialPageSize={20}
+                />
+              </CardContent>
+            </Card>
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="services" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <CardTitle>Servicios realizados</CardTitle>
-                <Button onClick={() => setIsServiceModalOpen(true)}>
-                  <Activity className="w-4 h-4 mr-2" />
-                  Registrar servicio
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                data={services}
-                columns={serviceColumns}
-                title=""
-                isLoading={isLoadingData}
-                hideAddButton
-                searchFields={["vehicle_plate", "product_code", "fluid_type", "notes"]}
-                searchPlaceholder="Buscar por unidad, producto o tipo..."
-                defaultSort={{ key: "created_at", direction: "desc" }}
-                initialPageSize={20}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="movements" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <CardTitle>Movimientos de inventario</CardTitle>
-                <Button onClick={() => setIsMovementModalOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nuevo movimiento
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                data={movements}
-                columns={movementColumns}
-                title=""
-                isLoading={isLoadingData}
-                hideAddButton
-                searchFields={["product_code", "movement_type", "notes", "reference"]}
-                searchPlaceholder="Buscar por producto, tipo o referencia..."
-                defaultSort={{ key: "created_at", direction: "desc" }}
-                initialPageSize={20}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="alerts" className="space-y-4">
+        <TabsContent value="pendientes" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Alertas de stock y servicio</CardTitle>
@@ -981,13 +1033,15 @@ export default function Fluids() {
       <FormModal
         isOpen={isServiceModalOpen}
         onClose={() => setIsServiceModalOpen(false)}
-        title="Registrar servicio de fluido"
+        title="Registrar consumo"
       >
-        <FluidServiceForm
+        <RegisterConsumptionForm
           vehicles={vehicles}
-          products={products}
-          isSaving={isSavingService}
-          onSubmit={handleSubmitService}
+          fluidProducts={products}
+          lastOdometerByVehicleId={lastOdometerByVehicleId}
+          defaultKind="fluid"
+          onSubmitFuel={handleRegisterFuelLog}
+          onSubmitFluid={handleRegisterFluidService}
           onCancel={() => setIsServiceModalOpen(false)}
         />
       </FormModal>
