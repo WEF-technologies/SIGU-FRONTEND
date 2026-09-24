@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SectionSwitch } from "@/components/shared/SectionSwitch";
 import {
   AlertTriangle,
   BarChart3,
@@ -876,7 +877,11 @@ export default function FuelPage() {
       return false;
     }
   };
-  const [activeTab, setActiveTab] = useState("logs");
+  // Las pestañas responden a "que quiero hacer"; la vista interna elige el
+  // detalle dentro de esa respuesta.
+  const [activeTab, setActiveTab] = useState<"historial" | "unidad" | "pendientes">("historial");
+  const [historyView, setHistoryView] = useState<"logs" | "readings">("logs");
+  const [unitView, setUnitView] = useState<"status" | "report">("status");
   const [hasFetchedAnomalies, setHasFetchedAnomalies] = useState(false);
 
   const [historyFilters, setHistoryFilters] = useState<{
@@ -903,7 +908,7 @@ export default function FuelPage() {
     let cancelled = false;
 
     const maybeFetchAnomalies = async () => {
-      if (activeTab !== "anomalies" || hasFetchedAnomalies) return;
+      if (activeTab !== "pendientes" || hasFetchedAnomalies) return;
       await fetchAnomalies(defaultAnomalyFilters);
       if (!cancelled) {
         setHasFetchedAnomalies(true);
@@ -1227,7 +1232,7 @@ export default function FuelPage() {
   };
 
   const handleRefresh = async () => {
-    if (activeTab === "report" && reportFilters.vehicle_id) {
+    if (activeTab === "unidad" && unitView === "report" && reportFilters.vehicle_id) {
       const reportPromise = fetchVehicleReport(
         reportFilters.vehicle_id,
         buildVehicleReportRequestFilters(reportFilters)
@@ -1278,7 +1283,7 @@ export default function FuelPage() {
         <div>
           <h1 className="text-2xl font-bold text-primary-900">Modulo de Combustible</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Registros observados de cargas y lecturas, estado por unidad y anomalias de consumo.
+            El historial de cada unidad, su estado actual y lo que queda por atender.
           </p>
         </div>
 
@@ -1312,20 +1317,21 @@ export default function FuelPage() {
 
       {showInitialLoader ? <InitialDataLoader /> : null}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-full lg:w-auto grid grid-cols-2 lg:grid-cols-5 h-auto">
-          <TabsTrigger value="logs" className="gap-2">
-            Cargas
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalLogs}</Badge>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+        className="space-y-4"
+      >
+        <TabsList className="w-full lg:w-auto grid grid-cols-3 h-auto">
+          <TabsTrigger value="historial" className="gap-2">
+            Historial
+            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+              {statusSummary.totalLogs + statusSummary.totalReadings}
+            </Badge>
           </TabsTrigger>
-          <TabsTrigger value="readings" className="gap-2">
-            Lecturas
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalReadings}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="status">Estado actual</TabsTrigger>
-          <TabsTrigger value="report">Reporte unidad</TabsTrigger>
-          <TabsTrigger value="anomalies" className="gap-1.5">
-            Anomalias
+          <TabsTrigger value="unidad">Estado por unidad</TabsTrigger>
+          <TabsTrigger value="pendientes" className="gap-1.5">
+            Pendientes
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalAnomalies}</Badge>
             <Badge
               className={`text-[10px] h-5 px-1.5 ${
@@ -1339,7 +1345,7 @@ export default function FuelPage() {
           </TabsTrigger>
         </TabsList>
 
-        {activeTab === "logs" || activeTab === "readings" ? (
+        {activeTab === "historial" ? (
           <Card className="p-3">
             <div className="flex flex-col xl:flex-row xl:items-center gap-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_180px_minmax(280px,1fr)_auto] gap-2 flex-1">
@@ -1467,314 +1473,342 @@ export default function FuelPage() {
           </Card>
         ) : null}
 
-        <TabsContent value="logs" className="space-y-4">
-          {logsError ? <ErrorState message={logsError} onRetry={applyHistoryFilters} /> : null}
+        <TabsContent value="historial" className="space-y-4">
+          <SectionSwitch<"logs" | "readings">
+            aria-label="Vista del historial"
+            value={historyView}
+            onChange={setHistoryView}
+            options={[
+              { value: "logs", label: "Cargas", count: statusSummary.totalLogs },
+              { value: "readings", label: "Lecturas", count: statusSummary.totalReadings },
+            ]}
+          />
 
-          {!isLoadingLogs && filteredLogs.length > 0 ? (
-            <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
-              <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
-                <span>
-                  <span className="font-semibold text-primary-900">{groupedLogsSummary.units}</span> unidades
-                </span>
-                <span className="text-gray-300">·</span>
-                <span>
-                  <span className="font-semibold text-primary-900">
-                    {groupedLogsSummary.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+          {historyView === "logs" ? (
+            <div className="space-y-4">
+            {logsError ? <ErrorState message={logsError} onRetry={applyHistoryFilters} /> : null}
+
+            {!isLoadingLogs && filteredLogs.length > 0 ? (
+              <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
+                <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                  <span>
+                    <span className="font-semibold text-primary-900">{groupedLogsSummary.units}</span> unidades
                   </span>
-                </span>
-                <span className="text-gray-300">·</span>
-                <span>
-                  Costo <span className="font-semibold text-primary-900">{groupedLogsSummary.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                </span>
-                <span className="text-gray-300">·</span>
-                <span>
-                  <span className="font-semibold text-primary-900">{groupedLogsSummary.updatedLast7d}</span> con actividad en 7 días
-                </span>
-              </div>
-
-              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                <div className="w-full lg:w-64">
-                  <Label>Ordenar cargas por unidad</Label>
-                  <Select
-                    value={logsSortMode}
-                    onValueChange={(value) =>
-                      setLogsSortMode(value as "plate_asc" | "latest_desc" | "liters_desc")
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Orden" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="latest_desc">Más recientes</SelectItem>
-                      <SelectItem value="liters_desc">Mayor volumen (L)</SelectItem>
-                      <SelectItem value="plate_asc">Placa A-Z</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={logsViewMode === "grouped" ? "default" : "outline"}
-                    className={logsViewMode === "grouped" ? "bg-primary text-white" : ""}
-                    onClick={() => setLogsViewMode("grouped")}
-                  >
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Vista por unidad
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={logsViewMode === "table" ? "default" : "outline"}
-                    className={logsViewMode === "table" ? "bg-primary text-white" : ""}
-                    onClick={() => setLogsViewMode("table")}
-                  >
-                    <List className="w-4 h-4 mr-2" />
-                    Vista tabla
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ) : null}
-
-          {isLoadingLogs ? (
-            <Card className="p-4 space-y-3">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </Card>
-          ) : filteredLogs.length === 0 ? (
-            <EmptyState
-              title="Sin cargas registradas"
-              description="No hay datos para los filtros seleccionados."
-              action={
-                <Button onClick={() => setIsLogModalOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Registrar primera carga
-                </Button>
-              }
-            />
-          ) : (
-            logsViewMode === "grouped" ? (
-              <LogsByVehicle groups={groupedLogs} />
-            ) : (
-              <LogsTable items={filteredLogs} />
-            )
-          )}
-        </TabsContent>
-
-        <TabsContent value="readings" className="space-y-4">
-          {readingsError ? <ErrorState message={readingsError} onRetry={applyHistoryFilters} /> : null}
-
-          {!isLoadingReadings && filteredReadings.length > 0 ? (
-            <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-sky-50/40">
-              <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
-                <span>
-                  <span className="font-semibold text-primary-900">{groupedReadingsSummary.units}</span> unidades
-                </span>
-                <span className="text-gray-300">·</span>
-                <span>
-                  Nivel promedio{" "}
-                  <span className="font-semibold text-primary-900">
-                    {groupedReadingsSummary.avgRelativeLevelPercent === null
-                      ? "s/d"
-                      : `${groupedReadingsSummary.avgRelativeLevelPercent}%`}
+                  <span className="text-gray-300">·</span>
+                  <span>
+                    <span className="font-semibold text-primary-900">
+                      {groupedLogsSummary.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+                    </span>
                   </span>
-                </span>
-                <span className="text-gray-300">·</span>
-                <span>
-                  <span className="font-semibold text-primary-900">{groupedReadingsSummary.updatedLast24h}</span> actualizadas en 24h
-                </span>
-                <span className="text-gray-300">·</span>
-                <span>
-                  <span className="font-semibold text-red-600">{groupedReadingsSummary.lowLevelUnits}</span> en nivel bajo
-                </span>
-              </div>
-
-              <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                <div className="w-full lg:w-64">
-                  <Label>Ordenar lecturas por unidad</Label>
-                  <Select
-                    value={readingSortMode}
-                    onValueChange={(value) =>
-                      setReadingSortMode(value as "plate_asc" | "latest_desc" | "level_desc")
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Orden" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="plate_asc">Placa A-Z</SelectItem>
-                      <SelectItem value="latest_desc">Más recientes</SelectItem>
-                      <SelectItem value="level_desc">Mayor nivel relativo</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <span className="text-gray-300">·</span>
+                  <span>
+                    Costo <span className="font-semibold text-primary-900">{groupedLogsSummary.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span>
+                    <span className="font-semibold text-primary-900">{groupedLogsSummary.updatedLast7d}</span> con actividad en 7 días
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant={readingsViewMode === "grouped" ? "default" : "outline"}
-                    className={readingsViewMode === "grouped" ? "bg-primary text-white" : ""}
-                    onClick={() => setReadingsViewMode("grouped")}
-                  >
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    Vista por unidad
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={readingsViewMode === "table" ? "default" : "outline"}
-                    className={readingsViewMode === "table" ? "bg-primary text-white" : ""}
-                    onClick={() => setReadingsViewMode("table")}
-                  >
-                    <List className="w-4 h-4 mr-2" />
-                    Vista tabla
-                  </Button>
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                  <div className="w-full lg:w-64">
+                    <Label>Ordenar cargas por unidad</Label>
+                    <Select
+                      value={logsSortMode}
+                      onValueChange={(value) =>
+                        setLogsSortMode(value as "plate_asc" | "latest_desc" | "liters_desc")
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Orden" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="latest_desc">Más recientes</SelectItem>
+                        <SelectItem value="liters_desc">Mayor volumen (L)</SelectItem>
+                        <SelectItem value="plate_asc">Placa A-Z</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant={logsViewMode === "grouped" ? "default" : "outline"}
+                      className={logsViewMode === "grouped" ? "bg-primary text-white" : ""}
+                      onClick={() => setLogsViewMode("grouped")}
+                    >
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      Vista por unidad
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={logsViewMode === "table" ? "default" : "outline"}
+                      className={logsViewMode === "table" ? "bg-primary text-white" : ""}
+                      onClick={() => setLogsViewMode("table")}
+                    >
+                      <List className="w-4 h-4 mr-2" />
+                      Vista tabla
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ) : null}
+              </Card>
+            ) : null}
 
-          {isLoadingReadings ? (
-            <Card className="p-4 space-y-3">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </Card>
-          ) : filteredReadings.length === 0 ? (
-            <EmptyState
-              title="Sin lecturas registradas"
-              description="No hay lecturas para los filtros seleccionados."
-              action={
-                <Button onClick={() => setIsReadingModalOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Registrar primera lectura
-                </Button>
-              }
-            />
-          ) : (
-            readingsViewMode === "grouped" ? (
-              <ReadingsByVehicle groups={groupedReadings} />
-            ) : (
-              <ReadingsTable items={filteredReadings} />
-            )
-          )}
-        </TabsContent>
-
-        <TabsContent value="status" className="space-y-4">
-          <Card className="p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <Label>Unidad</Label>
-                <Select
-                  value={statusFilters.vehicle_id || "all"}
-                  onValueChange={(value) =>
-                    setStatusFilters((prev) => ({ ...prev, vehicle_id: value === "all" ? undefined : value }))
-                  }
-                  disabled={isLoadingVehicles}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar unidad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Seleccionar...</SelectItem>
-                    {vehicles.map((vehicle) => (
-                      <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {getVehicleDisplayLabel(vehicle)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Tipo de combustible</Label>
-                <Select
-                  value={statusFilters.fuel_type || "all"}
-                  onValueChange={(value) =>
-                    setStatusFilters((prev) => ({
-                      ...prev,
-                      fuel_type: value === "all" ? undefined : (value as FuelType),
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {FUEL_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-end gap-2">
-                <Button onClick={applyStatusFilter} disabled={!statusFilters.vehicle_id || selectedStatusLoading}>
-                  {selectedStatusLoading ? "Consultando..." : "Consultar"}
-                </Button>
-                <Button variant="outline" onClick={clearStatusFilter}>
-                  Limpiar
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          {!statusFilters.vehicle_id ? (
-            <EmptyState
-              title="Selecciona una unidad"
-              description="Consulta el estado actual basado en la observacion mas reciente entre carga y lectura."
-            />
-          ) : selectedStatusLoading ? (
-            <Card className="p-4 space-y-3">
-              <Skeleton className="h-6 w-2/3" />
-              <Skeleton className="h-24 w-full" />
-            </Card>
-          ) : selectedStatusError ? (
-            <ErrorState message={selectedStatusError} onRetry={applyStatusFilter} />
-          ) : selectedStatus ? (
-            <StatusCard
-              unitLabel={getVehicleDisplayLabel(vehicleMap.get(selectedStatus.vehicle_id), selectedStatus.vehicle_plate)}
-              source={selectedStatus.source}
-              asOf={selectedStatus.as_of}
-              fuelType={selectedStatus.fuel_type}
-              message={selectedStatus.message}
-              liters={selectedStatus.liters}
-              totalCost={selectedStatus.total_cost}
-              readingValue={selectedStatus.reading_value}
-              readingUnit={selectedStatus.reading_unit}
-              odometerKm={selectedStatus.odometer_km}
-            />
-          ) : (
-            <EmptyState title="Sin informacion reciente" description="No se encontro estado para la seleccion actual." />
-          )}
-        </TabsContent>
-
-        <TabsContent value="report" className="space-y-4">
-          {activeTab === "report" ? (
-            <Suspense fallback={<DeferredSectionLoader message="Cargando reporte de combustible..." />}>
-              <FuelVehicleReportSection
-                vehicles={vehicles}
-                vehicleMap={vehicleMap}
-                isLoadingVehicles={isLoadingVehicles}
-                filters={reportFilters}
-                setFilters={setReportFilters}
-                report={vehicleReport}
-                isLoadingReport={isLoadingVehicleReport}
-                isDownloadingReport={isDownloadingVehicleReport}
-                reportError={vehicleReportError}
-                onApply={applyVehicleReportFilters}
-                onClear={clearVehicleReportFilters}
-                onDownload={handleDownloadVehicleReport}
-                getVehicleDisplayLabel={getVehicleDisplayLabel}
+            {isLoadingLogs ? (
+              <Card className="p-4 space-y-3">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </Card>
+            ) : filteredLogs.length === 0 ? (
+              <EmptyState
+                title="Sin cargas registradas"
+                description="No hay datos para los filtros seleccionados."
+                action={
+                  <Button onClick={() => setIsLogModalOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Registrar primera carga
+                  </Button>
+                }
               />
-            </Suspense>
-          ) : null}
+            ) : (
+              logsViewMode === "grouped" ? (
+                <LogsByVehicle groups={groupedLogs} />
+              ) : (
+                <LogsTable items={filteredLogs} />
+              )
+            )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+            {readingsError ? <ErrorState message={readingsError} onRetry={applyHistoryFilters} /> : null}
+
+            {!isLoadingReadings && filteredReadings.length > 0 ? (
+              <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-sky-50/40">
+                <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                  <span>
+                    <span className="font-semibold text-primary-900">{groupedReadingsSummary.units}</span> unidades
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span>
+                    Nivel promedio{" "}
+                    <span className="font-semibold text-primary-900">
+                      {groupedReadingsSummary.avgRelativeLevelPercent === null
+                        ? "s/d"
+                        : `${groupedReadingsSummary.avgRelativeLevelPercent}%`}
+                    </span>
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span>
+                    <span className="font-semibold text-primary-900">{groupedReadingsSummary.updatedLast24h}</span> actualizadas en 24h
+                  </span>
+                  <span className="text-gray-300">·</span>
+                  <span>
+                    <span className="font-semibold text-red-600">{groupedReadingsSummary.lowLevelUnits}</span> en nivel bajo
+                  </span>
+                </div>
+
+                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                  <div className="w-full lg:w-64">
+                    <Label>Ordenar lecturas por unidad</Label>
+                    <Select
+                      value={readingSortMode}
+                      onValueChange={(value) =>
+                        setReadingSortMode(value as "plate_asc" | "latest_desc" | "level_desc")
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Orden" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="plate_asc">Placa A-Z</SelectItem>
+                        <SelectItem value="latest_desc">Más recientes</SelectItem>
+                        <SelectItem value="level_desc">Mayor nivel relativo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant={readingsViewMode === "grouped" ? "default" : "outline"}
+                      className={readingsViewMode === "grouped" ? "bg-primary text-white" : ""}
+                      onClick={() => setReadingsViewMode("grouped")}
+                    >
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      Vista por unidad
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={readingsViewMode === "table" ? "default" : "outline"}
+                      className={readingsViewMode === "table" ? "bg-primary text-white" : ""}
+                      onClick={() => setReadingsViewMode("table")}
+                    >
+                      <List className="w-4 h-4 mr-2" />
+                      Vista tabla
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : null}
+
+            {isLoadingReadings ? (
+              <Card className="p-4 space-y-3">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-full" />
+              </Card>
+            ) : filteredReadings.length === 0 ? (
+              <EmptyState
+                title="Sin lecturas registradas"
+                description="No hay lecturas para los filtros seleccionados."
+                action={
+                  <Button onClick={() => setIsReadingModalOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Registrar primera lectura
+                  </Button>
+                }
+              />
+            ) : (
+              readingsViewMode === "grouped" ? (
+                <ReadingsByVehicle groups={groupedReadings} />
+              ) : (
+                <ReadingsTable items={filteredReadings} />
+              )
+            )}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="anomalies" className="space-y-4">
+        <TabsContent value="unidad" className="space-y-4">
+          <SectionSwitch<"status" | "report">
+            aria-label="Vista por unidad"
+            value={unitView}
+            onChange={setUnitView}
+            options={[
+              { value: "status", label: "Estado actual" },
+              { value: "report", label: "Reporte de consumo" },
+            ]}
+          />
+
+          {unitView === "status" ? (
+            <div className="space-y-4">
+            <Card className="p-4 space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Label>Unidad</Label>
+                  <Select
+                    value={statusFilters.vehicle_id || "all"}
+                    onValueChange={(value) =>
+                      setStatusFilters((prev) => ({ ...prev, vehicle_id: value === "all" ? undefined : value }))
+                    }
+                    disabled={isLoadingVehicles}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar unidad" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Seleccionar...</SelectItem>
+                      {vehicles.map((vehicle) => (
+                        <SelectItem key={vehicle.id} value={vehicle.id}>
+                          {getVehicleDisplayLabel(vehicle)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label>Tipo de combustible</Label>
+                  <Select
+                    value={statusFilters.fuel_type || "all"}
+                    onValueChange={(value) =>
+                      setStatusFilters((prev) => ({
+                        ...prev,
+                        fuel_type: value === "all" ? undefined : (value as FuelType),
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {FUEL_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end gap-2">
+                  <Button onClick={applyStatusFilter} disabled={!statusFilters.vehicle_id || selectedStatusLoading}>
+                    {selectedStatusLoading ? "Consultando..." : "Consultar"}
+                  </Button>
+                  <Button variant="outline" onClick={clearStatusFilter}>
+                    Limpiar
+                  </Button>
+                </div>
+              </div>
+            </Card>
+
+            {!statusFilters.vehicle_id ? (
+              <EmptyState
+                title="Selecciona una unidad"
+                description="Consulta el estado actual basado en la observacion mas reciente entre carga y lectura."
+              />
+            ) : selectedStatusLoading ? (
+              <Card className="p-4 space-y-3">
+                <Skeleton className="h-6 w-2/3" />
+                <Skeleton className="h-24 w-full" />
+              </Card>
+            ) : selectedStatusError ? (
+              <ErrorState message={selectedStatusError} onRetry={applyStatusFilter} />
+            ) : selectedStatus ? (
+              <StatusCard
+                unitLabel={getVehicleDisplayLabel(vehicleMap.get(selectedStatus.vehicle_id), selectedStatus.vehicle_plate)}
+                source={selectedStatus.source}
+                asOf={selectedStatus.as_of}
+                fuelType={selectedStatus.fuel_type}
+                message={selectedStatus.message}
+                liters={selectedStatus.liters}
+                totalCost={selectedStatus.total_cost}
+                readingValue={selectedStatus.reading_value}
+                readingUnit={selectedStatus.reading_unit}
+                odometerKm={selectedStatus.odometer_km}
+              />
+            ) : (
+              <EmptyState title="Sin informacion reciente" description="No se encontro estado para la seleccion actual." />
+            )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+            {unitView === "report" ? (
+              <Suspense fallback={<DeferredSectionLoader message="Cargando reporte de combustible..." />}>
+                <FuelVehicleReportSection
+                  vehicles={vehicles}
+                  vehicleMap={vehicleMap}
+                  isLoadingVehicles={isLoadingVehicles}
+                  filters={reportFilters}
+                  setFilters={setReportFilters}
+                  report={vehicleReport}
+                  isLoadingReport={isLoadingVehicleReport}
+                  isDownloadingReport={isDownloadingVehicleReport}
+                  reportError={vehicleReportError}
+                  onApply={applyVehicleReportFilters}
+                  onClear={clearVehicleReportFilters}
+                  onDownload={handleDownloadVehicleReport}
+                  getVehicleDisplayLabel={getVehicleDisplayLabel}
+                />
+              </Suspense>
+            ) : null}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="pendientes" className="space-y-4">
           <Card className="p-4 space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
               <div>
