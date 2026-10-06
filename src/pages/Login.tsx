@@ -21,10 +21,6 @@ export default function Login() {
 
     try {
       await login(email, password);
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: "Bienvenido al sistema de gestión Servi-Mont.M2D",
-      });
     } catch (error) {
       const message =
         error instanceof Error && error.message
