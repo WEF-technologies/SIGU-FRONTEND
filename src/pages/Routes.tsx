@@ -8,6 +8,7 @@ import { Route, Contract } from "@/types";
 import { Plus } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirm } from "@/hooks/useConfirm";
 import { RouteActions } from "@/components/routes/RouteActions";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import ContractRoutesModal from "@/components/routes/ContractRoutesModal";
@@ -31,6 +32,7 @@ export default function Routes() {
   });
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
+  const confirm = useConfirm();
   
 
   // Cargar rutas desde el backend
@@ -105,6 +107,10 @@ export default function Routes() {
   };
 
   const handleDelete = async (route: Route) => {
+    if (!(await confirm({
+      title: "Eliminar ruta",
+      description: `Se eliminará la ruta ${route.description}. Esta acción no se puede deshacer.`,
+    }))) return;
     try {
       const rid = (route as any).id || (route as any).route_id;
       const res = await authenticatedFetch(`${API_URL}/api/v1/routes/${encodeURIComponent(rid)}`, {

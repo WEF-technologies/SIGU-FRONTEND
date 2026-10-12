@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDotation } from "@/hooks/useDotation";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   DotationAlert,
   DotationAlertFilters,
@@ -98,6 +99,23 @@ export default function Dotation() {
     createDelivery,
     refreshAll,
   } = useDotation();
+  const confirm = useConfirm();
+
+  const handleDeleteStaffMember = async (staffMember: DotationStaffMember) => {
+    if (!(await confirm({
+      title: "Eliminar personal",
+      description: `Se eliminará a ${staffMember.name} ${staffMember.last_name} (${staffMember.document_number}). Esta acción no se puede deshacer.`,
+    }))) return;
+    await deleteStaffMember(staffMember);
+  };
+
+  const handleDeleteItem = async (item: DotationItem) => {
+    if (!(await confirm({
+      title: "Eliminar ítem de dotación",
+      description: `Se eliminará ${item.code} - ${item.name}. Esta acción no se puede deshacer.`,
+    }))) return;
+    await deleteItem(item);
+  };
 
   const [activeTab, setActiveTab] = useState<DotationTab>("staff");
 
@@ -468,7 +486,7 @@ export default function Dotation() {
               setEditingStaffMember(staffMember);
               setIsStaffModalOpen(true);
             }}
-            onDelete={deleteStaffMember}
+            onDelete={handleDeleteStaffMember}
             isLoading={isLoadingStaff}
             searchFields={["document_number", "name", "last_name", "department", "position", "status"]}
             searchPlaceholder="Buscar por documento, nombre, departamento o cargo..."
@@ -525,7 +543,7 @@ export default function Dotation() {
               setEditingItem(item);
               setIsItemModalOpen(true);
             }}
-            onDelete={deleteItem}
+            onDelete={handleDeleteItem}
             isLoading={isLoadingItems}
             searchFields={["code", "name", "category", "status", "description"]}
             searchPlaceholder="Buscar por código, nombre, categoría o estado..."

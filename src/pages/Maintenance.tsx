@@ -5,6 +5,7 @@ import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormMo
 import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { useMaintenance } from "@/hooks/useMaintenance";
+import { useConfirm } from "@/hooks/useConfirm";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -284,6 +285,7 @@ export default function Maintenance() {
     isLoadingData,
     createMaintenance, updateMaintenance, deleteMaintenance, dismissAlert,
   } = useMaintenance();
+  const confirm = useConfirm();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -415,6 +417,10 @@ export default function Maintenance() {
   };
 
   const handleDelete = async (m: MaintenanceType) => {
+    if (!(await confirm({
+      title: "Eliminar mantenimiento",
+      description: `Se eliminará el mantenimiento ${m.type?.toUpperCase() ?? ""}${m.date ? ` del ${formatDate(m.date)}` : ""}. Esta acción no se puede deshacer.`,
+    }))) return;
     await deleteMaintenance(m);
   };
 

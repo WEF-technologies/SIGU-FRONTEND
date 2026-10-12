@@ -12,6 +12,7 @@ import { SectionSwitch } from "@/components/shared/SectionSwitch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useConfirm } from "@/hooks/useConfirm";
 import {
   CreateFuelLogPayload,
   CreateFluidMovementPayload,
@@ -118,6 +119,7 @@ const extractVehicles = (payload: unknown): Vehicle[] => {
 export default function Fluids() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const confirm = useConfirm();
 
   const [activeTab, setActiveTab] = useState<TabKey>("unidades");
   const [inventoryView, setInventoryView] = useState<InventoryView>("products");
@@ -252,7 +254,10 @@ export default function Fluids() {
   };
 
   const handleDeleteProduct = async (product: FluidProduct) => {
-    if (!confirm(`¿Eliminar el producto ${product.code}?`)) return;
+    if (!(await confirm({
+      title: "Eliminar producto",
+      description: `Se eliminará el producto ${product.code}. Esta acción no se puede deshacer.`,
+    }))) return;
 
     try {
       await fluidsApi.deleteProduct(authenticatedFetch, product.id);
@@ -271,7 +276,10 @@ export default function Fluids() {
   };
 
   const handleDeleteRule = async (rule: FluidRule) => {
-    if (!confirm("¿Eliminar esta regla de fluido?")) return;
+    if (!(await confirm({
+      title: "Eliminar regla de fluido",
+      description: "La regla dejará de generar avisos para las unidades. Esta acción no se puede deshacer.",
+    }))) return;
 
     try {
       await fluidsApi.deleteRule(authenticatedFetch, rule.id);

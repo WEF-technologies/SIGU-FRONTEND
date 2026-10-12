@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { ConfirmProvider } from "@/components/shared/ConfirmProvider";
 import { MainLayout } from "./components/layout/MainLayout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -52,38 +53,40 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <AuthProvider>
-          <BrowserRouter>
-            <ProtectedRoute>
-              <MainLayout>
-                <RouteErrorBoundary>
-                  <Suspense fallback={<RouteLoader />}>
-                    <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/vehiculos" element={<Vehicles />} />
-                      <Route path="/usuarios" element={<Users />} />
-                      <Route path="/contratos" element={<Contracts />} />
-                      <Route path="/rutas" element={<RoutesPage />} />
-                      <Route path="/choferes" element={<Drivers />} />
-                      <Route path="/repuestos" element={<SpareParts />} />
-                      <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
-                      <Route path="/mantenimiento" element={<Maintenance />} />
-                      <Route path="/combustible" element={<FuelPage />} />
-                      <Route path="/fluidos" element={<Fluids />} />
-                      <Route path="/herramientas" element={<Tools />} />
-                      <Route path="/dotacion" element={<Dotation />} />
-                      <Route path="/proveedores" element={<Suppliers />} />
-                      <Route path="/viajes" element={<Trips />} />
-                      <Route path="/manual-fallas" element={<Troubleshooting />} />
-                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                      <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </Suspense>
-                </RouteErrorBoundary>
-              </MainLayout>
-            </ProtectedRoute>
-          </BrowserRouter>
-        </AuthProvider>
+        <ConfirmProvider>
+          <AuthProvider>
+            <BrowserRouter>
+              <ProtectedRoute>
+                <MainLayout>
+                  <RouteErrorBoundary>
+                    <Suspense fallback={<RouteLoader />}>
+                      <Routes>
+                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/vehiculos" element={<Vehicles />} />
+                        <Route path="/usuarios" element={<Users />} />
+                        <Route path="/contratos" element={<Contracts />} />
+                        <Route path="/rutas" element={<RoutesPage />} />
+                        <Route path="/choferes" element={<Drivers />} />
+                        <Route path="/repuestos" element={<SpareParts />} />
+                        <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
+                        <Route path="/mantenimiento" element={<Maintenance />} />
+                        <Route path="/combustible" element={<FuelPage />} />
+                        <Route path="/fluidos" element={<Fluids />} />
+                        <Route path="/herramientas" element={<Tools />} />
+                        <Route path="/dotacion" element={<Dotation />} />
+                        <Route path="/proveedores" element={<Suppliers />} />
+                        <Route path="/viajes" element={<Trips />} />
+                        <Route path="/manual-fallas" element={<Troubleshooting />} />
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </Suspense>
+                  </RouteErrorBoundary>
+                </MainLayout>
+              </ProtectedRoute>
+            </BrowserRouter>
+          </AuthProvider>
+        </ConfirmProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </ErrorBoundary>

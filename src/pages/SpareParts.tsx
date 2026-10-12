@@ -10,6 +10,7 @@ import {
 import { SparePart, SparePartPayload, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -250,6 +251,7 @@ function VehiclePartsCard({
 export default function SpareParts() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const confirm = useConfirm();
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -324,6 +326,10 @@ export default function SpareParts() {
   const handleViewDetails = (sp: SparePart) => { setViewingSparePart(sp); setIsDetailsModalOpen(true); };
 
   const handleDelete = async (sp: SparePart) => {
+    if (!(await confirm({
+      title: "Eliminar repuesto",
+      description: `Se eliminará ${sp.code} - ${sp.description}. Esta acción no se puede deshacer.`,
+    }))) return;
     try {
       await sparePartsApi.remove(authenticatedFetch, sp.id);
       setSpareParts(prev => prev.filter(p => p.id !== sp.id));
