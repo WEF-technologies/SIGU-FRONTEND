@@ -15,6 +15,7 @@ import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
+import { useConfirm } from "@/hooks/useConfirm";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
@@ -52,6 +53,7 @@ const today = new Date().toISOString().split("T")[0];
 export default function Vehicles() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const confirm = useConfirm();
   const {
     vehicles,
     isLoadingData,
@@ -220,6 +222,10 @@ export default function Vehicles() {
   };
 
   const handleDelete = async (vehicle: Vehicle) => {
+    if (!(await confirm({
+      title: "Eliminar vehículo",
+      description: `Se eliminará el vehículo ${vehicle.plate_number}. Esta acción no se puede deshacer.`,
+    }))) return;
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(vehicle.plate_number)}`, {
         method: "DELETE",

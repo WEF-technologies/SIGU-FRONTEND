@@ -6,6 +6,7 @@ import { TripForm, TripFormData } from "@/components/trips/TripForm";
 import { Trip, Route, Vehicle, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Gauge, AlertTriangle } from "lucide-react";
@@ -102,6 +103,7 @@ const parseBackendErrorMessage = async (response: Response, fallback: string) =>
 export default function Trips() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const confirm = useConfirm();
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -380,7 +382,10 @@ export default function Trips() {
   };
 
   const handleDelete = async (trip: Trip) => {
-    if (!confirm("¿Está seguro de eliminar este viaje?")) return;
+    if (!(await confirm({
+      title: "Eliminar viaje",
+      description: "El viaje se eliminará del historial. Esta acción no se puede deshacer.",
+    }))) return;
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/trips/${encodeURIComponent(trip.id)}`, { method: "DELETE" });
       if (response.ok || response.status === 204) {

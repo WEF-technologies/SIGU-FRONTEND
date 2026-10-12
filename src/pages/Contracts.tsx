@@ -19,6 +19,7 @@ import {
 import { Contract, Shift, Vehicle, User, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -26,6 +27,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? "";
 export default function Contracts() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const confirm = useConfirm();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -133,6 +135,10 @@ export default function Contracts() {
   };
 
   const handleDeleteShift = async (shift: Shift) => {
+    if (!(await confirm({
+      title: "Eliminar turno",
+      description: `Se eliminará el turno ${shift.description}. Esta acción no se puede deshacer.`,
+    }))) return;
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${encodeURIComponent(shift.id)}`, {
         method: "DELETE",

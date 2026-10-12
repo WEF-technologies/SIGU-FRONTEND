@@ -83,7 +83,6 @@ export function ContractDetailsModal({
         const contractRoutes = await routesResponse.json();
         setRoutes(contractRoutes);
       } else {
-        console.log('No routes found');
         setRoutes([]);
       }
 
@@ -94,7 +93,6 @@ export function ContractDetailsModal({
         const contractDrivers = allDrivers.filter((driver: Driver) => driver.contract_id === contract.id);
         setDrivers(contractDrivers);
       } else {
-        console.log('No drivers found');
         setDrivers([]);
       }
       

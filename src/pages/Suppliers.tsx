@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSuppliers } from "@/hooks/useSuppliers";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Supplier, SupplierFilters, SupplierPayload, SUPPLIER_CATEGORY_OPTIONS } from "@/types";
 import {
   Building2,
@@ -71,6 +72,7 @@ export default function Suppliers() {
     updateSupplier,
     deleteSupplier,
   } = useSuppliers();
+  const confirm = useConfirm();
 
   const [filters, setFilters] = useState<SupplierFilters>({
     search: "",
@@ -219,7 +221,10 @@ export default function Suppliers() {
               size="sm"
               className="border-red-200 text-red-600 hover:bg-red-50"
               onClick={async () => {
-                if (!confirm(`¿Eliminar el proveedor ${supplier.name}?`)) return;
+                if (!(await confirm({
+                  title: "Eliminar proveedor",
+                  description: `Se eliminará el proveedor ${supplier.name}. Esta acción no se puede deshacer.`,
+                }))) return;
                 await deleteSupplier(supplier);
               }}
             >
@@ -229,7 +234,7 @@ export default function Suppliers() {
         ),
       },
     ],
-    [deleteSupplier]
+    [confirm, deleteSupplier]
   );
 
   const closeModal = () => {

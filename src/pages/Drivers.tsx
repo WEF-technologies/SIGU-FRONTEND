@@ -18,6 +18,7 @@ import {
 import { Driver, Contract, DriverAlert } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -40,6 +41,7 @@ const sortDrivers = (ds: Driver[]) => {
 export default function Drivers() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const confirm = useConfirm();
   const [searchParams] = useSearchParams();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -185,6 +187,10 @@ export default function Drivers() {
   };
 
   const handleDelete = async (driver: Driver) => {
+    if (!(await confirm({
+      title: "Eliminar chofer",
+      description: `Se eliminará a ${driver.name} ${driver.last_name} (${driver.document_number}). Esta acción no se puede deshacer.`,
+    }))) return;
     try {
       const response = await authenticatedFetch(
         `${API_URL}/api/v1/drivers/${encodeURIComponent(driver.document_number)}`,

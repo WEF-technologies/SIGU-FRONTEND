@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTools } from "@/hooks/useTools";
+import { useConfirm } from "@/hooks/useConfirm";
 import { Tool, ToolFilters, ToolPayload, ToolStatus } from "@/types";
 import { Filter, RefreshCw } from "lucide-react";
 
@@ -47,6 +48,7 @@ export default function Tools() {
     updateTool,
     deleteTool,
   } = useTools();
+  const confirm = useConfirm();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -94,10 +96,14 @@ export default function Tools() {
           setIsModalOpen(true);
         },
         onDelete: async (tool) => {
+          if (!(await confirm({
+            title: "Eliminar herramienta",
+            description: `Se eliminará ${tool.code} - ${tool.name}. Esta acción no se puede deshacer.`,
+          }))) return;
           await deleteTool(tool);
         },
       }),
-    [deleteTool, fetchToolById]
+    [confirm, deleteTool, fetchToolById]
   );
 
   const applyToolFilters = async () => {
