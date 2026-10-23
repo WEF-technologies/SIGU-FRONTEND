@@ -17,11 +17,10 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { useConfirm } from "@/hooks/useConfirm";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
-import { VEHICLE_STATUS_OPTIONS } from "@/constants/filterOptions";
+import { VEHICLE_FORM_STATUS_OPTIONS, VEHICLE_STATUS_OPTIONS } from "@/constants/filterOptions";
 import {
   buildOptionsFromValues,
   getOptionLabel,
-  isFilterActive,
   matchesOption,
   matchesSearch,
   mergeKnownOptions,
@@ -49,9 +48,7 @@ const EMPTY_FORM = {
   year: new Date().getFullYear(),
   plate_number: "",
   status: "available" as Vehicle["status"],
-  current_maintenance_type: undefined as Vehicle["current_maintenance_type"],
   current_kilometers: 0,
-  location: "",
 };
 
 /** KM del último mantenimiento por tipo, vacío = nunca realizado */
@@ -62,7 +59,6 @@ const today = new Date().toISOString().split("T")[0];
 const EMPTY_VEHICLE_FILTERS: VehicleFilters = {
   query: "",
   status: "",
-  location: "",
   brand: "",
   yearFrom: "",
   yearTo: "",
@@ -78,8 +74,6 @@ const SORT_OPTIONS: Array<{ value: VehicleSort; label: string }> = [
   { value: "year_desc", label: "Año más reciente" },
   { value: "status", label: "Estado operativo" },
 ];
-
-const isKnownStatus = (status: string) => VEHICLE_STATUS_OPTIONS.some((option) => option.value === status);
 
 /** Un estado con nombre de sede (p. ej. "Barcelona") cuenta como operativa, igual que en el dashboard. */
 const getStatusOrder = (status: string) => {
@@ -129,15 +123,14 @@ export default function Vehicles() {
   const [sortBy, setSortBy] = useState<VehicleSort>("maintenance_due");
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
 
-  // Las opciones salen de los datos: cualquier estado o sede que exista se puede elegir.
-  const filterOptions = useMemo(() => {
-    const extraStatuses = vehicles.map((vehicle) => vehicle.status).filter((status) => !isKnownStatus(status));
-    return {
-      status: mergeKnownOptions(VEHICLE_STATUS_OPTIONS, vehicles.map((vehicle) => vehicle.status)),
-      location: buildOptionsFromValues([...vehicles.map((vehicle) => vehicle.location), ...extraStatuses]),
+  // Mismas opciones de estado que el formulario, más cualquier otro valor que ya exista en los datos.
+  const filterOptions = useMemo(
+    () => ({
+      status: mergeKnownOptions(VEHICLE_FORM_STATUS_OPTIONS, vehicles.map((vehicle) => vehicle.status)),
       brand: buildOptionsFromValues(vehicles.map((vehicle) => vehicle.brand)),
-    };
-  }, [vehicles]);
+    }),
+    [vehicles]
+  );
 
   const filteredVehicles = useMemo(() => {
     const yearFrom = parseInt(filters.yearFrom, 10);
@@ -149,21 +142,11 @@ export default function Vehicles() {
         vehicle.brand,
         vehicle.model,
         vehicle.year,
-        vehicle.location,
         vehicle.status,
         getOptionLabel(VEHICLE_STATUS_OPTIONS, vehicle.status),
-        vehicle.current_maintenance_type,
       ]);
       if (!matchesQuery) return false;
       if (!matchesOption(filters.status, vehicle.status)) return false;
-      // Hay unidades con la sede guardada en "estado" en lugar de "ubicación"; se aceptan ambas.
-      if (
-        isFilterActive(filters.location) &&
-        !matchesOption(filters.location, vehicle.location) &&
-        !matchesOption(filters.location, vehicle.status)
-      ) {
-        return false;
-      }
       if (!matchesOption(filters.brand, vehicle.brand)) return false;
       if (!Number.isNaN(yearFrom) && vehicle.year < yearFrom) return false;
       if (!Number.isNaN(yearTo) && vehicle.year > yearTo) return false;
@@ -238,9 +221,7 @@ export default function Vehicles() {
       year: vehicle.year,
       plate_number: vehicle.plate_number,
       status: vehicle.status,
-      current_maintenance_type: vehicle.current_maintenance_type,
       current_kilometers: vehicle.current_kilometers || vehicle.kilometers || 0,
-      location: vehicle.location || "",
     });
     setEditingVehicle(vehicle);
     setModalStep("vehicle");
@@ -454,7 +435,6 @@ export default function Vehicles() {
         onFiltersChange={setFilters}
         onClearFilters={() => setFilters(EMPTY_VEHICLE_FILTERS)}
         statusOptions={filterOptions.status}
-        locationOptions={filterOptions.location}
         brandOptions={filterOptions.brand}
       />
 
@@ -606,47 +586,17 @@ export default function Vehicles() {
                 <Input id="current_kilometers" type="number" value={formData.current_kilometers} onChange={(e) => setFormData((p) => ({ ...p, current_kilometers: parseInt(e.target.value) || 0 }))} placeholder="0" />
               </div>
               <div>
-                <Label htmlFor="location">Ubicación/Sede</Label>
-                <Select value={formData.location} onValueChange={(v) => setFormData((p) => ({ ...p, location: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar ubicación" /></SelectTrigger>
+                <Label htmlFor="status">Estado / Sede</Label>
+                <Select value={formData.status} onValueChange={(v: Vehicle["status"]) => setFormData((p) => ({ ...p, status: v }))}>
+                  <SelectTrigger id="status"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Puerto Ordaz">Puerto Ordaz</SelectItem>
-                    <SelectItem value="Barcelona">Barcelona</SelectItem>
-                    <SelectItem value="Ciudad Piar">Ciudad Piar</SelectItem>
+                    {VEHICLE_FORM_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
-            <div>
-              <Label htmlFor="status">Estado Actual</Label>
-              <Select value={formData.status} onValueChange={(v: Vehicle["status"]) => setFormData((p) => ({ ...p, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {VEHICLE_STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                  <SelectItem value="Puerto Ordaz">Puerto Ordaz</SelectItem>
-                  <SelectItem value="Barcelona">Barcelona</SelectItem>
-                  <SelectItem value="Ciudad Piar">Ciudad Piar</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.status === "maintenance" && (
-              <div>
-                <Label htmlFor="current_maintenance_type">Tipo de Mantenimiento Actual</Label>
-                <Select value={formData.current_maintenance_type || ""} onValueChange={(v: Vehicle["current_maintenance_type"]) => setFormData((p) => ({ ...p, current_maintenance_type: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="M1">M1 - Mantenimiento Preventivo Básico</SelectItem>
-                    <SelectItem value="M2">M2 - Mantenimiento Correctivo</SelectItem>
-                    <SelectItem value="M3">M3 - Mantenimiento Mayor</SelectItem>
-                    <SelectItem value="M4">M4 - Mantenimiento Especializado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             {/* Info hint al agregar con KM > 0 */}
             {!editingVehicle && formData.current_kilometers > 0 && (

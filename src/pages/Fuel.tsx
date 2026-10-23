@@ -135,7 +135,6 @@ const getVehicleSearchText = (vehicle?: Vehicle, fallbackPlateOrId?: string) => 
     vehicle.brand,
     vehicle.model,
     vehicle.year ? String(vehicle.year) : "",
-    vehicle.location || "",
     vehicle.status,
   ]
     .filter(Boolean)

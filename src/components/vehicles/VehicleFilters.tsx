@@ -9,7 +9,6 @@ import { countActiveFilters, FilterOption } from "@/lib/filtering";
 export interface VehicleFilters {
   query: string;
   status: string;
-  location: string;
   brand: string;
   yearFrom: string;
   yearTo: string;
@@ -21,7 +20,6 @@ interface VehicleFiltersProps {
   onFiltersChange: (filters: VehicleFilters) => void;
   onClearFilters: () => void;
   statusOptions: FilterOption[];
-  locationOptions: FilterOption[];
   brandOptions: FilterOption[];
 }
 
@@ -30,7 +28,6 @@ export function VehicleFiltersComponent({
   onFiltersChange,
   onClearFilters,
   statusOptions,
-  locationOptions,
   brandOptions,
 }: VehicleFiltersProps) {
   const updateFilter = <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => {
@@ -40,7 +37,6 @@ export function VehicleFiltersComponent({
   const activeCount = countActiveFilters([
     filters.query,
     filters.status,
-    filters.location,
     filters.brand,
     filters.yearFrom,
     filters.yearTo,
@@ -51,6 +47,7 @@ export function VehicleFiltersComponent({
     <FilterPanel
       activeCount={activeCount}
       onClear={onClearFilters}
+      gridClassName="xl:grid-cols-3"
       advanced={
         <>
           <FilterField label="Año desde" htmlFor="vehicle-year-from">
@@ -88,7 +85,7 @@ export function VehicleFiltersComponent({
         <SearchFilter
           id="vehicle-search"
           className="w-full"
-          placeholder="Placa, marca, modelo, sede..."
+          placeholder="Placa, marca, modelo, estado o sede..."
           value={filters.query}
           onChange={(value) => updateFilter("query", value)}
         />
@@ -96,20 +93,11 @@ export function VehicleFiltersComponent({
 
       <FilterSelect
         id="vehicle-status-filter"
-        label="Estado"
+        label="Estado / Sede"
         value={filters.status}
         onChange={(value) => updateFilter("status", value)}
         options={statusOptions}
         allLabel="Todos los estados"
-      />
-
-      <FilterSelect
-        id="vehicle-location-filter"
-        label="Sede / Ubicación"
-        value={filters.location}
-        onChange={(value) => updateFilter("location", value)}
-        options={locationOptions}
-        allLabel="Todas las sedes"
       />
 
       <FilterSelect

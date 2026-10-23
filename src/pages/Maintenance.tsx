@@ -343,7 +343,6 @@ export default function Maintenance() {
             vehicle?.brand,
             vehicle?.model,
             vehicle?.year,
-            vehicle?.location,
             vehicle?.status,
             ...records.flatMap((item) => [
               item.type,

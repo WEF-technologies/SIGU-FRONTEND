@@ -10,11 +10,10 @@ export interface Vehicle extends BaseEntity {
   model: string;
   year: number;
   plate_number: string;
-  status: 'available' | 'maintenance' | 'out_of_service';
-  current_maintenance_type?: 'M1' | 'M2' | 'M3' | 'M4';
+  /** Texto libre en el backend: available | maintenance | out_of_service o el nombre de una sede. */
+  status: string;
   current_kilometers?: number;
   kilometers?: number; // Backend uses 'kilometers' field
-  location?: string;
   last_m3_date?: string;
   last_m3_kilometers?: number;
   next_m3_kilometers?: number;

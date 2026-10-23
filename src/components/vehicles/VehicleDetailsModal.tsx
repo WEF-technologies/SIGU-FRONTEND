@@ -14,6 +14,8 @@ import { Download, Edit, Gauge, Loader2, MapPin, Plus, Save, Wrench } from "luci
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
+import { VEHICLE_STATUS_OPTIONS } from "@/constants/filterOptions";
+import { getOptionLabel } from "@/lib/filtering";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
@@ -393,9 +395,9 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                 <div>
                   <Label className="text-sm text-gray-600 flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
-                    Status
+                    Estado / Sede
                   </Label>
-                  <p className="font-medium">{vehicle.location || vehicle.status}</p>
+                  <p className="font-medium">{getOptionLabel(VEHICLE_STATUS_OPTIONS, vehicle.status)}</p>
                 </div>
               </div>
             </Card>

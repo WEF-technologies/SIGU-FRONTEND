@@ -24,6 +24,7 @@ import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
 import { Contract, DriverAlert, Route, ToolAlert } from "@/types";
+import { VEHICLE_SEDE_STATUS_OPTIONS } from "@/constants/filterOptions";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -119,9 +120,7 @@ export default function Dashboard() {
         const activeVehicles = vehicles.filter(
           (v: any) =>
             v.status === "available" ||
-            v.status === "Puerto Ordaz" ||
-            v.status === "Barcelona" ||
-            v.status === "Ciudad Piar"
+            VEHICLE_SEDE_STATUS_OPTIONS.some((option) => option.value === v.status)
         ).length;
 
         const urgentMaintenances = alerts.filter((a) => a.severity >= 3).length;
