@@ -17,6 +17,14 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { useConfirm } from "@/hooks/useConfirm";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
+import { VEHICLE_FORM_STATUS_OPTIONS, VEHICLE_STATUS_OPTIONS } from "@/constants/filterOptions";
+import {
+  buildOptionsFromValues,
+  getOptionLabel,
+  matchesOption,
+  matchesSearch,
+  mergeKnownOptions,
+} from "@/lib/filtering";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -40,15 +48,53 @@ const EMPTY_FORM = {
   year: new Date().getFullYear(),
   plate_number: "",
   status: "available" as Vehicle["status"],
-  current_maintenance_type: undefined as Vehicle["current_maintenance_type"],
   current_kilometers: 0,
-  location: "",
 };
 
 /** KM del último mantenimiento por tipo, vacío = nunca realizado */
 type BaselineData = Record<string, string>; // type -> km string
 
 const today = new Date().toISOString().split("T")[0];
+
+const EMPTY_VEHICLE_FILTERS: VehicleFilters = {
+  query: "",
+  status: "",
+  brand: "",
+  yearFrom: "",
+  yearTo: "",
+  maintenanceOverdue: false,
+};
+
+type VehicleSort = "maintenance_due" | "plate_asc" | "plate_desc" | "year_desc" | "status";
+
+const SORT_OPTIONS: Array<{ value: VehicleSort; label: string }> = [
+  { value: "maintenance_due", label: "Próximo mantenimiento" },
+  { value: "plate_asc", label: "Placa A-Z" },
+  { value: "plate_desc", label: "Placa Z-A" },
+  { value: "year_desc", label: "Año más reciente" },
+  { value: "status", label: "Estado operativo" },
+];
+
+/** Un estado con nombre de sede (p. ej. "Barcelona") cuenta como operativa, igual que en el dashboard. */
+const getStatusOrder = (status: string) => {
+  if (status === "maintenance") return 1;
+  if (status === "out_of_service") return 2;
+  return 0;
+};
+
+/**
+ * Km que faltan para el próximo M3, usando el mayor km conocido (evita "Faltan"
+ * inflado cuando current_km está desactualizado respecto al último mantenimiento).
+ */
+const getRemainingKm = (vehicle: Vehicle) => {
+  const effectiveKm = Math.max(
+    vehicle.current_kilometers || vehicle.kilometers || 0,
+    vehicle.last_m3_kilometers || 0
+  );
+  const nextM3Km = vehicle.next_m3_kilometers;
+  if (!effectiveKm || !nextM3Km) return null;
+  return nextM3Km - effectiveKm;
+};
 
 export default function Vehicles() {
   const { toast } = useToast();
@@ -73,93 +119,61 @@ export default function Vehicles() {
   const [isSavingBaseline, setIsSavingBaseline] = useState(false);
   const [downloadingPlate, setDownloadingPlate] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState<VehicleFilters>({
-    query: "",
-    plate: "",
-    brandModel: "",
-    status: "all",
-    yearFrom: "",
-    yearTo: "",
-    maintenancePending: false,
-    sortBy: "maintenance_due",
-  });
+  const [filters, setFilters] = useState<VehicleFilters>(EMPTY_VEHICLE_FILTERS);
+  const [sortBy, setSortBy] = useState<VehicleSort>("maintenance_due");
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
 
+  // Mismas opciones de estado que el formulario, más cualquier otro valor que ya exista en los datos.
+  const filterOptions = useMemo(
+    () => ({
+      status: mergeKnownOptions(VEHICLE_FORM_STATUS_OPTIONS, vehicles.map((vehicle) => vehicle.status)),
+      brand: buildOptionsFromValues(vehicles.map((vehicle) => vehicle.brand)),
+    }),
+    [vehicles]
+  );
+
   const filteredVehicles = useMemo(() => {
-    const statusLabels: Record<Vehicle["status"], string> = {
-      available: "operativa",
-      maintenance: "mantenimiento",
-      out_of_service: "inactiva",
-    };
-
-    const statusOrder: Record<Vehicle["status"], number> = {
-      available: 0,
-      maintenance: 1,
-      out_of_service: 2,
-    };
-
-    const getRemainingKm = (vehicle: Vehicle) => {
-      const effectiveKm = Math.max(
-        vehicle.current_kilometers || vehicle.kilometers || 0,
-        vehicle.last_m3_kilometers || 0
-      );
-      const nextM3Km = vehicle.next_m3_kilometers;
-      if (!effectiveKm || !nextM3Km) return null;
-      return nextM3Km - effectiveKm;
-    };
-
-    const query = filters.query.trim().toLowerCase();
+    const yearFrom = parseInt(filters.yearFrom, 10);
+    const yearTo = parseInt(filters.yearTo, 10);
 
     const base = vehicles.filter((vehicle) => {
-      if (query) {
-        const searchable = [
-          vehicle.plate_number,
-          vehicle.brand,
-          vehicle.model,
-          String(vehicle.year),
-          vehicle.location || "",
-          statusLabels[vehicle.status],
-          vehicle.current_maintenance_type || "",
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        if (!searchable.includes(query)) return false;
-      }
-
-      if (filters.plate && !vehicle.plate_number.toLowerCase().includes(filters.plate.toLowerCase())) return false;
-      if (filters.brandModel) {
-        const searchTerm = filters.brandModel.toLowerCase();
-        if (!`${vehicle.brand} ${vehicle.model}`.toLowerCase().includes(searchTerm)) return false;
-      }
-      if (filters.status && filters.status !== "all" && vehicle.status !== filters.status) return false;
-      if (filters.yearFrom && vehicle.year < parseInt(filters.yearFrom)) return false;
-      if (filters.yearTo && vehicle.year > parseInt(filters.yearTo)) return false;
-      if (filters.maintenancePending) {
-        const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
-        const nextM3Km = vehicle.next_m3_kilometers;
-        if (!(currentKm && nextM3Km && currentKm >= nextM3Km)) return false;
+      const matchesQuery = matchesSearch(filters.query, [
+        vehicle.plate_number,
+        vehicle.brand,
+        vehicle.model,
+        vehicle.year,
+        vehicle.status,
+        getOptionLabel(VEHICLE_STATUS_OPTIONS, vehicle.status),
+      ]);
+      if (!matchesQuery) return false;
+      if (!matchesOption(filters.status, vehicle.status)) return false;
+      if (!matchesOption(filters.brand, vehicle.brand)) return false;
+      if (!Number.isNaN(yearFrom) && vehicle.year < yearFrom) return false;
+      if (!Number.isNaN(yearTo) && vehicle.year > yearTo) return false;
+      if (filters.maintenanceOverdue) {
+        const remaining = getRemainingKm(vehicle);
+        if (remaining === null || remaining > 0) return false;
       }
       return true;
     });
 
     return [...base].sort((a, b) => {
-      if (filters.sortBy === "plate_asc") {
+      if (sortBy === "plate_asc") {
         return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
       }
 
-      if (filters.sortBy === "plate_desc") {
+      if (sortBy === "plate_desc") {
         return b.plate_number.localeCompare(a.plate_number, "es", { sensitivity: "base" });
       }
 
-      if (filters.sortBy === "year_desc") {
+      if (sortBy === "year_desc") {
         const byYear = b.year - a.year;
         if (byYear !== 0) return byYear;
         return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
       }
 
-      if (filters.sortBy === "status") {
-        const byStatus = statusOrder[a.status] - statusOrder[b.status];
+      if (sortBy === "status") {
+        const byStatus = getStatusOrder(a.status) - getStatusOrder(b.status);
         if (byStatus !== 0) return byStatus;
         return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
       }
@@ -178,7 +192,7 @@ export default function Vehicles() {
 
       return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
     });
-  }, [vehicles, filters]);
+  }, [vehicles, filters, sortBy]);
 
   const getStatusDisplay = (status: string) => {
     if (status === "available") return <Badge className="bg-green-100 text-green-800">Operativa</Badge>;
@@ -207,9 +221,7 @@ export default function Vehicles() {
       year: vehicle.year,
       plate_number: vehicle.plate_number,
       status: vehicle.status,
-      current_maintenance_type: vehicle.current_maintenance_type,
       current_kilometers: vehicle.current_kilometers || vehicle.kilometers || 0,
-      location: vehicle.location || "",
     });
     setEditingVehicle(vehicle);
     setModalStep("vehicle");
@@ -395,19 +407,6 @@ export default function Vehicles() {
     resetForm();
   };
 
-  const clearFilters = () => {
-    setFilters({
-      query: "",
-      plate: "",
-      brandModel: "",
-      status: "all",
-      yearFrom: "",
-      yearTo: "",
-      maintenancePending: false,
-      sortBy: "maintenance_due",
-    });
-  };
-
   const modalTitle =
     modalStep === "baseline"
       ? "Configurar Baseline de Mantenimiento"
@@ -431,15 +430,42 @@ export default function Vehicles() {
 
   return (
     <div className="animate-fade-in space-y-4">
-      <VehicleFiltersComponent filters={filters} onFiltersChange={setFilters} onClearFilters={clearFilters} />
+      <VehicleFiltersComponent
+        filters={filters}
+        onFiltersChange={setFilters}
+        onClearFilters={() => setFilters(EMPTY_VEHICLE_FILTERS)}
+        statusOptions={filterOptions.status}
+        brandOptions={filterOptions.brand}
+      />
 
       <div className="bg-white rounded-lg border border-secondary-medium shadow-sm">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h2 className="text-2xl font-bold text-primary-900">Gestión de Vehículos</h2>
-          <Button onClick={handleAdd} className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm">
-            <Plus className="w-4 h-4 mr-2" />
-            Registrar Nuevo Vehículo
-          </Button>
+        <div className="flex flex-col gap-3 p-4 border-b lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-primary-900">Gestión de Vehículos</h2>
+            <p className="text-sm text-secondary-dark">
+              {filteredVehicles.length === vehicles.length
+                ? `${vehicles.length} vehículo${vehicles.length !== 1 ? "s" : ""}`
+                : `${filteredVehicles.length} de ${vehicles.length} vehículos`}
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as VehicleSort)}>
+              <SelectTrigger className="sm:w-72" aria-label="Ordenar por">
+                <SelectValue placeholder="Ordenar por" />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    Ordenar: {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleAdd} className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm">
+              <Plus className="w-4 h-4 mr-2" />
+              Registrar Nuevo Vehículo
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -459,7 +485,9 @@ export default function Vehicles() {
             <tbody>
               {filteredVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-secondary-dark">No hay vehículos disponibles</td>
+                  <td colSpan={8} className="text-center py-8 text-secondary-dark">
+                    {vehicles.length === 0 ? "No hay vehículos registrados" : "Ningún vehículo coincide con los filtros"}
+                  </td>
                 </tr>
               ) : (
                 filteredVehicles.map((vehicle) => (
@@ -479,22 +507,13 @@ export default function Vehicles() {
                       <div className="flex items-center gap-1">
                         <Gauge className="w-4 h-4 text-gray-400" />
                         {(() => {
-                          // Usar el mayor km conocido (evita "Faltan" inflado cuando
-                          // current_km está desactualizado respecto al último mantenimiento)
-                          const effectiveKm = Math.max(
-                            vehicle.current_kilometers || vehicle.kilometers || 0,
-                            vehicle.last_m3_kilometers || 0
+                          const remaining = getRemainingKm(vehicle);
+                          if (remaining === null) return "No definido";
+                          return remaining <= 0 ? (
+                            <span className="text-red-600 font-semibold">Vencido</span>
+                          ) : (
+                            `${remaining.toLocaleString()} km`
                           );
-                          const nextM3Km = vehicle.next_m3_kilometers;
-                          if (effectiveKm && nextM3Km) {
-                            const remaining = nextM3Km - effectiveKm;
-                            return remaining <= 0 ? (
-                              <span className="text-red-600 font-semibold">Vencido</span>
-                            ) : (
-                              `${remaining.toLocaleString()} km`
-                            );
-                          }
-                          return "No definido";
                         })()}
                       </div>
                     </td>
@@ -567,47 +586,17 @@ export default function Vehicles() {
                 <Input id="current_kilometers" type="number" value={formData.current_kilometers} onChange={(e) => setFormData((p) => ({ ...p, current_kilometers: parseInt(e.target.value) || 0 }))} placeholder="0" />
               </div>
               <div>
-                <Label htmlFor="location">Ubicación/Sede</Label>
-                <Select value={formData.location} onValueChange={(v) => setFormData((p) => ({ ...p, location: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar ubicación" /></SelectTrigger>
+                <Label htmlFor="status">Estado / Sede</Label>
+                <Select value={formData.status} onValueChange={(v: Vehicle["status"]) => setFormData((p) => ({ ...p, status: v }))}>
+                  <SelectTrigger id="status"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Puerto Ordaz">Puerto Ordaz</SelectItem>
-                    <SelectItem value="Barcelona">Barcelona</SelectItem>
-                    <SelectItem value="Ciudad Piar">Ciudad Piar</SelectItem>
+                    {VEHICLE_FORM_STATUS_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-
-            <div>
-              <Label htmlFor="status">Estado Actual</Label>
-              <Select value={formData.status} onValueChange={(v: Vehicle["status"]) => setFormData((p) => ({ ...p, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="available">Disponible</SelectItem>
-                  <SelectItem value="maintenance">En mantenimiento</SelectItem>
-                  <SelectItem value="out_of_service">Fuera de servicio</SelectItem>
-                  <SelectItem value="Puerto Ordaz">Puerto Ordaz</SelectItem>
-                  <SelectItem value="Barcelona">Barcelona</SelectItem>
-                  <SelectItem value="Ciudad Piar">Ciudad Piar</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.status === "maintenance" && (
-              <div>
-                <Label htmlFor="current_maintenance_type">Tipo de Mantenimiento Actual</Label>
-                <Select value={formData.current_maintenance_type || ""} onValueChange={(v: Vehicle["current_maintenance_type"]) => setFormData((p) => ({ ...p, current_maintenance_type: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar tipo" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="M1">M1 - Mantenimiento Preventivo Básico</SelectItem>
-                    <SelectItem value="M2">M2 - Mantenimiento Correctivo</SelectItem>
-                    <SelectItem value="M3">M3 - Mantenimiento Mayor</SelectItem>
-                    <SelectItem value="M4">M4 - Mantenimiento Especializado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             {/* Info hint al agregar con KM > 0 */}
             {!editingVehicle && formData.current_kilometers > 0 && (

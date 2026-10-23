@@ -6,6 +6,9 @@ import { localizeApiErrorPayload } from "@/lib/errorI18n";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
+/** Maximo que acepta el backend: la pantalla filtra sobre el catalogo completo. */
+const TOOLS_LIST_LIMIT = 500;
+
 const normalizeValue = (value?: string) => {
   const trimmed = value?.trim();
   if (!trimmed || trimmed === "all") return undefined;
@@ -62,6 +65,7 @@ export const useTools = () => {
         location: normalizedFilters.location,
         status: normalizedFilters.status,
         assigned_to: normalizedFilters.assigned_to,
+        limit: TOOLS_LIST_LIMIT,
       });
 
       const response = await authenticatedFetch(`${API_BASE_URL}/tools/${query}`);

@@ -1,180 +1,113 @@
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Card } from "@/components/ui/card";
-import { Filter, X } from "lucide-react";
+import { FilterField, FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
+import { SearchFilter } from "@/components/shared/SearchFilter";
+import { countActiveFilters, FilterOption } from "@/lib/filtering";
 
 export interface VehicleFilters {
   query: string;
-  plate: string;
-  brandModel: string;
   status: string;
+  brand: string;
   yearFrom: string;
   yearTo: string;
-  maintenancePending: boolean;
-  sortBy: "maintenance_due" | "plate_asc" | "plate_desc" | "year_desc" | "status";
+  maintenanceOverdue: boolean;
 }
 
 interface VehicleFiltersProps {
   filters: VehicleFilters;
   onFiltersChange: (filters: VehicleFilters) => void;
   onClearFilters: () => void;
+  statusOptions: FilterOption[];
+  brandOptions: FilterOption[];
 }
 
-export function VehicleFiltersComponent({ filters, onFiltersChange, onClearFilters }: VehicleFiltersProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const updateFilter = (key: keyof VehicleFilters, value: string | boolean) => {
+export function VehicleFiltersComponent({
+  filters,
+  onFiltersChange,
+  onClearFilters,
+  statusOptions,
+  brandOptions,
+}: VehicleFiltersProps) {
+  const updateFilter = <K extends keyof VehicleFilters>(key: K, value: VehicleFilters[K]) => {
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const hasActiveFilters =
-    filters.query.trim() !== "" ||
-    filters.plate.trim() !== "" ||
-    filters.brandModel.trim() !== "" ||
-    (filters.status !== "" && filters.status !== "all") ||
-    filters.yearFrom.trim() !== "" ||
-    filters.yearTo.trim() !== "" ||
-    filters.maintenancePending ||
-    filters.sortBy !== "maintenance_due";
+  const activeCount = countActiveFilters([
+    filters.query,
+    filters.status,
+    filters.brand,
+    filters.yearFrom,
+    filters.yearTo,
+    filters.maintenanceOverdue,
+  ]);
 
   return (
-    <Card className="p-4 mb-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4" />
-          <Label className="font-medium">Filtros de Búsqueda</Label>
-          {hasActiveFilters && (
-            <span className="bg-primary text-white text-xs px-2 py-1 rounded-full">
-              Activos
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {hasActiveFilters && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onClearFilters}
-              className="text-red-600 border-red-200 hover:bg-red-50"
-            >
-              <X className="w-4 h-4 mr-1" />
-              Limpiar
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsExpanded(!isExpanded)}
-          >
-            {isExpanded ? 'Contraer' : 'Expandir'}
-          </Button>
-        </div>
-      </div>
+    <FilterPanel
+      activeCount={activeCount}
+      onClear={onClearFilters}
+      gridClassName="xl:grid-cols-3"
+      advanced={
+        <>
+          <FilterField label="Año desde" htmlFor="vehicle-year-from">
+            <Input
+              id="vehicle-year-from"
+              type="number"
+              placeholder="2005"
+              value={filters.yearFrom}
+              onChange={(e) => updateFilter("yearFrom", e.target.value)}
+            />
+          </FilterField>
+          <FilterField label="Año hasta" htmlFor="vehicle-year-to">
+            <Input
+              id="vehicle-year-to"
+              type="number"
+              placeholder={String(new Date().getFullYear())}
+              value={filters.yearTo}
+              onChange={(e) => updateFilter("yearTo", e.target.value)}
+            />
+          </FilterField>
+          <div className="flex items-center space-x-2 md:pt-7">
+            <Checkbox
+              id="vehicle-maintenance-overdue"
+              checked={filters.maintenanceOverdue}
+              onCheckedChange={(checked) => updateFilter("maintenanceOverdue", checked === true)}
+            />
+            <Label htmlFor="vehicle-maintenance-overdue" className="text-sm">
+              Solo con mantenimiento vencido
+            </Label>
+          </div>
+        </>
+      }
+    >
+      <FilterField label="Búsqueda" htmlFor="vehicle-search">
+        <SearchFilter
+          id="vehicle-search"
+          className="w-full"
+          placeholder="Placa, marca, modelo, estado o sede..."
+          value={filters.query}
+          onChange={(value) => updateFilter("query", value)}
+        />
+      </FilterField>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div>
-          <Label htmlFor="query">Búsqueda global</Label>
-          <Input
-            id="query"
-            placeholder="Placa, marca, modelo, ubicación..."
-            value={filters.query}
-            onChange={(e) => updateFilter('query', e.target.value)}
-          />
-        </div>
+      <FilterSelect
+        id="vehicle-status-filter"
+        label="Estado / Sede"
+        value={filters.status}
+        onChange={(value) => updateFilter("status", value)}
+        options={statusOptions}
+        allLabel="Todos los estados"
+      />
 
-        <div>
-          <Label htmlFor="plate">Placa</Label>
-          <Input
-            id="plate"
-            placeholder="ABC-123"
-            value={filters.plate}
-            onChange={(e) => updateFilter('plate', e.target.value)}
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="brandModel">Marca / Modelo</Label>
-          <Input
-            id="brandModel"
-            placeholder="Toyota Hiace"
-            value={filters.brandModel}
-            onChange={(e) => updateFilter('brandModel', e.target.value)}
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="status">Estado</Label>
-          <Select value={filters.status || "all"} onValueChange={(value) => updateFilter('status', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Todos los estados" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="available">Operativa</SelectItem>
-              <SelectItem value="maintenance">En mantenimiento</SelectItem>
-              <SelectItem value="out_of_service">Inactiva</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="sortBy">Ordenar por</Label>
-          <Select value={filters.sortBy} onValueChange={(value) => updateFilter('sortBy', value)}>
-            <SelectTrigger id="sortBy">
-              <SelectValue placeholder="Orden" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="maintenance_due">Próximo mantenimiento</SelectItem>
-              <SelectItem value="plate_asc">Placa A-Z</SelectItem>
-              <SelectItem value="plate_desc">Placa Z-A</SelectItem>
-              <SelectItem value="year_desc">Año más reciente</SelectItem>
-              <SelectItem value="status">Estado operativo</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isExpanded && (
-          <>
-            <div>
-              <Label htmlFor="yearFrom">Año desde</Label>
-              <Input
-                id="yearFrom"
-                type="number"
-                placeholder="2020"
-                value={filters.yearFrom}
-                onChange={(e) => updateFilter('yearFrom', e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="yearTo">Año hasta</Label>
-              <Input
-                id="yearTo"
-                type="number"
-                placeholder="2024"
-                value={filters.yearTo}
-                onChange={(e) => updateFilter('yearTo', e.target.value)}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2 mt-6">
-              <Checkbox
-                id="maintenancePending"
-                checked={filters.maintenancePending}
-                onCheckedChange={(checked) => updateFilter('maintenancePending', !!checked)}
-              />
-              <Label htmlFor="maintenancePending" className="text-sm">
-                Solo vehículos con mantenimiento pendiente
-              </Label>
-            </div>
-          </>
-        )}
-      </div>
-    </Card>
+      <FilterSelect
+        id="vehicle-brand-filter"
+        label="Marca"
+        value={filters.brand}
+        onChange={(value) => updateFilter("brand", value)}
+        options={brandOptions}
+        allLabel="Todas las marcas"
+      />
+    </FilterPanel>
   );
 }

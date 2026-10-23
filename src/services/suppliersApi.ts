@@ -222,6 +222,9 @@ const sanitizeSupplierPayload = (payload: SupplierPayload) => ({
   notes: normalizeText(payload.notes),
 });
 
+/** Maximo que acepta el backend: la pantalla filtra en el cliente sobre el listado completo. */
+const SUPPLIERS_LIST_LIMIT = 500;
+
 export const suppliersApi = {
   list: async (
     authenticatedFetch: AuthenticatedFetch,
@@ -233,7 +236,7 @@ export const suppliersApi = {
       location: normalizeText(filters.location) ?? undefined,
       category: normalizeText(filters.category) ?? undefined,
       destacado: filters.destacado,
-      limit: filters.limit,
+      limit: filters.limit ?? SUPPLIERS_LIST_LIMIT,
       offset: filters.offset,
     });
 
