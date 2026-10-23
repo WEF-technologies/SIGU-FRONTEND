@@ -2,6 +2,7 @@ import { ReactNode, useDeferredValue, useEffect, useMemo, useState } from "react
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, ArrowUpDown, Edit, Plus, Trash2 } from "lucide-react";
 import { SearchFilter } from "./SearchFilter";
+import { matchesSearch } from "@/lib/filtering";
 import {
   Table,
   TableBody,
@@ -124,20 +125,14 @@ export function DataTable<T extends { id: string }>({
 
   // Filtrado de búsqueda memoizado
   const filteredData = useMemo(() => {
-    const query = deferredSearchTerm.trim().toLowerCase();
-    if (!query || !searchableByLocalFields) return data;
+    if (!deferredSearchTerm.trim() || !searchableByLocalFields) return data;
 
-    return data.filter((item) => {
-      const fieldText = effectiveSearchFields
-        .map((field) => String(item[field] ?? ""))
-        .join(" ")
-        .toLowerCase();
-
-      const customText = searchAccessor ? searchAccessor(item).toLowerCase() : "";
-      const composedText = `${fieldText} ${customText}`.trim();
-
-      return composedText.includes(query);
-    });
+    return data.filter((item) =>
+      matchesSearch(deferredSearchTerm, [
+        ...effectiveSearchFields.map((field) => item[field]),
+        searchAccessor ? searchAccessor(item) : "",
+      ])
+    );
   }, [data, deferredSearchTerm, effectiveSearchFields, searchAccessor, searchableByLocalFields]);
 
   const sortedData = useMemo(() => {

@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { DataTable, Column } from "@/components/shared/DataTable";
+import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { FormModal } from "@/components/shared/FormModal";
 import {
@@ -9,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Eye,
@@ -22,6 +22,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { buildOptionsFromValues, countActiveFilters, matchesOption } from "@/lib/filtering";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 const REQUESTS_PAGE_SIZE = 500;
@@ -57,6 +58,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isRequestStatus = (value: unknown): value is RequestStatus =>
   value === "pending" || value === "approved" || value === "rejected";
+
+const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
+  pending: "Pendiente",
+  approved: "Aprobada",
+  rejected: "Rechazada",
+};
 
 const buildRequestCounts = (items: SparePartRequest[]): RequestCounts => ({
   total: items.length,
@@ -207,17 +214,10 @@ export default function SparePartRequests() {
   const authenticatedFetch = useAuthenticatedFetch();
 
   const [requests, setRequests] = useState<SparePartRequest[]>([]);
-  const [requestCounts, setRequestCounts] = useState<RequestCounts>({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-  });
+  // Se descargan todas las solicitudes y se filtran aquí, al instante.
   const [statusFilter, setStatusFilter] = useState<"all" | RequestStatus>("all");
-  const [itemTypeFilterInput, setItemTypeFilterInput] = useState("");
-  const [targetAreaFilterInput, setTargetAreaFilterInput] = useState("");
-  const [appliedItemTypeFilter, setAppliedItemTypeFilter] = useState("");
-  const [appliedTargetAreaFilter, setAppliedTargetAreaFilter] = useState("");
+  const [itemTypeFilter, setItemTypeFilter] = useState("");
+  const [targetAreaFilter, setTargetAreaFilter] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<SparePartRequest | null>(null);
   const [statusUpdateNotes, setStatusUpdateNotes] = useState("");
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -226,11 +226,7 @@ export default function SparePartRequests() {
   const [isSubmittingNewRequest, setIsSubmittingNewRequest] = useState(false);
   const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
 
-  const fetchRequestCollection = useCallback(async (filters: {
-    status?: "all" | RequestStatus;
-    itemType?: string;
-    targetArea?: string;
-  }) => {
+  const fetchRequestCollection = useCallback(async () => {
     let offset = 0;
     const collected: SparePartRequest[] = [];
 
@@ -239,20 +235,6 @@ export default function SparePartRequests() {
         limit: String(REQUESTS_PAGE_SIZE),
         offset: String(offset),
       });
-
-      const normalizedStatus = filters.status;
-      const normalizedItemType = filters.itemType?.trim();
-      const normalizedTargetArea = filters.targetArea?.trim();
-
-      if (normalizedStatus && normalizedStatus !== "all") {
-        params.set("status", normalizedStatus);
-      }
-      if (normalizedItemType) {
-        params.set("item_type", normalizedItemType);
-      }
-      if (normalizedTargetArea) {
-        params.set("target_area", normalizedTargetArea);
-      }
 
       const response = await authenticatedFetch(
         `${API_URL}/api/v1/spare_part_requests/?${params.toString()}`
@@ -297,23 +279,7 @@ export default function SparePartRequests() {
     }
 
     try {
-      const commonFilters = {
-        itemType: appliedItemTypeFilter,
-        targetArea: appliedTargetAreaFilter,
-      };
-
-      const [tableRequests, countSource] = await Promise.all([
-        fetchRequestCollection({
-          ...commonFilters,
-          status: statusFilter,
-        }),
-        statusFilter === "all"
-          ? Promise.resolve<SparePartRequest[] | null>(null)
-          : fetchRequestCollection(commonFilters),
-      ]);
-
-      setRequests(tableRequests);
-      setRequestCounts(buildRequestCounts(countSource ?? tableRequests));
+      setRequests(await fetchRequestCollection());
     } catch (error) {
       if (!suppressErrorToast) {
         const message =
@@ -329,14 +295,42 @@ export default function SparePartRequests() {
 
       if (!silent) {
         setRequests([]);
-        setRequestCounts({ total: 0, pending: 0, approved: 0, rejected: 0 });
       }
     } finally {
       if (!silent) {
         setIsLoading(false);
       }
     }
-  }, [appliedItemTypeFilter, appliedTargetAreaFilter, fetchRequestCollection, statusFilter, toast]);
+  }, [fetchRequestCollection, toast]);
+
+  const filterOptions = useMemo(
+    () => ({
+      itemType: buildOptionsFromValues(requests.map((request) => request.item_type), formatItemType),
+      targetArea: buildOptionsFromValues(requests.map((request) => request.target_area), formatTargetArea),
+    }),
+    [requests]
+  );
+
+  // Los contadores de estado respetan tipo y área, pero no el estado elegido.
+  const requestsByTypeAndArea = useMemo(
+    () =>
+      requests.filter(
+        (request) =>
+          matchesOption(itemTypeFilter, request.item_type) &&
+          matchesOption(targetAreaFilter, request.target_area)
+      ),
+    [itemTypeFilter, requests, targetAreaFilter]
+  );
+
+  const requestCounts = useMemo(() => buildRequestCounts(requestsByTypeAndArea), [requestsByTypeAndArea]);
+
+  const visibleRequests = useMemo(
+    () =>
+      statusFilter === "all"
+        ? requestsByTypeAndArea
+        : requestsByTypeAndArea.filter((request) => request.status === statusFilter),
+    [requestsByTypeAndArea, statusFilter]
+  );
 
   useEffect(() => {
     void fetchRequests();
@@ -471,21 +465,11 @@ export default function SparePartRequests() {
     }
   };
 
-  const handleApplyFilters = () => {
-    setAppliedItemTypeFilter(itemTypeFilterInput.trim());
-    setAppliedTargetAreaFilter(targetAreaFilterInput.trim());
-  };
-
   const handleClearFilters = () => {
-    setItemTypeFilterInput("");
-    setTargetAreaFilterInput("");
-    setAppliedItemTypeFilter("");
-    setAppliedTargetAreaFilter("");
+    setItemTypeFilter("");
+    setTargetAreaFilter("");
     setStatusFilter("all");
   };
-
-  const hasActiveFilters =
-    statusFilter !== "all" || Boolean(appliedItemTypeFilter) || Boolean(appliedTargetAreaFilter);
 
   const columns: Column<SparePartRequest>[] = [
     {
@@ -643,93 +627,68 @@ export default function SparePartRequests() {
         </Card>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
-        <div className="flex flex-col xl:flex-row xl:items-end gap-3">
-          <div className="w-full xl:max-w-xs">
-            <label htmlFor="itemTypeFilter" className="text-sm font-medium text-gray-700">
-              Filtrar por tipo de item
-            </label>
-            <Input
-              id="itemTypeFilter"
-              value={itemTypeFilterInput}
-              onChange={(event) => setItemTypeFilterInput(event.target.value)}
-              placeholder="Ej: spare_part"
-              className="mt-1"
-            />
-          </div>
-
-          <div className="w-full xl:max-w-xs">
-            <label htmlFor="targetAreaFilter" className="text-sm font-medium text-gray-700">
-              Filtrar por area destino
-            </label>
-            <Input
-              id="targetAreaFilter"
-              value={targetAreaFilterInput}
-              onChange={(event) => setTargetAreaFilterInput(event.target.value)}
-              placeholder="Ej: general, taller, operaciones"
-              className="mt-1"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 xl:pb-0.5">
-            <Button size="sm" onClick={handleApplyFilters} className="h-9">
-              Aplicar filtros
+      <FilterPanel
+        title="Filtros"
+        activeCount={countActiveFilters([itemTypeFilter, targetAreaFilter, statusFilter])}
+        onClear={handleClearFilters}
+        gridClassName="xl:grid-cols-3"
+        footer={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={statusFilter === "all" ? "default" : "outline"}
+              onClick={() => setStatusFilter("all")}
+              className="h-8"
+            >
+              Todas ({requestCounts.total})
             </Button>
             <Button
               size="sm"
-              variant="outline"
-              onClick={handleClearFilters}
-              disabled={!hasActiveFilters && !itemTypeFilterInput && !targetAreaFilterInput}
-              className="h-9"
+              variant={statusFilter === "pending" ? "default" : "outline"}
+              onClick={() => setStatusFilter("pending")}
+              className="h-8"
             >
-              Limpiar
+              Pendientes ({requestCounts.pending})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "approved" ? "default" : "outline"}
+              onClick={() => setStatusFilter("approved")}
+              className="h-8"
+            >
+              Aprobadas ({requestCounts.approved})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "rejected" ? "default" : "outline"}
+              onClick={() => setStatusFilter("rejected")}
+              className="h-8"
+            >
+              Rechazadas ({requestCounts.rejected})
             </Button>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            size="sm"
-            variant={statusFilter === "all" ? "default" : "outline"}
-            onClick={() => setStatusFilter("all")}
-            className="h-8"
-          >
-            Todas ({requestCounts.total})
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "pending" ? "default" : "outline"}
-            onClick={() => setStatusFilter("pending")}
-            className="h-8"
-          >
-            Pendientes ({requestCounts.pending})
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "approved" ? "default" : "outline"}
-            onClick={() => setStatusFilter("approved")}
-            className="h-8"
-          >
-            Aprobadas ({requestCounts.approved})
-          </Button>
-          <Button
-            size="sm"
-            variant={statusFilter === "rejected" ? "default" : "outline"}
-            onClick={() => setStatusFilter("rejected")}
-            className="h-8"
-          >
-            Rechazadas ({requestCounts.rejected})
-          </Button>
-        </div>
-
-        <p className="text-xs text-gray-500">
-          El listado consulta al backend con filtros por estado, tipo y area destino cuando los aplicas aqui.
-        </p>
-      </div>
+        }
+      >
+        <FilterSelect
+          id="itemTypeFilter"
+          label="Tipo de item"
+          value={itemTypeFilter}
+          onChange={setItemTypeFilter}
+          options={filterOptions.itemType}
+        />
+        <FilterSelect
+          id="targetAreaFilter"
+          label="Área destino"
+          value={targetAreaFilter}
+          onChange={setTargetAreaFilter}
+          options={filterOptions.targetArea}
+          allLabel="Todas"
+        />
+      </FilterPanel>
 
       {/* Tabla */}
       <DataTable
-        data={requests}
+        data={visibleRequests}
         columns={columns}
         title=""
         searchFields={[
@@ -743,6 +702,13 @@ export default function SparePartRequests() {
           "target_area",
           "target_reference",
         ]}
+        searchAccessor={(request) =>
+          [
+            formatItemType(request.item_type),
+            formatTargetArea(request.target_area),
+            REQUEST_STATUS_LABELS[request.status],
+          ].join(" ")
+        }
         searchPlaceholder="Buscar por código, descripción, solicitante, tipo o area..."
         defaultSort={{ key: "created_at", direction: "desc" }}
         initialPageSize={20}

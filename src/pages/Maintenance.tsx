@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { matchesSearch } from "@/lib/filtering";
 import {
   Car, Search, Plus, ChevronDown, ChevronRight,
   Edit, Trash2, Eye, MapPin, User, Wrench,
@@ -332,40 +333,27 @@ export default function Maintenance() {
 
   // ── Filter by search ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-
-    const matches = !term
+    const matches = !searchTerm.trim()
       ? grouped
       : grouped.filter(([plate, records]) => {
           const vehicle = vehiclesByPlate.get(normalizePlateValue(plate));
 
-          const vehicleText = [
+          return matchesSearch(searchTerm, [
             plate,
-            vehicle?.brand ?? "",
-            vehicle?.model ?? "",
-            String(vehicle?.year ?? ""),
-            vehicle?.location ?? "",
-            vehicle?.status ?? "",
-          ]
-            .join(" ")
-            .toLowerCase();
-
-          const recordsText = records
-            .map((item) =>
-              [
-                item.type,
-                item.description ?? "",
-                item.location ?? "",
-                item.performed_by ?? "",
-                item.spare_part_description ?? "",
-                item.date,
-              ]
-                .join(" ")
-                .toLowerCase()
-            )
-            .join(" ");
-
-          return `${vehicleText} ${recordsText}`.includes(term);
+            vehicle?.brand,
+            vehicle?.model,
+            vehicle?.year,
+            vehicle?.location,
+            vehicle?.status,
+            ...records.flatMap((item) => [
+              item.type,
+              item.description,
+              item.location,
+              item.performed_by,
+              item.spare_part_description,
+              item.date,
+            ]),
+          ]);
         });
 
     const getLatestDate = (records: MaintenanceType[]) => new Date(records[0]?.date ?? 0).getTime();

@@ -39,6 +39,7 @@ import {
   Search,
 } from "lucide-react";
 import { useFuel } from "@/hooks/useFuel";
+import { matchesSearch } from "@/lib/filtering";
 import { useFluidProducts } from "@/hooks/useFluidProducts";
 import { buildLastOdometerMap } from "@/components/consumption/lastOdometer";
 import { fluidsApi } from "@/services/fluidsApi";
@@ -945,30 +946,30 @@ export default function FuelPage() {
   }, [readings, vehicleMap]);
 
   const filteredLogs = useMemo(() => {
-    const q = deferredHistoryQuery.trim().toLowerCase();
-    if (!q) return enrichedLogs;
+    if (!deferredHistoryQuery.trim()) return enrichedLogs;
 
-    return enrichedLogs.filter((item) => {
-      const plate = item.vehicle_plate?.toLowerCase() || "";
-      const unitLabel = item.vehicle_label?.toLowerCase() || "";
-      const vehicleText = item.vehicle_search_text?.toLowerCase() || "";
-      const station = item.station?.toLowerCase() || "";
-      const notes = item.notes?.toLowerCase() || "";
-      return plate.includes(q) || unitLabel.includes(q) || vehicleText.includes(q) || station.includes(q) || notes.includes(q);
-    });
+    return enrichedLogs.filter((item) =>
+      matchesSearch(deferredHistoryQuery, [
+        item.vehicle_plate,
+        item.vehicle_label,
+        item.vehicle_search_text,
+        item.station,
+        item.notes,
+      ])
+    );
   }, [enrichedLogs, deferredHistoryQuery]);
 
   const filteredReadings = useMemo(() => {
-    const q = deferredHistoryQuery.trim().toLowerCase();
-    if (!q) return enrichedReadings;
+    if (!deferredHistoryQuery.trim()) return enrichedReadings;
 
-    return enrichedReadings.filter((item) => {
-      const plate = item.vehicle_plate?.toLowerCase() || "";
-      const unitLabel = item.vehicle_label?.toLowerCase() || "";
-      const vehicleText = item.vehicle_search_text?.toLowerCase() || "";
-      const notes = item.notes?.toLowerCase() || "";
-      return plate.includes(q) || unitLabel.includes(q) || vehicleText.includes(q) || notes.includes(q);
-    });
+    return enrichedReadings.filter((item) =>
+      matchesSearch(deferredHistoryQuery, [
+        item.vehicle_plate,
+        item.vehicle_label,
+        item.vehicle_search_text,
+        item.notes,
+      ])
+    );
   }, [enrichedReadings, deferredHistoryQuery]);
 
   const groupedLogs = useMemo<FuelLogsGroup[]>(() => {

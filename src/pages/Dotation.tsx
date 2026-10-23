@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
+import { FilterField, FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { FormModal } from "@/components/shared/FormModal";
 import { DotationDeliveryForm } from "@/components/dotation/DotationDeliveryForm";
 import { DotationItemForm } from "@/components/dotation/DotationItemForm";
@@ -13,19 +14,26 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDotation } from "@/hooks/useDotation";
 import { useConfirm } from "@/hooks/useConfirm";
+import { useAutoApplyFilters } from "@/hooks/useAutoApplyFilters";
+import { ACTIVE_STATUS_OPTIONS, DOTATION_ALERT_STATUS_OPTIONS } from "@/constants/filterOptions";
+import {
+  buildOptionsFromValues,
+  countActiveFilters,
+  getOptionLabel,
+  matchesOption,
+  mergeKnownOptions,
+} from "@/lib/filtering";
 import {
   DotationAlert,
   DotationAlertFilters,
   DotationDelivery,
   DotationDeliveryFilters,
   DotationItem,
-  DotationItemFilters,
   DotationItemPayload,
-  DotationStaffFilters,
   DotationStaffMember,
   DotationStaffMemberPayload,
 } from "@/types";
-import { AlertTriangle, ClipboardList, Filter, Package, RefreshCw, Users } from "lucide-react";
+import { AlertTriangle, ClipboardList, Package, RefreshCw, Users } from "lucide-react";
 
 type DotationTab = "staff" | "catalog" | "deliveries" | "alerts";
 
@@ -69,6 +77,32 @@ const getStatusBadgeClass = (status?: string | null) => {
 
   return "border-slate-200 bg-slate-50 text-slate-700";
 };
+
+const DEFAULT_NEAR_DAYS = 30;
+
+/** Personal y catalogo se filtran en el cliente; "" = sin filtro. */
+const EMPTY_STAFF_FILTERS = { status: "", department: "", position: "" };
+const EMPTY_ITEM_FILTERS = { status: "", category: "" };
+
+/** Entregas y alertas se filtran en el servidor (el estado de alerta lo calcula el backend). */
+const EMPTY_DELIVERY_FILTERS: DotationDeliveryFilters = {
+  staff_document_number: "",
+  item_code: "",
+  alert_status: "",
+  delivered_from: "",
+  delivered_to: "",
+  near_days: DEFAULT_NEAR_DAYS,
+};
+const EMPTY_ALERT_FILTERS: DotationAlertFilters = {
+  staff_document_number: "",
+  item_code: "",
+  alert_status: "",
+  near_days: DEFAULT_NEAR_DAYS,
+  include_vigente: false,
+};
+
+const STATUS_LABEL_OPTIONS = [...ACTIVE_STATUS_OPTIONS, ...DOTATION_ALERT_STATUS_OPTIONS];
+const getStatusLabel = (status?: string | null) => getOptionLabel(STATUS_LABEL_OPTIONS, status) || "-";
 
 const getDaysToExpiryLabel = (daysToExpiry: number) => {
   if (daysToExpiry < 0) return `${Math.abs(daysToExpiry)} día(s) vencido`;
@@ -119,30 +153,54 @@ export default function Dotation() {
 
   const [activeTab, setActiveTab] = useState<DotationTab>("staff");
 
-  const [staffFilters, setStaffFilters] = useState<DotationStaffFilters>({
-    status: "",
-    department: "",
-    position: "",
-  });
-  const [itemFilters, setItemFilters] = useState<DotationItemFilters>({
-    status: "",
-    category: "",
-  });
-  const [deliveryFilters, setDeliveryFilters] = useState<DotationDeliveryFilters>({
-    staff_document_number: "",
-    item_code: "",
-    alert_status: "",
-    delivered_from: "",
-    delivered_to: "",
-    near_days: 30,
-  });
-  const [alertFilters, setAlertFilters] = useState<DotationAlertFilters>({
-    staff_document_number: "",
-    item_code: "",
-    alert_status: "",
-    near_days: 30,
-    include_vigente: false,
-  });
+  const [staffFilters, setStaffFilters] = useState(EMPTY_STAFF_FILTERS);
+  const [itemFilters, setItemFilters] = useState(EMPTY_ITEM_FILTERS);
+  const [deliveryFilters, setDeliveryFilters] = useState<DotationDeliveryFilters>(EMPTY_DELIVERY_FILTERS);
+  const [alertFilters, setAlertFilters] = useState<DotationAlertFilters>(EMPTY_ALERT_FILTERS);
+
+  useAutoApplyFilters(deliveryFilters, fetchDeliveries);
+  useAutoApplyFilters(alertFilters, fetchAlerts);
+
+  const filterOptions = useMemo(
+    () => ({
+      staffStatus: mergeKnownOptions(ACTIVE_STATUS_OPTIONS, staffMembers.map((staff) => staff.status)),
+      department: buildOptionsFromValues(staffMembers.map((staff) => staff.department)),
+      position: buildOptionsFromValues(staffMembers.map((staff) => staff.position)),
+      itemStatus: mergeKnownOptions(ACTIVE_STATUS_OPTIONS, items.map((item) => item.status)),
+      category: buildOptionsFromValues(items.map((item) => item.category)),
+      staff: staffMembers
+        .map((staff) => ({
+          value: staff.document_number,
+          label: `${staff.name} ${staff.last_name} · ${staff.document_number}`,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" })),
+      item: items
+        .map((item) => ({ value: item.code, label: `${item.code} · ${item.name}` }))
+        .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base", numeric: true })),
+    }),
+    [items, staffMembers]
+  );
+
+  const filteredStaffMembers = useMemo(
+    () =>
+      staffMembers.filter(
+        (staff) =>
+          matchesOption(staffFilters.status, staff.status ?? "active") &&
+          matchesOption(staffFilters.department, staff.department) &&
+          matchesOption(staffFilters.position, staff.position)
+      ),
+    [staffFilters, staffMembers]
+  );
+
+  const filteredItems = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          matchesOption(itemFilters.status, item.status ?? "active") &&
+          matchesOption(itemFilters.category, item.category)
+      ),
+    [itemFilters, items]
+  );
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
@@ -179,7 +237,7 @@ export default function Dotation() {
       {
         key: "status",
         header: "Estado",
-        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value ?? "active"))}>{String(value ?? "active")}</Badge>,
+        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value ?? "active"))}>{getStatusLabel(String(value ?? "active"))}</Badge>,
       },
       {
         key: "hire_date",
@@ -214,7 +272,7 @@ export default function Dotation() {
       {
         key: "status",
         header: "Estado",
-        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value ?? "active"))}>{String(value ?? "active")}</Badge>,
+        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value ?? "active"))}>{getStatusLabel(String(value ?? "active"))}</Badge>,
       },
       { key: "actions", header: "Acciones", sortable: false },
     ],
@@ -259,7 +317,7 @@ export default function Dotation() {
       {
         key: "alert_status",
         header: "Alerta",
-        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value))}>{String(value)}</Badge>,
+        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value))}>{getStatusLabel(String(value))}</Badge>,
       },
       {
         key: "days_to_expiry",
@@ -302,7 +360,7 @@ export default function Dotation() {
       {
         key: "alert_status",
         header: "Estado de alerta",
-        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value))}>{String(value)}</Badge>,
+        render: (value) => <Badge variant="outline" className={getStatusBadgeClass(String(value))}>{getStatusLabel(String(value))}</Badge>,
       },
       {
         key: "days_to_expiry",
@@ -323,12 +381,12 @@ export default function Dotation() {
     setIsRefreshing(true);
     try {
       if (activeTab === "staff") {
-        await fetchStaffMembers(staffFilters);
+        await fetchStaffMembers({});
         return;
       }
 
       if (activeTab === "catalog") {
-        await fetchItems(itemFilters);
+        await fetchItems({});
         return;
       }
 
@@ -434,47 +492,37 @@ export default function Dotation() {
         </TabsList>
 
         <TabsContent value="staff" className="space-y-4">
-          <Card className="space-y-4 p-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-primary-900">Filtros de personal</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <Input
-                placeholder="Estado"
-                value={staffFilters.status ?? ""}
-                onChange={(event) => setStaffFilters((prev) => ({ ...prev, status: event.target.value }))}
-              />
-              <Input
-                placeholder="Departamento"
-                value={staffFilters.department ?? ""}
-                onChange={(event) => setStaffFilters((prev) => ({ ...prev, department: event.target.value }))}
-              />
-              <Input
-                placeholder="Cargo"
-                value={staffFilters.position ?? ""}
-                onChange={(event) => setStaffFilters((prev) => ({ ...prev, position: event.target.value }))}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const nextFilters = { status: "", department: "", position: "" };
-                  setStaffFilters(nextFilters);
-                  await fetchStaffMembers(nextFilters);
-                }}
-              >
-                Limpiar
-              </Button>
-              <Button onClick={() => fetchStaffMembers(staffFilters)} className="bg-primary hover:bg-primary-600">
-                Aplicar filtros
-              </Button>
-            </div>
-          </Card>
+          <FilterPanel
+            title="Filtros de personal"
+            activeCount={countActiveFilters(Object.values(staffFilters))}
+            onClear={() => setStaffFilters(EMPTY_STAFF_FILTERS)}
+            gridClassName="xl:grid-cols-3"
+          >
+            <FilterSelect
+              id="staff-status-filter"
+              label="Estado"
+              value={staffFilters.status}
+              onChange={(value) => setStaffFilters((prev) => ({ ...prev, status: value }))}
+              options={filterOptions.staffStatus}
+            />
+            <FilterSelect
+              id="staff-department-filter"
+              label="Departamento"
+              value={staffFilters.department}
+              onChange={(value) => setStaffFilters((prev) => ({ ...prev, department: value }))}
+              options={filterOptions.department}
+            />
+            <FilterSelect
+              id="staff-position-filter"
+              label="Cargo"
+              value={staffFilters.position}
+              onChange={(value) => setStaffFilters((prev) => ({ ...prev, position: value }))}
+              options={filterOptions.position}
+            />
+          </FilterPanel>
 
           <DataTable
-            data={staffMembers}
+            data={filteredStaffMembers}
             columns={staffColumns}
             title="Personal de Dotación"
             addButtonText="Registrar personal"
@@ -489,6 +537,7 @@ export default function Dotation() {
             onDelete={handleDeleteStaffMember}
             isLoading={isLoadingStaff}
             searchFields={["document_number", "name", "last_name", "department", "position", "status"]}
+            searchAccessor={(staff) => getStatusLabel(staff.status ?? "active")}
             searchPlaceholder="Buscar por documento, nombre, departamento o cargo..."
             defaultSort={{ key: "document_number", direction: "asc" }}
             initialPageSize={20}
@@ -496,42 +545,31 @@ export default function Dotation() {
         </TabsContent>
 
         <TabsContent value="catalog" className="space-y-4">
-          <Card className="space-y-4 p-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-primary-900">Filtros de catálogo</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Input
-                placeholder="Estado"
-                value={itemFilters.status ?? ""}
-                onChange={(event) => setItemFilters((prev) => ({ ...prev, status: event.target.value }))}
-              />
-              <Input
-                placeholder="Categoría"
-                value={itemFilters.category ?? ""}
-                onChange={(event) => setItemFilters((prev) => ({ ...prev, category: event.target.value }))}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const nextFilters = { status: "", category: "" };
-                  setItemFilters(nextFilters);
-                  await fetchItems(nextFilters);
-                }}
-              >
-                Limpiar
-              </Button>
-              <Button onClick={() => fetchItems(itemFilters)} className="bg-primary hover:bg-primary-600">
-                Aplicar filtros
-              </Button>
-            </div>
-          </Card>
+          <FilterPanel
+            title="Filtros de catálogo"
+            activeCount={countActiveFilters(Object.values(itemFilters))}
+            onClear={() => setItemFilters(EMPTY_ITEM_FILTERS)}
+            gridClassName="xl:grid-cols-3"
+          >
+            <FilterSelect
+              id="item-status-filter"
+              label="Estado"
+              value={itemFilters.status}
+              onChange={(value) => setItemFilters((prev) => ({ ...prev, status: value }))}
+              options={filterOptions.itemStatus}
+            />
+            <FilterSelect
+              id="item-category-filter"
+              label="Categoría"
+              value={itemFilters.category}
+              onChange={(value) => setItemFilters((prev) => ({ ...prev, category: value }))}
+              options={filterOptions.category}
+              allLabel="Todas"
+            />
+          </FilterPanel>
 
           <DataTable
-            data={items}
+            data={filteredItems}
             columns={itemColumns}
             title="Catálogo de Dotación"
             addButtonText="Crear item"
@@ -546,6 +584,7 @@ export default function Dotation() {
             onDelete={handleDeleteItem}
             isLoading={isLoadingItems}
             searchFields={["code", "name", "category", "status", "description"]}
+            searchAccessor={(item) => getStatusLabel(item.status ?? "active")}
             searchPlaceholder="Buscar por código, nombre, categoría o estado..."
             defaultSort={{ key: "name", direction: "asc" }}
             initialPageSize={20}
@@ -553,90 +592,75 @@ export default function Dotation() {
         </TabsContent>
 
         <TabsContent value="deliveries" className="space-y-4">
-          <Card className="space-y-4 p-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-primary-900">Filtros de entregas</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <FilterPanel
+            title="Filtros de entregas"
+            activeCount={countActiveFilters([
+              deliveryFilters.staff_document_number,
+              deliveryFilters.item_code,
+              deliveryFilters.alert_status,
+              deliveryFilters.delivered_from,
+              deliveryFilters.delivered_to,
+              (deliveryFilters.near_days ?? DEFAULT_NEAR_DAYS) !== DEFAULT_NEAR_DAYS,
+            ])}
+            onClear={() => setDeliveryFilters(EMPTY_DELIVERY_FILTERS)}
+            gridClassName="xl:grid-cols-3"
+          >
+            <FilterSelect
+              id="delivery-staff-filter"
+              label="Personal"
+              value={deliveryFilters.staff_document_number}
+              onChange={(value) => setDeliveryFilters((prev) => ({ ...prev, staff_document_number: value }))}
+              options={filterOptions.staff}
+            />
+            <FilterSelect
+              id="delivery-item-filter"
+              label="Item"
+              value={deliveryFilters.item_code}
+              onChange={(value) => setDeliveryFilters((prev) => ({ ...prev, item_code: value }))}
+              options={filterOptions.item}
+            />
+            <FilterSelect
+              id="delivery-alert-status-filter"
+              label="Estado de alerta"
+              value={deliveryFilters.alert_status}
+              onChange={(value) => setDeliveryFilters((prev) => ({ ...prev, alert_status: value }))}
+              options={DOTATION_ALERT_STATUS_OPTIONS}
+            />
+            <FilterField label="Entregado desde" htmlFor="delivery-filter-from">
               <Input
-                placeholder="Documento del personal"
-                value={deliveryFilters.staff_document_number ?? ""}
+                id="delivery-filter-from"
+                type="date"
+                value={deliveryFilters.delivered_from ?? ""}
                 onChange={(event) =>
-                  setDeliveryFilters((prev) => ({ ...prev, staff_document_number: event.target.value }))
+                  setDeliveryFilters((prev) => ({ ...prev, delivered_from: event.target.value }))
                 }
               />
+            </FilterField>
+            <FilterField label="Entregado hasta" htmlFor="delivery-filter-to">
               <Input
-                placeholder="Código del item"
-                value={deliveryFilters.item_code ?? ""}
-                onChange={(event) => setDeliveryFilters((prev) => ({ ...prev, item_code: event.target.value }))}
+                id="delivery-filter-to"
+                type="date"
+                value={deliveryFilters.delivered_to ?? ""}
+                onChange={(event) =>
+                  setDeliveryFilters((prev) => ({ ...prev, delivered_to: event.target.value }))
+                }
               />
+            </FilterField>
+            <FilterField label="Días para alerta" htmlFor="delivery-filter-near">
               <Input
-                placeholder="Estado de alerta"
-                value={deliveryFilters.alert_status ?? ""}
-                onChange={(event) => setDeliveryFilters((prev) => ({ ...prev, alert_status: event.target.value }))}
+                id="delivery-filter-near"
+                type="number"
+                min="0"
+                value={deliveryFilters.near_days ?? DEFAULT_NEAR_DAYS}
+                onChange={(event) =>
+                  setDeliveryFilters((prev) => ({
+                    ...prev,
+                    near_days: Number(event.target.value) || 0,
+                  }))
+                }
               />
-              <div>
-                <Label htmlFor="delivery-filter-from">Desde</Label>
-                <Input
-                  id="delivery-filter-from"
-                  type="date"
-                  value={deliveryFilters.delivered_from ?? ""}
-                  onChange={(event) =>
-                    setDeliveryFilters((prev) => ({ ...prev, delivered_from: event.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="delivery-filter-to">Hasta</Label>
-                <Input
-                  id="delivery-filter-to"
-                  type="date"
-                  value={deliveryFilters.delivered_to ?? ""}
-                  onChange={(event) =>
-                    setDeliveryFilters((prev) => ({ ...prev, delivered_to: event.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="delivery-filter-near">Días para alerta</Label>
-                <Input
-                  id="delivery-filter-near"
-                  type="number"
-                  min="0"
-                  value={deliveryFilters.near_days ?? 30}
-                  onChange={(event) =>
-                    setDeliveryFilters((prev) => ({
-                      ...prev,
-                      near_days: Number(event.target.value) || 0,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const nextFilters = {
-                    staff_document_number: "",
-                    item_code: "",
-                    alert_status: "",
-                    delivered_from: "",
-                    delivered_to: "",
-                    near_days: 30,
-                  };
-                  setDeliveryFilters(nextFilters);
-                  await fetchDeliveries(nextFilters);
-                }}
-              >
-                Limpiar
-              </Button>
-              <Button onClick={() => fetchDeliveries(deliveryFilters)} className="bg-primary hover:bg-primary-600">
-                Aplicar filtros
-              </Button>
-            </div>
-          </Card>
+            </FilterField>
+          </FilterPanel>
 
           <DataTable
             data={deliveries}
@@ -663,79 +687,64 @@ export default function Dotation() {
         </TabsContent>
 
         <TabsContent value="alerts" className="space-y-4">
-          <Card className="space-y-4 p-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-primary-900">Filtros de alertas</h3>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <FilterPanel
+            title="Filtros de alertas"
+            activeCount={countActiveFilters([
+              alertFilters.staff_document_number,
+              alertFilters.item_code,
+              alertFilters.alert_status,
+              (alertFilters.near_days ?? DEFAULT_NEAR_DAYS) !== DEFAULT_NEAR_DAYS,
+              alertFilters.include_vigente,
+            ])}
+            onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
+            gridClassName="xl:grid-cols-3"
+          >
+            <FilterSelect
+              id="alerts-staff-filter"
+              label="Personal"
+              value={alertFilters.staff_document_number}
+              onChange={(value) => setAlertFilters((prev) => ({ ...prev, staff_document_number: value }))}
+              options={filterOptions.staff}
+            />
+            <FilterSelect
+              id="alerts-item-filter"
+              label="Item"
+              value={alertFilters.item_code}
+              onChange={(value) => setAlertFilters((prev) => ({ ...prev, item_code: value }))}
+              options={filterOptions.item}
+            />
+            <FilterSelect
+              id="alerts-status-filter"
+              label="Estado de alerta"
+              value={alertFilters.alert_status}
+              onChange={(value) => setAlertFilters((prev) => ({ ...prev, alert_status: value }))}
+              options={DOTATION_ALERT_STATUS_OPTIONS}
+            />
+            <FilterField label="Días para alerta" htmlFor="alerts-filter-near">
               <Input
-                placeholder="Documento del personal"
-                value={alertFilters.staff_document_number ?? ""}
+                id="alerts-filter-near"
+                type="number"
+                min="0"
+                value={alertFilters.near_days ?? DEFAULT_NEAR_DAYS}
                 onChange={(event) =>
-                  setAlertFilters((prev) => ({ ...prev, staff_document_number: event.target.value }))
+                  setAlertFilters((prev) => ({
+                    ...prev,
+                    near_days: Number(event.target.value) || 0,
+                  }))
                 }
               />
-              <Input
-                placeholder="Código del item"
-                value={alertFilters.item_code ?? ""}
-                onChange={(event) => setAlertFilters((prev) => ({ ...prev, item_code: event.target.value }))}
+            </FilterField>
+            <div className="flex items-center gap-2 md:pt-7">
+              <Checkbox
+                id="include-vigente"
+                checked={alertFilters.include_vigente === true}
+                onCheckedChange={(checked) =>
+                  setAlertFilters((prev) => ({ ...prev, include_vigente: checked === true }))
+                }
               />
-              <Input
-                placeholder="Estado de alerta"
-                value={alertFilters.alert_status ?? ""}
-                onChange={(event) => setAlertFilters((prev) => ({ ...prev, alert_status: event.target.value }))}
-              />
-              <div>
-                <Label htmlFor="alerts-filter-near">Días para alerta</Label>
-                <Input
-                  id="alerts-filter-near"
-                  type="number"
-                  min="0"
-                  value={alertFilters.near_days ?? 30}
-                  onChange={(event) =>
-                    setAlertFilters((prev) => ({
-                      ...prev,
-                      near_days: Number(event.target.value) || 0,
-                    }))
-                  }
-                />
-              </div>
-              <div className="flex items-end pb-2">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="include-vigente"
-                    checked={alertFilters.include_vigente === true}
-                    onCheckedChange={(checked) =>
-                      setAlertFilters((prev) => ({ ...prev, include_vigente: checked === true }))
-                    }
-                  />
-                  <Label htmlFor="include-vigente">Incluir vigentes</Label>
-                </div>
-              </div>
+              <Label htmlFor="include-vigente">Incluir vigentes</Label>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  const nextFilters = {
-                    staff_document_number: "",
-                    item_code: "",
-                    alert_status: "",
-                    near_days: 30,
-                    include_vigente: false,
-                  };
-                  setAlertFilters(nextFilters);
-                  await fetchAlerts(nextFilters);
-                }}
-              >
-                Limpiar
-              </Button>
-              <Button onClick={() => fetchAlerts(alertFilters)} className="bg-primary hover:bg-primary-600">
-                Aplicar filtros
-              </Button>
-            </div>
-          </Card>
+          </FilterPanel>
 
           <DataTable
             data={alerts}

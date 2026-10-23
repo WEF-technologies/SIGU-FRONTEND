@@ -20,6 +20,7 @@ import { Contract, Shift, Vehicle, User, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useConfirm } from "@/hooks/useConfirm";
+import { matchesSearch } from "@/lib/filtering";
 import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -81,8 +82,7 @@ export default function Contracts() {
   }, []);
 
   const filteredContracts = contracts.filter(contract =>
-    contract.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contract.location?.toLowerCase().includes(searchTerm.toLowerCase())
+    matchesSearch(searchTerm, [contract.description, contract.location, contract.status])
   );
 
   const handleAdd = () => {

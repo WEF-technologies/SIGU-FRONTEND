@@ -5,15 +5,16 @@ import { ToolAlerts } from "@/components/tools/ToolAlerts";
 import { ToolDetailsModal } from "@/components/tools/ToolDetailsModal";
 import { ToolFormModal } from "@/components/tools/ToolFormModal";
 import { getToolTableColumns } from "@/components/tools/ToolTableColumns";
+import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTools } from "@/hooks/useTools";
 import { useConfirm } from "@/hooks/useConfirm";
-import { Tool, ToolFilters, ToolPayload, ToolStatus } from "@/types";
-import { Filter, RefreshCw } from "lucide-react";
+import { buildOptionsFromValues, countActiveFilters, getOptionLabel, matchesOption } from "@/lib/filtering";
+import { Tool, ToolPayload, ToolStatus } from "@/types";
+import { RefreshCw } from "lucide-react";
 
 const STATUS_OPTIONS: Array<{ value: ToolStatus; label: string }> = [
   { value: "disponible", label: "Disponible" },
@@ -22,15 +23,18 @@ const STATUS_OPTIONS: Array<{ value: ToolStatus; label: string }> = [
   { value: "retirada", label: "Retirada" },
 ];
 
-/** Estado local de los filtros: como ToolFilters, pero con todos los campos presentes. */
-type ToolFilterState = Required<Pick<ToolFilters, "category" | "location" | "assigned_to">> & {
-  status: ToolStatus | "all";
-};
+/** Filtros de la tabla; "" = sin filtro. Se aplican en el cliente al cambiarlos. */
+interface ToolFilterState {
+  category: string;
+  location: string;
+  status: string;
+  assigned_to: string;
+}
 
 const EMPTY_TOOL_FILTERS: ToolFilterState = {
   category: "",
   location: "",
-  status: "all",
+  status: "",
   assigned_to: "",
 };
 
@@ -41,7 +45,6 @@ export default function Tools() {
     alerts,
     isLoadingTools,
     isLoadingAlerts,
-    fetchTools,
     fetchAlerts,
     fetchToolById,
     createTool,
@@ -106,14 +109,29 @@ export default function Tools() {
     [confirm, deleteTool, fetchToolById]
   );
 
-  const applyToolFilters = async () => {
-    await fetchTools(filters);
-  };
+  const filterOptions = useMemo(
+    () => ({
+      category: buildOptionsFromValues(tools.map((tool) => tool.category)),
+      location: buildOptionsFromValues(tools.map((tool) => tool.location)),
+      assignedTo: buildOptionsFromValues(tools.map((tool) => tool.assigned_to)),
+    }),
+    [tools]
+  );
 
-  const clearFilters = async () => {
-    setFilters(EMPTY_TOOL_FILTERS);
-    await fetchTools(EMPTY_TOOL_FILTERS);
-  };
+  const filteredTools = useMemo(
+    () =>
+      tools.filter(
+        (tool) =>
+          matchesOption(filters.category, tool.category) &&
+          matchesOption(filters.location, tool.location) &&
+          matchesOption(filters.status, tool.status) &&
+          matchesOption(filters.assigned_to, tool.assigned_to)
+      ),
+    [tools, filters]
+  );
+
+  const updateFilter = (key: keyof ToolFilterState, value: string) =>
+    setFilters((prev) => ({ ...prev, [key]: value }));
 
   const refreshAlerts = async () => {
     await fetchAlerts({
@@ -121,7 +139,7 @@ export default function Tools() {
       include_ok: alertFilters.include_ok,
       category: filters.category,
       location: filters.location,
-      status: filters.status,
+      status: (filters.status || undefined) as ToolStatus | undefined,
     });
   };
 
@@ -134,53 +152,44 @@ export default function Tools() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="bg-white border border-secondary-medium rounded-lg p-4 shadow-sm space-y-4">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-primary" />
-          <h3 className="font-semibold text-primary-900">Filtros de herramientas</h3>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Input
-            placeholder="Categoría"
-            value={filters.category}
-            onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
-          />
-          <Input
-            placeholder="Ubicación"
-            value={filters.location}
-            onChange={(e) => setFilters((prev) => ({ ...prev, location: e.target.value }))}
-          />
-          <Select
-            value={filters.status}
-            onValueChange={(value: ToolFilterState["status"]) =>
-              setFilters((prev) => ({ ...prev, status: value }))
-            }
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              {STATUS_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Asignada a"
-            value={filters.assigned_to}
-            onChange={(e) => setFilters((prev) => ({ ...prev, assigned_to: e.target.value }))}
-          />
-        </div>
-
-        <div className="flex gap-2 justify-end">
-          <Button variant="outline" onClick={clearFilters}>Limpiar</Button>
-          <Button onClick={applyToolFilters} className="bg-primary hover:bg-primary-600">Aplicar filtros</Button>
-        </div>
-      </div>
+      <FilterPanel
+        title="Filtros de herramientas"
+        activeCount={countActiveFilters(Object.values(filters))}
+        onClear={() => setFilters(EMPTY_TOOL_FILTERS)}
+      >
+        <FilterSelect
+          id="tool-category-filter"
+          label="Categoría"
+          value={filters.category}
+          onChange={(value) => updateFilter("category", value)}
+          options={filterOptions.category}
+          allLabel="Todas las categorías"
+        />
+        <FilterSelect
+          id="tool-location-filter"
+          label="Ubicación"
+          value={filters.location}
+          onChange={(value) => updateFilter("location", value)}
+          options={filterOptions.location}
+          allLabel="Todas las ubicaciones"
+        />
+        <FilterSelect
+          id="tool-status-filter"
+          label="Estado"
+          value={filters.status}
+          onChange={(value) => updateFilter("status", value)}
+          options={STATUS_OPTIONS}
+          allLabel="Todos los estados"
+        />
+        <FilterSelect
+          id="tool-assigned-filter"
+          label="Asignada a"
+          value={filters.assigned_to}
+          onChange={(value) => updateFilter("assigned_to", value)}
+          options={filterOptions.assignedTo}
+          allLabel="Cualquier responsable"
+        />
+      </FilterPanel>
 
       <div className="bg-white border border-secondary-medium rounded-lg p-4 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row md:items-end gap-3">
@@ -211,7 +220,10 @@ export default function Tools() {
             <Label htmlFor="include-ok">Incluir estatus OK</Label>
           </div>
 
-          <Button variant="outline" className="md:ml-auto" onClick={refreshAlerts}>
+          <p className="text-xs text-secondary-dark md:ml-auto md:max-w-xs md:text-right">
+            Al actualizar, las alertas usan la categoría, ubicación y estado elegidos arriba.
+          </p>
+          <Button variant="outline" onClick={refreshAlerts}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Actualizar alertas
           </Button>
@@ -221,7 +233,7 @@ export default function Tools() {
       </div>
 
       <DataTable
-        data={tools}
+        data={filteredTools}
         columns={columns}
         onAdd={() => {
           setEditingTool(null);
@@ -231,6 +243,7 @@ export default function Tools() {
         addButtonText="Registrar herramienta"
         isLoading={isLoadingTools}
         searchFields={["code", "name", "category", "location", "assigned_to", "status"]}
+        searchAccessor={(tool) => getOptionLabel(STATUS_OPTIONS, tool.status)}
         searchPlaceholder="Buscar por código, nombre, categoría, ubicación o responsable..."
         defaultSort={{ key: "name", direction: "asc" }}
         initialPageSize={20}

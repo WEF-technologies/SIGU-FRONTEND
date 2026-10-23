@@ -15,6 +15,9 @@ import {
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1/dotation`;
 
+/** Maximo que acepta el backend: personal y catalogo se filtran en pantalla sobre la lista completa. */
+const CATALOG_LIST_LIMIT = 500;
+
 type AuthenticatedFetch = (url: string, options?: RequestInit) => Promise<Response>;
 
 interface BackendErrorPayload {
@@ -128,6 +131,7 @@ export const dotationApi = {
       status: normalizeText(filters.status) ?? undefined,
       department: normalizeText(filters.department) ?? undefined,
       position: normalizeText(filters.position) ?? undefined,
+      limit: CATALOG_LIST_LIMIT,
     });
 
     return requestJson<DotationStaffMember[]>(
@@ -187,6 +191,7 @@ export const dotationApi = {
     const query = buildQueryString({
       status: normalizeText(filters.status) ?? undefined,
       category: normalizeText(filters.category) ?? undefined,
+      limit: CATALOG_LIST_LIMIT,
     });
 
     return requestJson<DotationItem[]>(

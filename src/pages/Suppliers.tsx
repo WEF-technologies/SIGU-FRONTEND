@@ -1,15 +1,22 @@
 import { useMemo, useState } from "react";
 import { SupplierForm } from "@/components/suppliers/SupplierForm";
 import { DataTable, type Column } from "@/components/shared/DataTable";
+import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { FormModal } from "@/components/shared/FormModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { useConfirm } from "@/hooks/useConfirm";
-import { Supplier, SupplierFilters, SupplierPayload, SUPPLIER_CATEGORY_OPTIONS } from "@/types";
+import { ACTIVE_STATUS_OPTIONS } from "@/constants/filterOptions";
+import {
+  buildOptionsFromValues,
+  countActiveFilters,
+  getOptionLabel,
+  matchesOption,
+  mergeKnownOptions,
+} from "@/lib/filtering";
+import { Supplier, SupplierPayload, SUPPLIER_CATEGORY_OPTIONS } from "@/types";
 import {
   Building2,
   Edit,
@@ -47,6 +54,36 @@ const categoryLabelMap = new Map<string, string>(
 
 const formatCategoryLabel = (category: string) => categoryLabelMap.get(category) ?? category;
 
+const getStatusLabel = (status?: string | null) => getOptionLabel(ACTIVE_STATUS_OPTIONS, status ?? "active");
+
+/** Filtros aplicados en el cliente sobre el listado completo; "" = sin filtro. */
+interface SupplierFilterState {
+  status: string;
+  location: string;
+  category: string;
+  destacado?: boolean;
+}
+
+const EMPTY_SUPPLIER_FILTERS: SupplierFilterState = {
+  status: "",
+  location: "",
+  category: "",
+  destacado: undefined,
+};
+
+const getSupplierSearchText = (supplier: Supplier) =>
+  [
+    supplier.address,
+    supplier.contact_phone,
+    supplier.email,
+    supplier.description,
+    supplier.notes,
+    getStatusLabel(supplier.status),
+    ...supplier.categories.map(formatCategoryLabel),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
 const formatContactLine = (supplier: Supplier) => {
   const contactParts = [supplier.contact_phone, supplier.email].filter(
     (value): value is string => typeof value === "string" && value.trim().length > 0
@@ -74,12 +111,7 @@ export default function Suppliers() {
   } = useSuppliers();
   const confirm = useConfirm();
 
-  const [filters, setFilters] = useState<SupplierFilters>({
-    search: "",
-    status: "",
-    location: "",
-    category: "",
-  });
+  const [filters, setFilters] = useState<SupplierFilterState>(EMPTY_SUPPLIER_FILTERS);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
@@ -87,6 +119,32 @@ export default function Suppliers() {
   const featuredSuppliers = useMemo(
     () => suppliers.filter((supplier) => supplier.destacado),
     [suppliers]
+  );
+
+  const filterOptions = useMemo(
+    () => ({
+      category: mergeKnownOptions(
+        SUPPLIER_CATEGORY_OPTIONS,
+        suppliers.flatMap((supplier) => supplier.categories),
+        formatCategoryLabel
+      ),
+      location: buildOptionsFromValues(suppliers.map((supplier) => supplier.location)),
+      status: mergeKnownOptions(ACTIVE_STATUS_OPTIONS, suppliers.map((supplier) => supplier.status)),
+    }),
+    [suppliers]
+  );
+
+  const filteredSuppliers = useMemo(
+    () =>
+      suppliers.filter(
+        (supplier) =>
+          (filters.destacado === undefined || supplier.destacado === filters.destacado) &&
+          matchesOption(filters.status, supplier.status) &&
+          matchesOption(filters.location, supplier.location) &&
+          (!filters.category ||
+            supplier.categories.some((category) => matchesOption(filters.category, category)))
+      ),
+    [filters, suppliers]
   );
 
   const summaryCards = useMemo(() => {
@@ -171,7 +229,7 @@ export default function Suppliers() {
         header: "Estado",
         render: (value) => (
           <Badge variant="outline" className={getStatusBadgeClass(String(value ?? "active"))}>
-            {String(value ?? "active")}
+            {getStatusLabel(String(value ?? "active"))}
           </Badge>
         ),
       },
@@ -242,43 +300,10 @@ export default function Suppliers() {
     setEditingSupplier(null);
   };
 
-  const handleApplyFilters = async () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await fetchSuppliers(filters);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleQuickFeaturedFilter = async (destacado?: boolean) => {
-    const nextFilters: SupplierFilters = {
-      ...filters,
-      destacado,
-    };
-
-    setFilters(nextFilters);
-    setIsRefreshing(true);
-    try {
-      await fetchSuppliers(nextFilters);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleClearFilters = async () => {
-    const nextFilters: SupplierFilters = {
-      search: "",
-      status: "",
-      location: "",
-      category: "",
-      destacado: undefined,
-    };
-
-    setFilters(nextFilters);
-    setIsRefreshing(true);
-    try {
-      await fetchSuppliers(nextFilters);
+      await fetchSuppliers({});
     } finally {
       setIsRefreshing(false);
     }
@@ -304,7 +329,7 @@ export default function Suppliers() {
         </div>
         <Button
           variant="outline"
-          onClick={handleApplyFilters}
+          onClick={handleRefresh}
           disabled={isRefreshing}
           className="border-primary-200 text-primary hover:bg-primary-50"
         >
@@ -372,7 +397,7 @@ export default function Suppliers() {
                       <p className="text-sm font-medium text-gray-800">{supplier.location || "Sin ubicacion"}</p>
                       <p className="mt-1 text-xs text-gray-500">{supplier.description || "Sin descripcion"}</p>
                       <Badge variant="outline" className={`mt-2 ${getStatusBadgeClass(supplier.status)}`}>
-                        {supplier.status}
+                        {getStatusLabel(supplier.status)}
                       </Badge>
                     </div>
                     {supplier.chat_url ? (
@@ -391,19 +416,19 @@ export default function Suppliers() {
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl text-primary-900">Filtros</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <FilterPanel
+        title="Filtros"
+        activeCount={countActiveFilters(Object.values(filters))}
+        onClear={() => setFilters(EMPTY_SUPPLIER_FILTERS)}
+        gridClassName="xl:grid-cols-3"
+        footer={
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
             <span className="text-sm font-medium text-amber-900">Vista rápida:</span>
             <Button
               type="button"
               variant={filters.destacado === undefined ? "default" : "outline"}
               className={filters.destacado === undefined ? "bg-primary hover:bg-primary-600 text-white" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"}
-              onClick={() => void handleQuickFeaturedFilter(undefined)}
-              disabled={isRefreshing}
+              onClick={() => setFilters((prev) => ({ ...prev, destacado: undefined }))}
             >
               Todos
             </Button>
@@ -411,74 +436,42 @@ export default function Suppliers() {
               type="button"
               variant={filters.destacado === true ? "default" : "outline"}
               className={filters.destacado === true ? "bg-amber-500 hover:bg-amber-600 text-white" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"}
-              onClick={() => void handleQuickFeaturedFilter(true)}
-              disabled={isRefreshing}
+              onClick={() => setFilters((prev) => ({ ...prev, destacado: true }))}
             >
               <Star className="h-4 w-4" />
               Solo destacados
             </Button>
           </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <Label htmlFor="supplier-search">Busqueda</Label>
-              <Input
-                id="supplier-search"
-                value={filters.search ?? ""}
-                onChange={(event) => setFilters((prev) => ({ ...prev, search: event.target.value }))}
-                placeholder="Nombre, direccion o telefono"
-              />
-            </div>
-            <div>
-              <Label htmlFor="supplier-category-filter">Categoria</Label>
-              <select
-                id="supplier-category-filter"
-                value={filters.category ?? ""}
-                onChange={(event) => setFilters((prev) => ({ ...prev, category: event.target.value }))}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">Todas</option>
-                {SUPPLIER_CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="supplier-location-filter">Ubicacion</Label>
-              <Input
-                id="supplier-location-filter"
-                value={filters.location ?? ""}
-                onChange={(event) => setFilters((prev) => ({ ...prev, location: event.target.value }))}
-                placeholder="Ciudad o sede"
-              />
-            </div>
-            <div>
-              <Label htmlFor="supplier-status-filter">Estado</Label>
-              <Input
-                id="supplier-status-filter"
-                value={filters.status ?? ""}
-                onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
-                placeholder="active"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="outline" onClick={handleClearFilters}>
-              Limpiar
-            </Button>
-            <Button onClick={handleApplyFilters} className="bg-primary hover:bg-primary-600 text-white" disabled={isRefreshing}>
-              Aplicar filtros
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+        }
+      >
+        <FilterSelect
+          id="supplier-category-filter"
+          label="Categoria"
+          value={filters.category}
+          onChange={(value) => setFilters((prev) => ({ ...prev, category: value }))}
+          options={filterOptions.category}
+          allLabel="Todas"
+        />
+        <FilterSelect
+          id="supplier-location-filter"
+          label="Ubicacion"
+          value={filters.location}
+          onChange={(value) => setFilters((prev) => ({ ...prev, location: value }))}
+          options={filterOptions.location}
+          allLabel="Todas"
+        />
+        <FilterSelect
+          id="supplier-status-filter"
+          label="Estado"
+          value={filters.status}
+          onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+          options={filterOptions.status}
+        />
+      </FilterPanel>
 
       <DataTable
         title="Listado general"
-        data={suppliers}
+        data={filteredSuppliers}
         columns={columns}
         onAdd={() => {
           setEditingSupplier(null);
@@ -486,6 +479,9 @@ export default function Suppliers() {
         }}
         addButtonText="Agregar proveedor"
         isLoading={isLoadingSuppliers}
+        searchFields={["name", "location"]}
+        searchAccessor={getSupplierSearchText}
+        searchPlaceholder="Buscar por nombre, dirección, teléfono o categoría..."
         defaultSort={{ key: "name", direction: "asc" }}
         initialPageSize={20}
         hideAddButton={false}

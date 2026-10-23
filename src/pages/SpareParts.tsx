@@ -19,6 +19,7 @@ import {
   Eye, Pencil, Trash2, AlertTriangle, Layers, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { matchesSearch } from "@/lib/filtering";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
 import { sparePartsApi } from "@/services/sparePartsApi";
 
@@ -54,8 +55,7 @@ const getFitmentSearchText = (part: SparePart) =>
       fitment.year_to != null ? String(fitment.year_to) : "",
     ])
     .filter((value): value is string => Boolean(value && value.trim()))
-    .join(" ")
-    .toLowerCase();
+    .join(" ");
 
 // ─── Tarjeta de repuesto en vista "Por Repuesto" ──────────────────────────────
 function SparePartCard({
@@ -287,22 +287,22 @@ export default function SpareParts() {
   );
 
   const filteredParts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return spareParts;
+    if (!search.trim()) return spareParts;
     return spareParts.filter(p =>
-      p.code.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      getFitmentSearchText(p).includes(q) ||
-      (p.compatible_vehicles ?? []).some(plate => {
-        const v = vehicleMap.get(plate);
-        return plate.toLowerCase().includes(q) ||
-          (v && `${v.brand} ${v.model}`.toLowerCase().includes(q));
-      })
+      matchesSearch(search, [
+        p.code,
+        p.description,
+        getFitmentSearchText(p),
+        ...(p.compatible_vehicles ?? []).flatMap(plate => {
+          const v = vehicleMap.get(plate);
+          return [plate, v?.brand, v?.model];
+        }),
+      ])
     );
   }, [spareParts, search, vehicleMap]);
 
   const vehicleGroups = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const hasSearch = Boolean(search.trim());
     return vehicles
       .map(v => ({
         vehicle: v,
@@ -310,12 +310,13 @@ export default function SpareParts() {
       }))
       .filter(g => {
         if (g.parts.length === 0) return false;
-        if (!q) return true;
-        return (
-          g.vehicle.plate_number.toLowerCase().includes(q) ||
-          `${g.vehicle.brand} ${g.vehicle.model}`.toLowerCase().includes(q) ||
-          g.parts.some(p => p.code.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
-        );
+        if (!hasSearch) return true;
+        return matchesSearch(search, [
+          g.vehicle.plate_number,
+          g.vehicle.brand,
+          g.vehicle.model,
+          ...g.parts.flatMap(p => [p.code, p.description]),
+        ]);
       })
       .sort((a, b) => a.vehicle.plate_number.localeCompare(b.vehicle.plate_number));
   }, [vehicles, spareParts, search]);
