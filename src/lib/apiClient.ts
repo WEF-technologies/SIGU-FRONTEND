@@ -45,6 +45,16 @@ export const isAbortError = (error: unknown) =>
 export const isClientError = (error: unknown) =>
   error instanceof ApiError && error.status >= 400 && error.status < 500;
 
+/**
+ * Regla de reintento por defecto de React Query. Una sesion caida ya redirige
+ * al login y un 4xx no mejora al repetirlo; los fallos de red y los 5xx se
+ * reintentan hasta dos veces.
+ */
+export const shouldRetryRequest = (failureCount: number, error: unknown) => {
+  if (isSessionExpiredError(error) || isClientError(error)) return false;
+  return failureCount < 2;
+};
+
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 

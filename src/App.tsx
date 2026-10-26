@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { ConfirmProvider } from "@/components/shared/ConfirmProvider";
+import { shouldRetryRequest } from "@/lib/apiClient";
 import { MainLayout } from "./components/layout/MainLayout";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -27,7 +28,11 @@ const Suppliers = lazy(() => import("./pages/Suppliers"));
 const Troubleshooting = lazy(() => import("./pages/Troubleshooting"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: shouldRetryRequest },
+  },
+});
 
 const RouteLoader = () => (
   <div className="min-h-[40vh] flex items-center justify-center">

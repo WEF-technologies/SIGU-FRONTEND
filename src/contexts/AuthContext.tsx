@@ -7,6 +7,7 @@ import React, {
   useEffect,
   ReactNode,
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { localizeApiErrorPayload } from '@/lib/errorI18n';
 
 interface User {
@@ -51,6 +52,7 @@ const extractErrorMessage = async (response: Response, fallback: string) => {
 };
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -126,7 +128,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
-  }, []);
+    // Lo cacheado pertenece a la sesion que termina: quien entre despues en
+    // esta pestaña no debe verlo mientras se recargan sus datos.
+    queryClient.clear();
+  }, [queryClient]);
 
   // `logout` y `token` son dependencias de `useAuthenticatedFetch`, y este a su
   // vez de los efectos de carga de cada modulo: si cambiaran en cada render,
