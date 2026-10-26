@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toDateOnlyLocalValue } from "@/lib/dates";
 
 const toDisplayValue = (value: string | undefined, fallback: string) => {
   const normalized = value?.trim();
@@ -61,7 +62,7 @@ export function SparePartRequestForm({
   const [description, setDescription] = useState(initialValues?.description ?? "");
   const [requestedBy, setRequestedBy] = useState(initialValues?.requestedBy ?? "");
   const [requestDate, setRequestDate] = useState(
-    initialValues?.date ?? new Date().toISOString().split("T")[0]
+    initialValues?.date ?? toDateOnlyLocalValue()
   );
   const [notes, setNotes] = useState(initialValues?.notes ?? "");
   const [itemType, setItemType] = useState(toDisplayValue(initialValues?.itemType, "Repuesto"));

@@ -25,6 +25,7 @@ import {
   matchesSearch,
   mergeKnownOptions,
 } from "@/lib/filtering";
+import { toDateOnlyLocalValue } from "@/lib/dates";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -53,8 +54,6 @@ const EMPTY_FORM = {
 
 /** KM del último mantenimiento por tipo, vacío = nunca realizado */
 type BaselineData = Record<string, string>; // type -> km string
-
-const today = new Date().toISOString().split("T")[0];
 
 const EMPTY_VEHICLE_FILTERS: VehicleFilters = {
   query: "",
@@ -395,6 +394,7 @@ export default function Vehicles() {
       return;
     }
     setIsSavingBaseline(true);
+    const today = toDateOnlyLocalValue();
     const baselines = entries.map(([type, km]) => ({
       plate_number: newVehiclePlate,
       type,
