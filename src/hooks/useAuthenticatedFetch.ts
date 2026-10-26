@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useCallback } from 'react';
 import { isRecord, SESSION_EXPIRED_MESSAGE } from '@/lib/apiClient';
+import { toast } from '@/hooks/use-toast';
 
 const isUnauthorizedPayload = (payload: unknown): boolean => {
   if (!isRecord(payload)) return false;
@@ -56,6 +57,10 @@ export const useAuthenticatedFetch = () => {
       });
 
       if (await isSessionRejected(response)) {
+        // La mayoria de los modulos no notifica este error para no repetirlo;
+        // el aviso sale de aqui. Su id es fijo: aunque fallen varias
+        // peticiones a la vez, se muestra uno solo.
+        toast({ title: SESSION_EXPIRED_MESSAGE });
         logout();
         throw new Error(SESSION_EXPIRED_MESSAGE);
       }
