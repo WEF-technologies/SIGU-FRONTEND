@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
-import { ApiError, isClientError, isSessionExpiredError } from "@/lib/apiClient";
+import { ApiError, isSessionExpiredError } from "@/lib/apiClient";
 import {
   GuidePage,
   isModuleNotDeployed,
@@ -37,12 +37,6 @@ const emptyPage = (page: number, pageSize: number): GuidePage => ({
   page,
   pageSize,
 });
-
-/** Una sesion caida ya redirige al login y un 4xx no mejora al repetirlo. */
-const shouldRetry = (failureCount: number, error: unknown) => {
-  if (isSessionExpiredError(error) || isClientError(error)) return false;
-  return failureCount < 2;
-};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof ApiError) return error.message;
@@ -112,7 +106,6 @@ export const useGuidesPage = ({
     // Mantiene la pagina anterior en pantalla mientras llega la nueva.
     placeholderData: keepPreviousData,
     staleTime: 30_000,
-    retry: shouldRetry,
   });
 
   useApiErrorToast(query.error, "No se pudo cargar el manual de fallas.");
@@ -144,7 +137,6 @@ export const useCriticalGuides = () => {
       }
     },
     staleTime: 60_000,
-    retry: shouldRetry,
   });
 };
 

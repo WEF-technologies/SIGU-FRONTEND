@@ -1,6 +1,7 @@
 
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { requestJson } from '@/lib/apiClient';
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -37,13 +38,15 @@ export const useUsers = () => {
   
   return useQuery({
     queryKey: ['users'],
-    queryFn: async (): Promise<User[]> => {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/users/`);
-      if (!response.ok) {
-        throw new Error('Error al obtener usuarios');
-      }
-      return response.json();
-    },
+    // `requestJson` lanza un ApiError con el status: sin el, la regla de
+    // reintento por defecto no distingue un 4xx de un fallo de red.
+    queryFn: async (): Promise<User[]> =>
+      (await requestJson(
+        authenticatedFetch,
+        `${API_URL}/api/v1/users/`,
+        {},
+        'Error al obtener usuarios'
+      )) as User[],
   });
 };
 
