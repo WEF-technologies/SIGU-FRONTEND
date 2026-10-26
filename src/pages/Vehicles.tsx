@@ -26,6 +26,7 @@ import {
   mergeKnownOptions,
 } from "@/lib/filtering";
 import { toDateOnlyLocalValue } from "@/lib/dates";
+import { isSessionExpiredError } from "@/lib/apiClient";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -317,7 +318,7 @@ export default function Vehicles() {
       if (error.status === 404) return "No se encontró historial de mantenimiento para este vehículo.";
       return error.message || "No se pudo descargar el historial PDF.";
     }
-    if (error instanceof Error && error.message === "Sesión expirada") {
+    if (isSessionExpiredError(error)) {
       return "Tu sesión expiró. Inicia sesión nuevamente para continuar.";
     }
     return "Ocurrió un error al descargar el historial PDF.";

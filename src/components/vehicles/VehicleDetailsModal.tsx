@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { maintenancesApi, ApiRequestError } from "@/services/maintenancesApi";
 import { sparePartsApi } from "@/services/sparePartsApi";
 import { vehiclesApi } from "@/services/vehiclesApi";
+import { isSessionExpiredError, SESSION_EXPIRED_MESSAGE } from "@/lib/apiClient";
 
 const normalizeIdValue = (value: unknown) => {
   if (value === null || value === undefined) return "";
@@ -136,7 +137,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
           specificationResult.reason,
           "No se pudo cargar la ficha técnica del vehículo."
         );
-        if (message !== "Sesión expirada") {
+        if (message !== SESSION_EXPIRED_MESSAGE) {
           toast({
             title: "Error al cargar ficha técnica",
             description: message,
@@ -154,7 +155,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
           sparePartsResult.reason,
           "No se pudieron cargar los repuestos compatibles del vehículo."
         );
-        if (message !== "Sesión expirada") {
+        if (message !== SESSION_EXPIRED_MESSAGE) {
           toast({
             title: "Error al cargar repuestos",
             description: message,
@@ -297,7 +298,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
       return error.message || "No se pudo descargar el historial PDF.";
     }
 
-    if (error instanceof Error && error.message === "Sesión expirada") {
+    if (isSessionExpiredError(error)) {
       return "Tu sesión expiró. Inicia sesión nuevamente para continuar.";
     }
 

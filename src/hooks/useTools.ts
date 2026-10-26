@@ -3,6 +3,7 @@ import { Tool, ToolAlert, ToolFilters, ToolAlertFilters, ToolPayload } from "@/t
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { isSessionExpiredError } from "@/lib/apiClient";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1`;
 
@@ -33,9 +34,6 @@ const extractErrorMessage = async (response: Response, fallback: string) => {
     return fallback;
   }
 };
-
-const isSessionExpiredError = (error: unknown) =>
-  error instanceof Error && error.message === "Sesión expirada";
 
 export const useTools = () => {
   const authenticatedFetch = useAuthenticatedFetch();

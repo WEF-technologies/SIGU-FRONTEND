@@ -1,6 +1,8 @@
 import React, {
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useState,
   useEffect,
   ReactNode,
@@ -73,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   // Login
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const response = await fetch(`${API_URL}/api/v1/users/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -117,26 +119,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     localStorage.setItem('authToken', receivedToken);
     localStorage.setItem('authUser', JSON.stringify(userInfo));
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        login,
-        logout,
-        isLoading,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  // `logout` y `token` son dependencias de `useAuthenticatedFetch`, y este a su
+  // vez de los efectos de carga de cada modulo: si cambiaran en cada render,
+  // cualquier render del provider volveria a disparar todas las cargas.
+  const value = useMemo(
+    () => ({ user, token, login, logout, isLoading }),
+    [user, token, login, logout, isLoading]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
