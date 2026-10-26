@@ -38,8 +38,8 @@ import {
   formatDate,
   formatNumber,
   parseNumber,
-  toDateOnlyLocalValue,
 } from "@/components/fluids/fluidConstants";
+import { toDateOnlyLocalValue } from "@/lib/dates";
 import { FluidProductForm } from "@/components/fluids/FluidProductForm";
 import { FluidRuleForm } from "@/components/fluids/FluidRuleForm";
 import { FluidMovementForm } from "@/components/fluids/FluidMovementForm";

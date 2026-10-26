@@ -3,9 +3,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { suppliersApi, SuppliersApiError } from "@/services/suppliersApi";
 import { Supplier, SupplierFilters, SupplierPayload } from "@/types";
-
-const isSessionExpiredError = (error: unknown) =>
-  error instanceof Error && error.message === "Sesión expirada";
+import { isSessionExpiredError } from "@/lib/apiClient";
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof SuppliersApiError) return error.message;

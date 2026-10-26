@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toDateOnlyLocalValue } from "@/lib/dates";
 import { Maintenance as MaintenanceType, Vehicle, SparePart } from "@/types";
 import { maintenanceTypeConfig, MaintenanceTypeKey } from "@/constants/maintenanceTypes";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
@@ -42,7 +43,7 @@ export function MaintenanceFormModal({
     plate_number: "",
     description: "",
     type: "m2+" as MaintenanceTypeKey,
-    date: new Date().toISOString().split('T')[0],
+    date: toDateOnlyLocalValue(),
     kilometers: 0,
     location: "",
     performed_by: "",
@@ -60,7 +61,7 @@ export function MaintenanceFormModal({
         plate_number: editingMaintenance.vehicle_plate || "",
         description: editingMaintenance.description || "",
         type: (editingMaintenance.type || "m2+") as MaintenanceTypeKey,
-        date: editingMaintenance.date || new Date().toISOString().split('T')[0],
+        date: editingMaintenance.date || toDateOnlyLocalValue(),
         kilometers: editingMaintenance.kilometers || 0,
         location: editingMaintenance.location || "",
         performed_by: editingMaintenance.performed_by || "",

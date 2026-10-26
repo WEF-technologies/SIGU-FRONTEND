@@ -15,9 +15,7 @@ import {
   DotationStaffMember,
   DotationStaffMemberPayload,
 } from "@/types";
-
-const isSessionExpiredError = (error: unknown) =>
-  error instanceof Error && error.message === "Sesión expirada";
+import { isSessionExpiredError } from "@/lib/apiClient";
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof DotationApiError) return error.message;

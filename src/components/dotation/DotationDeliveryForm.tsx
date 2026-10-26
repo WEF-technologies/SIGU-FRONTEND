@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DotationDeliveryPayload, DotationItem, DotationStaffMember } from "@/types";
+import { toDateOnlyLocalValue } from "@/lib/dates";
 
 interface DotationDeliveryFormProps {
   staffMembers: DotationStaffMember[];
@@ -28,12 +29,10 @@ interface DeliveryFormState {
   notes: string;
 }
 
-const today = new Date().toISOString().slice(0, 10);
-
 const createEmptyState = (): DeliveryFormState => ({
   staff_member_id: "",
   dotation_item_id: "",
-  delivered_at: today,
+  delivered_at: toDateOnlyLocalValue(),
   quantity: "1",
   delivered_by: "",
   notes: "",

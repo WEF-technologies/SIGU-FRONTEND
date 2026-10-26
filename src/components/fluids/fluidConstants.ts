@@ -40,11 +40,6 @@ export const MOVEMENT_LABELS: Record<FluidMovementType, string> = {
   service_use: "Uso por servicio",
 };
 
-export const toDateOnlyLocalValue = (date: Date = new Date()) => {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
-};
-
 export const parseNumber = (value: string): number | undefined => {
   if (!value.trim()) return undefined;
   const parsed = Number(value);

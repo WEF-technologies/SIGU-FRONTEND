@@ -34,8 +34,6 @@ interface DashboardStats {
   totalDrivers: number;
   activeContracts: number;
   totalMaintenances: number;
-  urgentMaintenances: number;
-  nearMaintenances: number;
 }
 
 interface MaintenanceRecord {
@@ -56,7 +54,12 @@ type RouteRecord = Route & {
 export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
-  const { alerts, dismissAlert, vehicles } = useMaintenance();
+  const {
+    alerts,
+    dismissAlert,
+    vehicles,
+    isLoadingData: isLoadingMaintenanceAlerts,
+  } = useMaintenance();
   const [driverAlerts, setDriverAlerts] = useState<DriverAlert[]>([]);
   const [toolAlerts, setToolAlerts] = useState<ToolAlert[]>([]);
   const [toolAlertQuickFilter, setToolAlertQuickFilter] = useState<"all" | "critical" | "warning">("all");
@@ -66,8 +69,6 @@ export default function Dashboard() {
     totalDrivers: 0,
     activeContracts: 0,
     totalMaintenances: 0,
-    urgentMaintenances: 0,
-    nearMaintenances: 0,
   });
   const [recentMaintenances, setRecentMaintenances] = useState<MaintenanceRecord[]>([]);
   const [activeRoutes, setActiveRoutes] = useState<RouteRecord[]>([]);
@@ -123,9 +124,6 @@ export default function Dashboard() {
             VEHICLE_SEDE_STATUS_OPTIONS.some((option) => option.value === v.status)
         ).length;
 
-        const urgentMaintenances = alerts.filter((a) => a.severity >= 3).length;
-        const nearMaintenances = alerts.filter((a) => a.severity === 2).length;
-
         if (isMounted) {
           setStats({
             totalVehicles,
@@ -133,8 +131,6 @@ export default function Dashboard() {
             totalDrivers: drivers.length,
             activeContracts: contracts.length,
             totalMaintenances: maintenances.length,
-            urgentMaintenances,
-            nearMaintenances,
           });
         }
 
@@ -378,7 +374,7 @@ export default function Dashboard() {
         {/* Mantenimientos */}
         <Card
           className={`border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5 ${
-            stats.urgentMaintenances > 0 ? "border-red-300 bg-red-50/30" : ""
+            criticalAlerts.length > 0 ? "border-red-300 bg-red-50/30" : ""
           }`}
           onClick={() => navigate("/mantenimiento")}
         >
@@ -386,11 +382,11 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-medium text-secondary-dark">Mantenimientos</CardTitle>
             <div
               className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                stats.urgentMaintenances > 0 ? "bg-red-100" : "bg-orange-50"
+                criticalAlerts.length > 0 ? "bg-red-100" : "bg-orange-50"
               }`}
             >
               <Wrench
-                className={`w-5 h-5 ${stats.urgentMaintenances > 0 ? "text-red-600" : "text-orange-600"}`}
+                className={`w-5 h-5 ${criticalAlerts.length > 0 ? "text-red-600" : "text-orange-600"}`}
               />
             </div>
           </CardHeader>
@@ -403,21 +399,24 @@ export default function Dashboard() {
             ) : (
               <div className="text-2xl font-bold text-primary-900">{stats.totalMaintenances}</div>
             )}
-            {!isLoading && (
+            {/* Las alertas llegan de useMaintenance, que tarda más que este resumen:
+                sin esperarlas, la tarjeta mostraría "Todo al día" mientras cargan. */}
+            {!isLoading && isLoadingMaintenanceAlerts && <Skeleton className="h-3 w-28 mt-2" />}
+            {!isLoading && !isLoadingMaintenanceAlerts && (
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {stats.urgentMaintenances > 0 && (
+                {criticalAlerts.length > 0 && (
                 <Badge className="bg-red-100 text-red-700 text-xs">
                   <AlertTriangle className="w-3 h-3 mr-1" />
-                  {stats.urgentMaintenances} vencido{stats.urgentMaintenances !== 1 ? "s" : ""}
+                  {criticalAlerts.length} vencido{criticalAlerts.length !== 1 ? "s" : ""}
                 </Badge>
                 )}
-                {stats.nearMaintenances > 0 && (
+                {nearAlerts.length > 0 && (
                 <Badge className="bg-amber-100 text-amber-700 text-xs">
                   <Clock className="w-3 h-3 mr-1" />
-                  {stats.nearMaintenances} próximo{stats.nearMaintenances !== 1 ? "s" : ""}
+                  {nearAlerts.length} próximo{nearAlerts.length !== 1 ? "s" : ""}
                 </Badge>
                 )}
-                {stats.urgentMaintenances === 0 && stats.nearMaintenances === 0 && (
+                {criticalAlerts.length === 0 && nearAlerts.length === 0 && (
                 <span className="text-xs text-green-600 flex items-center gap-1">
                   <CheckCircle className="w-3 h-3" /> Todo al día
                 </span>
@@ -518,7 +517,7 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoading || isLoadingMaintenanceAlerts ? (
             <div className="space-y-2">
               <Skeleton className="h-14 w-full" />
               <Skeleton className="h-14 w-full" />

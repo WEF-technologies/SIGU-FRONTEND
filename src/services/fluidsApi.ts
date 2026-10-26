@@ -15,6 +15,7 @@ import {
   UpdateFluidRulePayload,
 } from "@/types";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { toDateOnlyLocalValue } from "@/lib/dates";
 
 const RAW_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 const API_BASE_URL = `${RAW_BASE_URL.replace(/\/$/, "")}/api/v1/fluids`;
@@ -599,7 +600,7 @@ const buildRulePayloadVariants = (payload: CreateFluidRulePayload | UpdateFluidR
 };
 
 const buildServicePayloadVariants = (payload: CreateFluidServicePayload) => {
-  const servicedAtValue = payload.serviced_at?.trim() || new Date().toISOString().slice(0, 10);
+  const servicedAtValue = payload.serviced_at?.trim() || toDateOnlyLocalValue();
 
   return [
     {

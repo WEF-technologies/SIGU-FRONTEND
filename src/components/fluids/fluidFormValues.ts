@@ -1,5 +1,6 @@
 import { FluidProduct, FluidRule, FluidType, Vehicle } from "@/types";
-import { ManualFluidMovementType, toDateOnlyLocalValue } from "./fluidConstants";
+import { toDateOnlyLocalValue } from "@/lib/dates";
+import { ManualFluidMovementType } from "./fluidConstants";
 
 /**
  * Valores de los formularios de fluidos, con sus defectos y sus mapeos desde
