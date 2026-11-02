@@ -5,13 +5,17 @@ import { Label } from "@/components/ui/label";
 import { MAX_SPECIFICATION_LOOKUPS, useVehicleSpecifications } from "@/hooks/useVehicleSpecifications";
 import { SparePartFitmentPayload, Vehicle } from "@/types";
 import {
+  MIN_FITMENT_YEAR,
   SPEC_CONDITION_FIELDS,
+  getFitmentYearError,
   getFleetBrands,
   getFleetModels,
   getSpecificationOptions,
   hasSpecConditions,
   matchesVehicleBasics,
   matchesVehicleSpecification,
+  sameFleetText,
+  withSavedOption,
 } from "./fitmentMatching";
 import {
   AlertTriangle,
@@ -59,9 +63,21 @@ function FitmentRuleCard({ rule, index, vehicles, onUpdate, onRemove }: FitmentR
   // las tenga escondidas sin saberlo.
   const [showSpecFilters, setShowSpecFilters] = useState(() => hasSpecConditions(rule));
 
-  const brands = useMemo(() => getFleetBrands(vehicles), [vehicles]);
-  const models = useMemo(() => getFleetModels(vehicles, rule.brand), [rule.brand, vehicles]);
+  const fleetBrands = useMemo(() => getFleetBrands(vehicles), [vehicles]);
+  const fleetModels = useMemo(() => getFleetModels(vehicles, rule.brand), [rule.brand, vehicles]);
+  const brands = useMemo(() => withSavedOption(fleetBrands, rule.brand), [fleetBrands, rule.brand]);
+  const models = useMemo(() => withSavedOption(fleetModels, rule.model), [fleetModels, rule.model]);
   const hasBrand = Boolean(rule.brand?.trim());
+  const yearError = getFitmentYearError(rule);
+
+  // La comparación del backend es exacta (sin importar mayúsculas ni espacios):
+  // una marca o modelo guardado que solo coincidía en parte ya no cubre nada.
+  const brandNotInFleet = hasBrand && !fleetBrands.some((brand) => sameFleetText(brand, rule.brand));
+  const modelNotInFleet =
+    hasBrand &&
+    !brandNotInFleet &&
+    Boolean(rule.model?.trim()) &&
+    !fleetModels.some((model) => sameFleetText(model, rule.model));
 
   /** Unidades que cubre mirando solo marca, modelo y año. */
   const basicMatches = useMemo(
@@ -114,7 +130,7 @@ function FitmentRuleCard({ rule, index, vehicles, onUpdate, onRemove }: FitmentR
           <select
             id={`rule-brand-${index}`}
             className={selectClassName}
-            value={rule.brand ?? ""}
+            value={rule.brand?.trim() ?? ""}
             onChange={(event) =>
               // Cambiar de marca invalida el modelo elegido antes.
               onUpdate({ brand: event.target.value || null, model: null })
@@ -134,7 +150,7 @@ function FitmentRuleCard({ rule, index, vehicles, onUpdate, onRemove }: FitmentR
           <select
             id={`rule-model-${index}`}
             className={selectClassName}
-            value={rule.model?.trim() ? rule.model : ANY_VALUE}
+            value={rule.model?.trim() || ANY_VALUE}
             onChange={(event) =>
               onUpdate({ model: event.target.value === ANY_VALUE ? null : event.target.value })
             }
@@ -157,10 +173,11 @@ function FitmentRuleCard({ rule, index, vehicles, onUpdate, onRemove }: FitmentR
             id={`rule-year-from-${index}`}
             type="number"
             inputMode="numeric"
-            min="1900"
+            min={MIN_FITMENT_YEAR}
             value={rule.year_from ?? ""}
             onChange={(event) => onUpdate({ year_from: parseYear(event.target.value) })}
             placeholder="Cualquiera"
+            aria-invalid={Boolean(yearError)}
           />
         </div>
         <div>
@@ -169,13 +186,34 @@ function FitmentRuleCard({ rule, index, vehicles, onUpdate, onRemove }: FitmentR
             id={`rule-year-to-${index}`}
             type="number"
             inputMode="numeric"
-            min="1900"
+            min={MIN_FITMENT_YEAR}
             value={rule.year_to ?? ""}
             onChange={(event) => onUpdate({ year_to: parseYear(event.target.value) })}
             placeholder="Cualquiera"
+            aria-invalid={Boolean(yearError)}
           />
         </div>
       </div>
+
+      {yearError ? (
+        <p className="flex items-start gap-1.5 text-sm text-red-600">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          {yearError}
+        </p>
+      ) : null}
+
+      {brandNotInFleet || modelNotInFleet ? (
+        <p className="flex items-start gap-1.5 text-sm text-amber-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {brandNotInFleet
+              ? `La marca “${rule.brand?.trim()}” no coincide con ninguna unidad de la flota.`
+              : `El modelo “${rule.model?.trim()}” no coincide con ninguna unidad de esa marca.`}{" "}
+            La compatibilidad compara la marca y el modelo exactos (sin importar mayúsculas):
+            elige uno de la lista tal como está registrado en las unidades.
+          </span>
+        </p>
+      ) : null}
 
       {hasBrand ? (
         <div className="rounded-lg bg-gray-50 p-3">

@@ -14,17 +14,22 @@ export interface Vehicle extends BaseEntity {
   status: string;
   current_kilometers?: number;
   kilometers?: number; // Backend uses 'kilometers' field
-  last_m3_date?: string;
-  last_m3_kilometers?: number;
-  next_m3_kilometers?: number;
+  /**
+   * El backend los recalcula al crear, editar o borrar un M3 (toma el de mayor
+   * km). Si la unidad ya no tiene ningún M3, ambos llegan en null.
+   */
+  last_m3_date?: string | null;
+  /** No lo envía el backend: se deriva del historial en `useMaintenance`. */
+  last_m3_kilometers?: number | null;
+  next_m3_kilometers?: number | null;
 }
 
 export interface NextM3Item {
   vehicle_plate: string;
-  last_m3_date?: string;
-  next_m3_kilometers?: number;
+  last_m3_date?: string | null;
+  next_m3_kilometers?: number | null;
   current_kilometers: number;
-  remaining_km?: number;
+  remaining_km?: number | null;
   status: 'ok' | 'near' | 'due' | 'missing';
 }
 
@@ -108,19 +113,61 @@ export interface DriverAlert {
 export interface Maintenance extends BaseEntity {
   vehicle_id: string;
   description: string;
+  /** Siempre en minúsculas: `useMaintenance` lo normaliza al leerlo. */
   type: 'm2+' | 'm3' | 'm3+' | 'm4' | 'm5';
   date: string;
-  kilometers?: number;
-  location?: string;
-  performed_by?: string;
-  spare_part_id?: string;
-  spare_part_description?: string;
+  /** Puede traer decimales (p. ej. 15234.5). */
+  kilometers?: number | null;
+  location?: string | null;
+  performed_by?: string | null;
+  /**
+   * UUID del repuesto del inventario. Queda en null si se cargó solo una
+   * descripción o si el repuesto se eliminó después (el backend copia su
+   * descripción en `spare_part_description`).
+   */
+  spare_part_id?: string | null;
+  spare_part_description?: string | null;
   vehicle?: Vehicle;
   vehicle_plate?: string;
 }
 
+/** Lo que envía el formulario de mantenimiento al crear o editar. */
+export interface MaintenanceFormData {
+  plate_number: string;
+  description: string;
+  type: string;
+  date: string;
+  /**
+   * null hace que el backend use el km actual de la unidad. Al editar se
+   * reenvía el valor original si no cambió: con null el backend volvería a
+   * validar y sobrescribiría el km del mantenimiento.
+   */
+  kilometers: number | null;
+  location: string;
+  performed_by: string;
+  /** UUID del repuesto, o null. Nunca el código ni otro texto (422). */
+  spare_part_id: string | null;
+  spare_part_description: string;
+}
+
+/**
+ * Por qué falló un alta o edición de mantenimiento:
+ * - `not_found`: el mantenimiento ya no existe (404).
+ * - `spare_part_missing`: el repuesto se eliminó mientras se llenaba el formulario (400).
+ * - `invalid`: el backend rechazó los datos (400/404/422).
+ * - `error`: red, 5xx u otro fallo.
+ */
+export type MaintenanceFailureReason = 'not_found' | 'spare_part_missing' | 'invalid' | 'error';
+
+/** `reason` solo viene cuando `ok` es false. */
+export interface MaintenanceMutationResult {
+  ok: boolean;
+  reason?: MaintenanceFailureReason;
+}
+
 export interface MaintenanceAlert {
   vehicle_plate: string;
+  /** El backend lo devuelve en minúsculas; compárese siempre con `toLowerCase()`. */
   type: string;
   last_km: number | null;
   current_km: number;

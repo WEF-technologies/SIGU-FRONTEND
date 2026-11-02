@@ -1,6 +1,13 @@
 
 import { useEffect, useMemo, useState } from "react";
-import { SparePart, Vehicle, VehicleSpecification, VehicleSpecificationPayload } from "@/types";
+import {
+  MaintenanceFormData,
+  SparePart,
+  Vehicle,
+  VehicleSpecification,
+  VehicleSpecificationPayload,
+} from "@/types";
+import { formatKilometers, formatKmNumber } from "@/lib/kilometers";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -215,10 +222,12 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     if (remaining <= 0) {
       return { text: 'Vencido', isOverdue: true };
     }
-    return { text: `${remaining.toLocaleString()} km`, isOverdue: false };
+    return { text: `${formatKmNumber(remaining)} km`, isOverdue: false };
   };
 
   const m3Status = getM3Status();
+  // El backend deja ambos campos en null cuando a la unidad no le queda ningún M3.
+  const hasM3 = vehicle.next_m3_kilometers != null || Boolean(vehicle.last_m3_date);
 
   const handleSaveKilometers = () => {
     const km = parseInt(kmValue);
@@ -228,12 +237,12 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     }
   };
 
-  const handleMaintenanceSubmit = async (formData: any) => {
-    const success = await createMaintenance(formData);
-    if (success) {
+  const handleMaintenanceSubmit = async (formData: MaintenanceFormData) => {
+    const result = await createMaintenance(formData);
+    if (result.ok) {
       setShowMaintenanceForm(false);
     }
-    return success;
+    return result;
   };
 
   const handleSpecificationFieldChange = (
@@ -382,7 +391,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{(vehicle.current_kilometers || vehicle.kilometers || 0).toLocaleString()} km</p>
+                      <p className="font-medium">{formatKilometers(vehicle.current_kilometers || vehicle.kilometers || 0)}</p>
                       <Button
                         size="sm"
                         variant="outline"
@@ -411,18 +420,24 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                   Próximo Mantenimiento M3
                 </Label>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Último M3: {vehicle.last_m3_date ? new Date(vehicle.last_m3_date).toLocaleDateString() : 'No registrado'}</span>
-                  <span className={m3Status.isOverdue ? 'text-red-600 font-medium' : ''}>
-                    Faltan: {m3Status.text}
-                  </span>
+              {hasM3 ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Último M3: {vehicle.last_m3_date ? new Date(vehicle.last_m3_date).toLocaleDateString() : 'Sin fecha'}</span>
+                    <span className={m3Status.isOverdue ? 'text-red-600 font-medium' : ''}>
+                      Faltan: {m3Status.text}
+                    </span>
+                  </div>
+                  <Progress value={calculateM3Progress()} className="h-2" />
+                  <div className="text-xs text-gray-500">
+                    Próximo M3 en: {formatKilometers(vehicle.next_m3_kilometers, 'N/A')}
+                  </div>
                 </div>
-                <Progress value={calculateM3Progress()} className="h-2" />
-                <div className="text-xs text-gray-500">
-                  Próximo M3 en: {vehicle.next_m3_kilometers?.toLocaleString() || 'N/A'} km
-                </div>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Sin M3 registrado. El próximo se calcula al registrar un mantenimiento M3.
+                </p>
+              )}
             </Card>
 
             {/* Tabs para historial, ficha técnica y repuestos */}
@@ -484,7 +499,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                         vehicleMaintenances.map((maintenanceItem) => (
                           <TableRow key={maintenanceItem.id}>
                             <TableCell>
-                              <Badge 
+                              <Badge
                                 className={maintenanceTypeConfig[maintenanceItem.type]?.color}
                                 variant="outline"
                               >
@@ -492,7 +507,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                               </Badge>
                             </TableCell>
                             <TableCell>{new Date(maintenanceItem.date).toLocaleDateString()}</TableCell>
-                            <TableCell>{maintenanceItem.kilometers?.toLocaleString()} km</TableCell>
+                            <TableCell>{formatKilometers(maintenanceItem.kilometers)}</TableCell>
                             <TableCell>{maintenanceItem.description}</TableCell>
                             <TableCell>{maintenanceItem.location || 'No especificada'}</TableCell>
                             <TableCell>{maintenanceItem.performed_by || 'No especificado'}</TableCell>

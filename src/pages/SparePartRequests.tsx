@@ -33,7 +33,11 @@ type RequestStatus = "pending" | "approved" | "rejected";
 
 interface SparePartRequest {
   id: string;
-  spare_part_id: string;
+  /**
+   * null si la solicitud no apunta a un repuesto del inventario o si ese
+   * repuesto se eliminó: el `code` se conserva y es lo que se muestra.
+   */
+  spare_part_id: string | null;
   code: string;
   description: string;
   requested_by: string;
@@ -147,7 +151,10 @@ const normalizeRequest = (payload: unknown): SparePartRequest | null => {
 
   return {
     id,
-    spare_part_id: typeof payload.spare_part_id === "string" ? payload.spare_part_id : "",
+    spare_part_id:
+      typeof payload.spare_part_id === "string" && payload.spare_part_id.trim()
+        ? payload.spare_part_id
+        : null,
     code: typeof payload.code === "string" ? payload.code : "",
     description: typeof payload.description === "string" ? payload.description : "",
     requested_by:

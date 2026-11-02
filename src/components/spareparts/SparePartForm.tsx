@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SparePart, SparePartFitmentPayload, SparePartPayload, Vehicle } from "@/types";
 import { VehicleSelector } from "./VehicleSelector";
 import { VehicleFitmentRules } from "./VehicleFitmentRules";
-import { isFitmentEmpty } from "./fitmentMatching";
+import { getFitmentYearError, isFitmentEmpty } from "./fitmentMatching";
 
 interface SparePartFormProps {
   sparePart?: SparePart | null;
@@ -61,8 +61,15 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
     setFormData(sparePart ? mapSparePartToFormData(sparePart) : createEmptyFormData());
   }, [sparePart]);
 
+  // Las filas vacías se descartan al enviar; las que tienen datos deben ser válidas
+  // o el backend responde 400 (p. ej. año inicial mayor que el final).
+  const hasInvalidFitment = formData.fitments.some(
+    (fitment) => !isFitmentEmpty(fitment) && getFitmentYearError(fitment) !== null
+  );
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (hasInvalidFitment) return;
 
     const parsedQuantity = Number.parseInt(formData.quantity, 10);
     const parsedUnitPrice = formData.unit_price.trim()
@@ -77,7 +84,8 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
       compatible_vehicles: formData.compatible_vehicles,
       unit_price:
         parsedUnitPrice !== null && Number.isFinite(parsedUnitPrice) ? parsedUnitPrice : null,
-      // Una regla a medio llenar no cubre nada: mejor no guardarla.
+      // Una fila vacía no cubre nada y el backend la rechaza ({} da 400): se quita.
+      // `fitments` reemplaza la lista entera, así que va siempre completa.
       fitments: formData.fitments.filter((fitment) => !isFitmentEmpty(fitment)),
     });
   };
@@ -197,11 +205,17 @@ export function SparePartForm({ sparePart, vehicles, onSubmit, onCancel }: Spare
         />
       </div>
 
+      {hasInvalidFitment ? (
+        <p className="text-right text-sm text-red-600">
+          Corrige los años de las reglas de compatibilidad para poder guardar.
+        </p>
+      ) : null}
+
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" className="bg-primary hover:bg-primary-600">
+        <Button type="submit" className="bg-primary hover:bg-primary-600" disabled={hasInvalidFitment}>
           {sparePart ? "Guardar cambios" : "Crear repuesto"}
         </Button>
       </div>

@@ -30,8 +30,13 @@ import { isSessionExpiredError } from "@/lib/apiClient";
 import { Eye, Edit, Trash2, Calendar, Gauge, Plus, Wrench, Info, Download, Loader2 } from "lucide-react";
 import { ApiRequestError, maintenancesApi } from "@/services/maintenancesApi";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { formatKmNumber } from "@/lib/kilometers";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
+
+const MIN_VEHICLE_YEAR = 1900;
+/** El backend acepta hasta el año siguiente al actual. */
+const getMaxVehicleYear = () => new Date().getFullYear() + 1;
 
 const parseBackendErrorMessage = async (response: Response, fallback: string) => {
   try {
@@ -51,6 +56,27 @@ const EMPTY_FORM = {
   plate_number: "",
   status: "available" as Vehicle["status"],
   current_kilometers: 0,
+};
+
+type VehicleFormData = typeof EMPTY_FORM;
+
+/**
+ * PUT /vehicles/{plate} acepta actualizaciones parciales: solo se envían los
+ * campos que el usuario cambió respecto a lo que se cargó en el formulario.
+ * El kilometraje se manda como `kilometers`, que es como lo nombra el backend.
+ */
+const buildVehicleUpdatePayload = (initial: VehicleFormData, current: VehicleFormData) => {
+  const payload: Record<string, string | number> = {};
+
+  if (current.brand !== initial.brand) payload.brand = current.brand;
+  if (current.model !== initial.model) payload.model = current.model;
+  if (current.year !== initial.year) payload.year = current.year;
+  if (current.status !== initial.status) payload.status = current.status;
+  if (current.current_kilometers !== initial.current_kilometers) {
+    payload.kilometers = current.current_kilometers;
+  }
+
+  return payload;
 };
 
 /** KM del último mantenimiento por tipo, vacío = nunca realizado */
@@ -121,7 +147,10 @@ export default function Vehicles() {
 
   const [filters, setFilters] = useState<VehicleFilters>(EMPTY_VEHICLE_FILTERS);
   const [sortBy, setSortBy] = useState<VehicleSort>("maintenance_due");
-  const [formData, setFormData] = useState({ ...EMPTY_FORM });
+  const [formData, setFormData] = useState<VehicleFormData>({ ...EMPTY_FORM });
+  /** Lo que se cargó al abrir la edición; sirve para mandar solo lo que cambió. */
+  const [initialFormData, setInitialFormData] = useState<VehicleFormData>({ ...EMPTY_FORM });
+  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
 
   // Mismas opciones de estado que el formulario, más cualquier otro valor que ya exista en los datos.
   const filterOptions = useMemo(
@@ -203,6 +232,7 @@ export default function Vehicles() {
 
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM });
+    setInitialFormData({ ...EMPTY_FORM });
     setEditingVehicle(null);
     setModalStep("vehicle");
     setNewVehiclePlate("");
@@ -215,14 +245,16 @@ export default function Vehicles() {
   };
 
   const handleEdit = (vehicle: Vehicle) => {
-    setFormData({
+    const loaded: VehicleFormData = {
       brand: vehicle.brand,
       model: vehicle.model,
       year: vehicle.year,
       plate_number: vehicle.plate_number,
       status: vehicle.status,
       current_kilometers: vehicle.current_kilometers || vehicle.kilometers || 0,
-    });
+    };
+    setFormData(loaded);
+    setInitialFormData(loaded);
     setEditingVehicle(vehicle);
     setModalStep("vehicle");
     setIsModalOpen(true);
@@ -236,7 +268,7 @@ export default function Vehicles() {
   const handleDelete = async (vehicle: Vehicle) => {
     if (!(await confirm({
       title: "Eliminar vehículo",
-      description: `Se eliminará el vehículo ${vehicle.plate_number}. Esta acción no se puede deshacer.`,
+      description: `Se eliminará el vehículo ${vehicle.plate_number} y su placa se quitará de los repuestos compatibles. Esta acción no se puede deshacer.`,
     }))) return;
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(vehicle.plate_number)}`, {
@@ -345,14 +377,48 @@ export default function Vehicles() {
     }
   };
 
+  /** Muestra el `detail` del backend (año fuera de rango, km menor al permitido, etc.). */
+  const notifyVehicleSaveError = async (response: Response, action: "actualizar" | "registrar") => {
+    const message = await parseBackendErrorMessage(response, `No se pudo ${action} el vehículo.`);
+    toast({
+      title:
+        response.status === 400 || response.status === 422
+          ? "Datos del vehículo no válidos"
+          : `Error al ${action} el vehículo`,
+      description: message,
+      variant: "destructive",
+    });
+  };
+
   /** Paso 1: guarda el vehículo. Si es nuevo, avanza al paso 2 de baseline. */
   const handleSubmitVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingVehicle) return;
+
+    const maxYear = getMaxVehicleYear();
+    if (!Number.isInteger(formData.year) || formData.year < MIN_VEHICLE_YEAR || formData.year > maxYear) {
+      toast({
+        title: "Datos del vehículo no válidos",
+        description: `El año debe estar entre ${MIN_VEHICLE_YEAR} y ${maxYear}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingVehicle(true);
     try {
       if (editingVehicle) {
+        const payload = buildVehicleUpdatePayload(initialFormData, formData);
+        if (Object.keys(payload).length === 0) {
+          // Nada cambió: no hace falta llamar al backend.
+          setIsModalOpen(false);
+          resetForm();
+          return;
+        }
+
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(editingVehicle.plate_number)}`, {
           method: "PUT",
-          body: JSON.stringify({ ...formData, kilometers: formData.current_kilometers }),
+          body: JSON.stringify(payload),
         });
         if (response.ok) {
           const vehicle = await response.json();
@@ -360,11 +426,14 @@ export default function Vehicles() {
           setIsModalOpen(false);
           resetForm();
           updateVehicleInState(vehicle);
+        } else {
+          await notifyVehicleSaveError(response, "actualizar");
         }
       } else {
+        const { current_kilometers, ...vehicleFields } = formData;
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`, {
           method: "POST",
-          body: JSON.stringify({ ...formData, kilometers: formData.current_kilometers }),
+          body: JSON.stringify({ ...vehicleFields, kilometers: current_kilometers }),
         });
         if (response.ok) {
           const vehicle = await response.json();
@@ -378,10 +447,21 @@ export default function Vehicles() {
             setIsModalOpen(false);
             resetForm();
           }
+        } else {
+          await notifyVehicleSaveError(response, "registrar");
         }
       }
     } catch (error) {
       console.error("Error with vehicle operation:", error);
+      if (!isSessionExpiredError(error)) {
+        toast({
+          title: "Error de conexión",
+          description: "No se pudo conectar al servidor para guardar el vehículo.",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSavingVehicle(false);
     }
   };
 
@@ -501,19 +581,26 @@ export default function Vehicles() {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        {vehicle.last_m3_date || "No registrado"}
+                        {vehicle.last_m3_date ? (
+                          vehicle.last_m3_date
+                        ) : (
+                          <span className="text-gray-500">Sin M3 registrado</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1">
                         <Gauge className="w-4 h-4 text-gray-400" />
                         {(() => {
+                          if (vehicle.next_m3_kilometers == null) {
+                            return <span className="text-gray-500">Sin M3 registrado</span>;
+                          }
                           const remaining = getRemainingKm(vehicle);
                           if (remaining === null) return "No definido";
                           return remaining <= 0 ? (
                             <span className="text-red-600 font-semibold">Vencido</span>
                           ) : (
-                            `${remaining.toLocaleString()} km`
+                            `${formatKmNumber(remaining)} km`
                           );
                         })()}
                       </div>
@@ -573,7 +660,15 @@ export default function Vehicles() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="year">Año de Fabricación</Label>
-                <Input id="year" type="number" value={formData.year} onChange={(e) => setFormData((p) => ({ ...p, year: parseInt(e.target.value) }))} required />
+                <Input
+                  id="year"
+                  type="number"
+                  min={MIN_VEHICLE_YEAR}
+                  max={getMaxVehicleYear()}
+                  value={Number.isNaN(formData.year) ? "" : formData.year}
+                  onChange={(e) => setFormData((p) => ({ ...p, year: parseInt(e.target.value, 10) }))}
+                  required
+                />
               </div>
               <div>
                 <Label htmlFor="plate_number">Número de Placa</Label>
@@ -611,8 +706,8 @@ export default function Vehicles() {
 
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm(); }}>Cancelar</Button>
-              <Button type="submit" className="bg-primary hover:bg-primary-600">
-                {editingVehicle ? "Actualizar" : "Registrar y Continuar"}
+              <Button type="submit" className="bg-primary hover:bg-primary-600" disabled={isSavingVehicle}>
+                {isSavingVehicle ? "Guardando..." : editingVehicle ? "Actualizar" : "Registrar y Continuar"}
               </Button>
             </div>
           </form>

@@ -51,6 +51,38 @@ export const isFitmentEmpty = (fitment: SparePartFitmentPayload) =>
   fitment.year_to == null &&
   !hasSpecConditions(fitment);
 
+export const MIN_FITMENT_YEAR = 1900;
+
+/**
+ * Las mismas reglas de año que valida el backend (si no, responde 400).
+ * Devuelve el problema a mostrar, o null si la regla es válida.
+ */
+export const getFitmentYearError = (fitment: SparePartFitmentPayload): string | null => {
+  if (fitment.year_from != null && fitment.year_from < MIN_FITMENT_YEAR) {
+    return `El año inicial debe ser ${MIN_FITMENT_YEAR} o posterior.`;
+  }
+  if (fitment.year_to != null && fitment.year_to < MIN_FITMENT_YEAR) {
+    return `El año final debe ser ${MIN_FITMENT_YEAR} o posterior.`;
+  }
+  if (fitment.year_from != null && fitment.year_to != null && fitment.year_from > fitment.year_to) {
+    return "El año inicial no puede ser mayor que el año final.";
+  }
+  return null;
+};
+
+/** Compara como el backend: sin distinguir mayúsculas ni espacios en los extremos. */
+export const sameFleetText = (a: string | null | undefined, b: string | null | undefined) =>
+  (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+
+/**
+ * Agrega a las opciones de la flota el valor ya guardado en la regla cuando no
+ * figura tal cual, para que el select lo muestre en vez de quedar en blanco.
+ */
+export const withSavedOption = (options: string[], saved: string | null | undefined) => {
+  const value = saved?.trim();
+  return value && !options.includes(value) ? [value, ...options] : options;
+};
+
 /** Coincidencia por marca, modelo y año: lo que se puede saber sin la ficha. */
 export const matchesVehicleBasics = (fitment: SparePartFitmentPayload, vehicle: Vehicle) =>
   textMatches(fitment.brand, vehicle.brand) &&

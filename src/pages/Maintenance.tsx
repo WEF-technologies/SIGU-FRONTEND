@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Maintenance as MaintenanceType, Vehicle } from "@/types";
+import { Maintenance as MaintenanceType, MaintenanceFormData, Vehicle } from "@/types";
+import { formatKilometers, formatKmNumber } from "@/lib/kilometers";
 import { PageDataLoader } from "@/components/shared/PageDataLoader";
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { MaintenanceDetailsModal } from "@/components/maintenance/MaintenanceDetailsModal";
@@ -39,12 +40,20 @@ function normalizePlateValue(value: unknown) {
 
 function M3StatusPill({ vehicle }: { vehicle?: Vehicle }) {
   if (!vehicle) return null;
+  const nextM3Km = vehicle.next_m3_kilometers;
+  // El backend deja next_m3_kilometers en null cuando la unidad no tiene ningún M3.
+  if (nextM3Km == null) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full">
+        Sin M3 registrado
+      </span>
+    );
+  }
   const effectiveKm = Math.max(
-    vehicle.current_kilometers || (vehicle as any).kilometers || 0,
+    vehicle.current_kilometers || vehicle.kilometers || 0,
     vehicle.last_m3_kilometers || 0
   );
-  const nextM3Km = vehicle.next_m3_kilometers;
-  if (!effectiveKm || !nextM3Km) return null;
+  if (!effectiveKm) return null;
   const remaining = nextM3Km - effectiveKm;
   if (remaining <= 0) {
     return (
@@ -58,14 +67,14 @@ function M3StatusPill({ vehicle }: { vehicle?: Vehicle }) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
         <AlertTriangle className="w-3 h-3" />
-        M3 en {remaining.toLocaleString()} km
+        M3 en {formatKmNumber(remaining)} km
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 border border-green-200 px-2 py-0.5 rounded-full">
       <CheckCircle className="w-3 h-3" />
-      M3 en {remaining.toLocaleString()} km
+      M3 en {formatKmNumber(remaining)} km
     </span>
   );
 }
@@ -107,7 +116,7 @@ function MaintenanceRow({ m, isLast, onEdit, onDelete, onView }: MaintenanceRowP
             </span>
             {m.kilometers != null && (
               <span className="text-xs text-gray-500 flex items-center gap-1">
-                <Gauge className="w-3 h-3" /> {m.kilometers.toLocaleString()} km
+                <Gauge className="w-3 h-3" /> {formatKilometers(m.kilometers)}
               </span>
             )}
           </div>
@@ -185,7 +194,7 @@ function VehicleCard({
   const [open, setOpen] = useState(defaultOpen);
   const latest = maintenances[0];
   const currentKm = Math.max(
-    vehicle?.current_kilometers || (vehicle as any)?.kilometers || 0,
+    vehicle?.current_kilometers || vehicle?.kilometers || 0,
     vehicle?.last_m3_kilometers || 0
   );
 
@@ -213,7 +222,7 @@ function VehicleCard({
               <M3StatusPill vehicle={vehicle} />
               {currentKm > 0 && (
                 <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Gauge className="w-3 h-3" /> {currentKm.toLocaleString()} km
+                  <Gauge className="w-3 h-3" /> {formatKilometers(currentKm)}
                 </span>
               )}
               {latest && (
@@ -411,7 +420,7 @@ export default function Maintenance() {
     await deleteMaintenance(m);
   };
 
-  const handleSubmit = async (formData: any) => {
+  const handleSubmit = async (formData: MaintenanceFormData) => {
     if (editingMaintenance) {
       return await updateMaintenance(editingMaintenance.id, formData);
     }
