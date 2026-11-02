@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
+import { formatKilometers } from "@/lib/kilometers";
 import { CalendarDays, Gauge, MapPin, User, Wrench, Car, Package } from "lucide-react";
 
 interface MaintenanceDetailsModalProps {
@@ -16,7 +17,9 @@ interface MaintenanceDetailsModalProps {
 export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: MaintenanceDetailsModalProps) {
   if (!maintenance) return null;
 
-  const config = maintenanceTypeConfig[maintenance.type];
+  const typeKey = (maintenance.type ?? "").toLowerCase() as keyof typeof maintenanceTypeConfig;
+  const config = maintenanceTypeConfig[typeKey];
+  const sparePartText = maintenance.spare_part_description?.trim();
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -41,7 +44,9 @@ export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: Mainte
               </div>
               <div>
                 <Label className="text-sm text-gray-600">Tipo de Mantenimiento</Label>
-                <Badge variant="outline" className={config.color}>{maintenance.type.toUpperCase()}</Badge>
+                <Badge variant="outline" className={config?.color ?? "text-gray-500 border-gray-400"}>
+                  {(maintenance.type ?? "").toUpperCase() || "—"}
+                </Badge>
               </div>
               <div>
                 <Label className="text-sm text-gray-600 flex items-center gap-1">
@@ -55,9 +60,7 @@ export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: Mainte
                   <Gauge className="w-4 h-4" />
                   Kilometraje
                 </Label>
-                <p className="font-medium">
-                  {maintenance.kilometers ? `${maintenance.kilometers.toLocaleString()} km` : 'No registrado'}
-                </p>
+                <p className="font-medium">{formatKilometers(maintenance.kilometers)}</p>
               </div>
             </div>
           </Card>
@@ -91,8 +94,9 @@ export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: Mainte
             </div>
           </Card>
 
-          {/* Repuestos utilizados */}
-          {(maintenance.spare_part_description || maintenance.spare_part_id) && (
+          {/* Repuestos utilizados. Sin spare_part_id (texto libre o repuesto ya
+              eliminado del inventario) solo queda la descripción guardada. */}
+          {(sparePartText || maintenance.spare_part_id) && (
             <Card className="p-4">
               <div>
                 <Label className="text-sm text-gray-600 flex items-center gap-1">
@@ -100,8 +104,13 @@ export function MaintenanceDetailsModal({ maintenance, isOpen, onClose }: Mainte
                   Repuestos Utilizados
                 </Label>
                 <p className="font-medium mt-2">
-                  {maintenance.spare_part_description || 'Repuesto registrado'}
+                  {sparePartText || 'Repuesto del inventario'}
                 </p>
+                {!maintenance.spare_part_id && sparePartText && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    No está vinculado a un repuesto del inventario.
+                  </p>
+                )}
               </div>
             </Card>
           )}

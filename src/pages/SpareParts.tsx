@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { matchesSearch } from "@/lib/filtering";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
-import { sparePartsApi } from "@/services/sparePartsApi";
+import { isSparePartNotFoundError, SparePartsApiError, sparePartsApi } from "@/services/sparePartsApi";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -327,15 +327,28 @@ export default function SpareParts() {
   const handleViewDetails = (sp: SparePart) => { setViewingSparePart(sp); setIsDetailsModalOpen(true); };
 
   const handleDelete = async (sp: SparePart) => {
+    // Un repuesto en uso ya se puede borrar: el historial se conserva.
     if (!(await confirm({
       title: "Eliminar repuesto",
-      description: `Se eliminará ${sp.code} - ${sp.description}. Esta acción no se puede deshacer.`,
+      description:
+        `Se eliminará ${sp.code} - ${sp.description} del inventario. ` +
+        "Los mantenimientos y solicitudes que lo usaban conservan su descripción y su código. " +
+        "Esta acción no se puede deshacer.",
     }))) return;
     try {
       await sparePartsApi.remove(authenticatedFetch, sp.id);
       setSpareParts(prev => prev.filter(p => p.id !== sp.id));
-      toast({ title: "Repuesto eliminado", description: `${sp.code} - ${sp.description} eliminado.` });
+      toast({
+        title: "Repuesto eliminado",
+        description: `${sp.code} - ${sp.description} eliminado. El historial que lo usaba conserva su descripción y su código.`,
+      });
     } catch (error) {
+      if (error instanceof SparePartsApiError && error.status === 404) {
+        // Otro usuario ya lo había eliminado: el resultado es el mismo.
+        setSpareParts(prev => prev.filter(p => p.id !== sp.id));
+        toast({ title: "Repuesto eliminado", description: `${sp.code} ya no existía en el inventario.` });
+        return;
+      }
       toast({
         title: "Error",
         description: getSparePartErrorMessage(error, "Error al eliminar el repuesto."),
@@ -357,8 +370,23 @@ export default function SpareParts() {
       }
       setIsModalOpen(false);
     } catch (error) {
+      if (editingSparePart && isSparePartNotFoundError(error)) {
+        // Lo eliminaron mientras se editaba: no queda nada que guardar.
+        setSpareParts(prev => prev.filter(sp => sp.id !== editingSparePart.id));
+        setIsModalOpen(false);
+        toast({
+          title: "Repuesto no encontrado",
+          description: getSparePartErrorMessage(error, "El repuesto ya no existe."),
+          variant: "destructive",
+        });
+        return;
+      }
+      // El resto (fitment vacío, años invertidos, placa nueva inexistente: 404 al
+      // editar y 400 al crear) es un error de validación: se muestra el detalle.
+      const isValidationError =
+        error instanceof SparePartsApiError && [400, 404, 422].includes(error.status);
       toast({
-        title: "Error",
+        title: isValidationError ? "Datos del repuesto no válidos" : "Error",
         description: getSparePartErrorMessage(error, "Error al procesar la operación."),
         variant: "destructive"
       });

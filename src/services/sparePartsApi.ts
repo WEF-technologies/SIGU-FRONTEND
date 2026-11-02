@@ -23,15 +23,28 @@ export class SparePartsApiError extends Error {
   status: number;
   code?: string;
   details?: unknown;
+  /** `detail` original del backend (sin traducir), para distinguir errores con el mismo código. */
+  rawDetail: string;
 
-  constructor(status: number, message: string, code?: string, details?: unknown) {
+  constructor(status: number, message: string, code?: string, details?: unknown, rawDetail = "") {
     super(message);
     this.name = "SparePartsApiError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.rawDetail = rawDetail;
   }
 }
+
+/**
+ * El PUT responde 404 en dos casos distintos: el repuesto ya no existe, o una
+ * placa nueva de `compatible_vehicles` no existe (en el POST esa misma
+ * validación es un 400). Esta función reconoce solo el primero.
+ */
+export const isSparePartNotFoundError = (error: unknown) =>
+  error instanceof SparePartsApiError &&
+  error.status === 404 &&
+  /sparepart with id .+ not found/i.test(error.rawDetail);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -61,7 +74,8 @@ const parseSparePartsApiError = async (
   }
 
   const message = localizeApiErrorPayload(payload, fallback);
-  return new SparePartsApiError(response.status, message, payload?.code, payload?.details);
+  const rawDetail = typeof payload?.detail === "string" ? payload.detail : "";
+  return new SparePartsApiError(response.status, message, payload?.code, payload?.details, rawDetail);
 };
 
 const readString = (record: Record<string, unknown>, key: string) => {

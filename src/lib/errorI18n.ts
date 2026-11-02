@@ -26,6 +26,10 @@ const FIELD_LABELS: Record<string, string> = {
   spare_part_description: "Descripcion del repuesto",
   compatible_vehicles: "Vehiculos compatibles",
   fitments: "Compatibilidad tecnica",
+  year_from: "Año desde",
+  year_to: "Año hasta",
+  quantity: "Cantidad",
+  unit_price: "Precio unitario",
   code: "Codigo",
   name: "Nombre",
   last_name: "Apellido",
@@ -118,8 +122,94 @@ const getFieldLabel = (fieldKey: string | null): string => {
   return FIELD_LABELS[normalized] || capitalize(normalized.replace(/_/g, " "));
 };
 
+/**
+ * Mensajes concretos del modulo de vehiculos. Van antes que las reglas
+ * genericas: "does not exist" o "not found" por si solos se traducirian a un
+ * "No se encontro el recurso" que no le dice al usuario que corregir.
+ */
+const translateVehicleModuleMessage = (raw: string): string | null => {
+  if (/spare part with id \S+ does not exist/i.test(raw)) {
+    return "El repuesto seleccionado ya no existe en el inventario.";
+  }
+
+  if (/sparepart with id \S+ not found/i.test(raw)) {
+    return "El repuesto ya no existe. Es posible que otro usuario lo haya eliminado.";
+  }
+
+  if (/maintenance with id \S+ not found/i.test(raw)) {
+    return "El mantenimiento ya no existe. Es posible que otro usuario lo haya eliminado.";
+  }
+
+  let match = raw.match(/vehicle with plate number (.+?) does not exist/i);
+  if (match) return `La unidad con placa ${match[1]} no existe.`;
+
+  if (/^vehicle not found$/i.test(raw)) {
+    return "La unidad no existe.";
+  }
+
+  match = raw.match(/year must be between (\d+) and (\d+)/i);
+  if (match) return `El año debe estar entre ${match[1]} y ${match[2]}.`;
+
+  match = raw.match(/vehicle kilometers cannot be lower than the highest recorded kilometers for this unit \((\d+)\)/i);
+  if (match) {
+    return `El kilometraje no puede ser menor al mayor registrado para la unidad (${Number(match[1]).toLocaleString()} km).`;
+  }
+
+  match = raw.match(/maintenance kilometers cannot be lower than the highest already recorded maintenance kilometers for this unit \((\d+)\)/i);
+  if (match) {
+    return `El kilometraje no puede ser menor al del mantenimiento con mayor kilometraje de la unidad (${Number(match[1]).toLocaleString()} km).`;
+  }
+
+  if (/kilometers must be a non-negative number/i.test(raw)) {
+    return "El kilometraje no puede ser negativo.";
+  }
+
+  if (/at least one spare part fitment criterion must be provided/i.test(raw)) {
+    return "Cada regla de compatibilidad necesita al menos un dato (marca, modelo, año o ficha técnica).";
+  }
+
+  if (/year_from cannot be greater than year_to/i.test(raw)) {
+    return "En una regla de compatibilidad, el año inicial no puede ser mayor que el año final.";
+  }
+
+  match = raw.match(/(year_from|year_to) must be greater than or equal to (\d+)/i);
+  if (match) {
+    const label = match[1].toLowerCase() === "year_from" ? "inicial" : "final";
+    return `El año ${label} de una regla de compatibilidad debe ser ${match[2]} o posterior.`;
+  }
+
+  if (/quantity must be a non-negative integer/i.test(raw)) {
+    return "La cantidad debe ser un numero entero mayor o igual a 0.";
+  }
+
+  if (/unit price must be non-negative/i.test(raw)) {
+    return "El precio unitario no puede ser negativo.";
+  }
+
+  if (/^description must be a non-empty string$/i.test(raw)) {
+    return "La descripcion es obligatoria.";
+  }
+
+  if (/^type must be a non-empty string$/i.test(raw)) {
+    return "El tipo de mantenimiento es obligatorio.";
+  }
+
+  if (/spare_part_description must be non-empty when provided/i.test(raw)) {
+    return "La descripcion del repuesto no puede estar vacia.";
+  }
+
+  if (/input should be a valid uuid/i.test(raw)) {
+    return "No es un identificador valido.";
+  }
+
+  return null;
+};
+
 const translateKnownEnglish = (message: string): string | null => {
   const raw = cleanText(message);
+
+  const vehicleModuleMessage = translateVehicleModuleMessage(raw);
+  if (vehicleModuleMessage) return vehicleModuleMessage;
 
   let match = raw.match(/input should be greater than or equal to\s*(-?\d+(?:\.\d+)?)/i);
   if (match) return `Debe ser mayor o igual a ${match[1]}.`;

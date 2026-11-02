@@ -1,13 +1,88 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Maintenance as MaintenanceType, Vehicle, MaintenanceAlert } from "@/types";
+import {
+  Maintenance as MaintenanceType,
+  MaintenanceAlert,
+  MaintenanceFailureReason,
+  MaintenanceFormData,
+  MaintenanceMutationResult,
+  Vehicle,
+} from "@/types";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { isRecord, isSessionExpiredError } from "@/lib/apiClient";
+import { toNullableNumber } from "@/lib/kilometers";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 const M3_INTERVAL_KM = 5000;
 const MAINTENANCE_PAGE_SIZE = 200;
 const MAX_MAINTENANCE_PAGES = 40;
+const DISMISSED_ALERTS_KEY = "dismissedMaintenanceAlerts";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * El backend valida `spare_part_id` como UUID: cualquier otro texto (un
+ * código, "none") responde 422. Se manda el UUID o null.
+ */
+const toSparePartId = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return UUID_PATTERN.test(trimmed) ? trimmed : null;
+};
+
+const toNullableText = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+/** "M3" y "m3" son el mismo tipo para el backend; aquí se guardan en minúsculas. */
+const normalizeMaintenanceType = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
+/** Llave de una alerta descartada; sin distinguir mayúsculas en el tipo. */
+const getAlertKey = (alert: Pick<MaintenanceAlert, "vehicle_plate" | "type">) =>
+  `${alert.vehicle_plate}-${alert.type}`.toLowerCase();
+
+const readErrorResponse = async (response: Response) => {
+  const fallback = `No se pudo completar la solicitud (${response.status}).`;
+  let payload: unknown = null;
+
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  return {
+    status: response.status,
+    /** Texto original del backend, para distinguir casos que comparten código. */
+    rawDetail: isRecord(payload) && typeof payload.detail === "string" ? payload.detail : "",
+    message: localizeApiErrorPayload(payload, fallback),
+  };
+};
+
+const classifyMaintenanceError = (status: number, rawDetail: string): MaintenanceFailureReason => {
+  if (status === 404 && /maintenance with id/i.test(rawDetail)) return "not_found";
+  if (status === 400 && /spare part with id .+ does not exist/i.test(rawDetail)) return "spare_part_missing";
+  if (status === 400 || status === 404 || status === 422) return "invalid";
+  return "error";
+};
+
+const getMaintenanceErrorTitle = (
+  reason: MaintenanceFailureReason,
+  rawDetail: string,
+  status: number,
+  action: "registrar" | "actualizar"
+) => {
+  if (reason === "not_found") return "Mantenimiento no encontrado";
+  if (reason === "spare_part_missing") return "Repuesto no disponible";
+  if (reason === "invalid") {
+    return /kilomet/i.test(rawDetail) ? "Validación de kilometraje" : "Datos inválidos";
+  }
+  return `Error ${status} al ${action}`;
+};
 
 const normalizeIdValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -72,6 +147,10 @@ const normalizeMaintenanceEntries = (entries: any[], vehiclesPool: any[]): Maint
       ...entry,
       vehicle_id: normalizedVehicleId || entry?.vehicle_id,
       vehicle_plate: normalizedPlate || (resolvedPlate ?? entry?.vehicle_plate),
+      type: normalizeMaintenanceType(entry?.type),
+      // Decimal en el backend: puede llegar con fracción (o como texto).
+      kilometers: toNullableNumber(entry?.kilometers),
+      spare_part_id: toSparePartId(entry?.spare_part_id),
     } as MaintenanceType;
   });
 };
@@ -93,9 +172,11 @@ const getMaintenanceDedupKey = (item: Partial<MaintenanceType>) => {
 
 /**
  * Enriquece un vehículo con datos de M3. El backend mantiene last_m3_date y
- * next_m3_kilometers automáticamente al registrar mantenimientos tipo "m3",
- * por lo que se usan como fuente primaria. Se calculan desde el historial
- * local sólo como fallback cuando el backend devuelve null.
+ * next_m3_kilometers: los recalcula al crear, editar o borrar un M3 (toma el
+ * de mayor km) y los deja en null cuando ya no queda ninguno. Por eso son la
+ * fuente primaria. El historial local solo cubre unidades cuyos M3 son
+ * anteriores a ese recálculo; si tampoco ahí hay un M3, el resultado es null
+ * ("Sin M3 registrado").
  */
 function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
   const normalizedVehiclePlate = normalizePlateValue(vehicle.plate_number);
@@ -111,7 +192,8 @@ function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
     ...vehicleMaintenances.map((m) => m.kilometers ?? 0)
   );
 
-  // Fallback: último M3 por mayor kilometraje (y fecha descendente como desempate)
+  // Fallback: último M3 por mayor kilometraje (y fecha descendente como desempate),
+  // el mismo criterio del backend. El tipo ya viene en minúsculas.
   const lastM3 = vehicleMaintenances
     .filter((m) => m.type === "m3")
     .sort((a, b) => {
@@ -130,9 +212,9 @@ function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
     ...vehicle,
     current_kilometers: effectiveCurrentKm,
     last_m3_date: vehicle.last_m3_date ?? lastM3?.date ?? null,
-    last_m3_kilometers: vehicle.last_m3_kilometers ?? lastM3?.kilometers ?? null,
+    last_m3_kilometers: toNullableNumber(vehicle.last_m3_kilometers) ?? lastM3?.kilometers ?? null,
     next_m3_kilometers:
-      vehicle.next_m3_kilometers ??
+      toNullableNumber(vehicle.next_m3_kilometers) ??
       (lastM3?.kilometers != null ? lastM3.kilometers + M3_INTERVAL_KM : null),
   };
 }
@@ -158,8 +240,17 @@ export function useMaintenance() {
    * Los dismissed se leen directamente del localStorage al filtrar alerts,
    * sin guardarlos en estado de React para no re-disparar el useEffect.
    */
-  const getDismissedAlerts = (): Set<string> =>
-    new Set(JSON.parse(localStorage.getItem('dismissedMaintenanceAlerts') || '[]'));
+  const getDismissedAlerts = (): Set<string> => {
+    try {
+      const stored: unknown = JSON.parse(localStorage.getItem(DISMISSED_ALERTS_KEY) || "[]");
+      // Las llaves viejas podían traer el tipo en mayúsculas ("ABC-123-M3").
+      return new Set(
+        Array.isArray(stored) ? stored.map((key) => String(key).toLowerCase()) : []
+      );
+    } catch {
+      return new Set();
+    }
+  };
 
   /**
    * Calcula alertas M3 vencidas o próximas directamente desde los vehículos
@@ -216,8 +307,8 @@ export function useMaintenance() {
    * Las locales tienen precedencia para evitar duplicados.
    */
   const mergeAlerts = (backend: MaintenanceAlert[], local: MaintenanceAlert[]): MaintenanceAlert[] => {
-    const seen = new Set(local.map((a) => `${a.vehicle_plate}-${a.type}`));
-    const deduped = backend.filter((a) => !seen.has(`${a.vehicle_plate}-${a.type}`));
+    const seen = new Set(local.map(getAlertKey));
+    const deduped = backend.filter((a) => !seen.has(getAlertKey(a)));
     return [...local, ...deduped];
   };
 
@@ -369,8 +460,12 @@ export function useMaintenance() {
       let backendAlerts: MaintenanceAlert[] = [];
       if (response.ok) {
         const alertsData = await response.json();
+        // /alerts devuelve el tipo en minúsculas; se normaliza igual por si acaso,
+        // para que "M3" y "m3" no salgan como dos alertas distintas.
         backendAlerts = Array.isArray(alertsData)
-          ? alertsData.filter(a => !dismissed.has(`${a.vehicle_plate}-${a.type}`))
+          ? alertsData
+              .map((a: MaintenanceAlert) => ({ ...a, type: normalizeMaintenanceType(a.type) }))
+              .filter((a: MaintenanceAlert) => !dismissed.has(getAlertKey(a)))
           : [];
       }
       // Combinar con alertas calculadas localmente (siempre visibles, sin filtro dismissed)
@@ -478,31 +573,66 @@ export function useMaintenance() {
   };
 
   /** Construye el body para POST/PUT de mantenimiento. */
-  const buildMaintenancePayload = (formData: any) => ({
+  const buildMaintenancePayload = (formData: MaintenanceFormData) => ({
     plate_number: formData.plate_number,
-    description: formData.description,
+    description: formData.description.trim(),
     type: formData.type,
     date: formData.date,
-    kilometers: formData.kilometers || null,
-    location: formData.location || null,
-    performed_by: formData.performed_by || null,
-    spare_part_id: formData.spare_part_id && formData.spare_part_id !== "none" ? formData.spare_part_id : null,
-    spare_part_description: formData.spare_part_description || null,
+    // null solo si no hay dato: así el backend usa el km actual de la unidad.
+    kilometers: toNullableNumber(formData.kilometers),
+    location: toNullableText(formData.location),
+    performed_by: toNullableText(formData.performed_by),
+    spare_part_id: toSparePartId(formData.spare_part_id),
+    spare_part_description: toNullableText(formData.spare_part_description),
   });
 
-  /** Extrae el mensaje de error legible de una respuesta HTTP fallida. */
-  const extractErrorMessage = async (response: Response): Promise<string> => {
-    const fallback = `No se pudo completar la solicitud (${response.status}).`;
-
-    try {
-      const body = await response.json();
-      return localizeApiErrorPayload(body, fallback);
-    } catch {
-      return fallback;
-    }
+  const notifyNetworkError = (error: unknown, action: "registrar" | "actualizar" | "eliminar") => {
+    // La sesión vencida ya la avisa useAuthenticatedFetch.
+    if (isSessionExpiredError(error)) return;
+    toast({
+      title: `Error de red al ${action}`,
+      description: "No se pudo conectar con el servidor. Verifica tu conexión o contacta al administrador.",
+      variant: "destructive",
+    });
   };
 
-  const createMaintenance = async (formData: any) => {
+  /**
+   * Tras crear, editar o borrar, el backend pudo recalcular el M3 de una o dos
+   * unidades (si se cambió el vehículo). Se vuelven a pedir las unidades y las
+   * alertas para no mostrar el M3 anterior.
+   */
+  const commitMaintenanceList = async (updatedList: MaintenanceType[]) => {
+    setMaintenance(updatedList);
+    await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
+  };
+
+  const handleMaintenanceError = async (
+    response: Response,
+    action: "registrar" | "actualizar",
+    maintenanceId?: string
+  ): Promise<MaintenanceMutationResult> => {
+    const { status, rawDetail, message } = await readErrorResponse(response);
+    const reason = classifyMaintenanceError(status, rawDetail);
+    console.error(`[${action}Maintenance] error status:`, status, "| detail:", rawDetail || message);
+
+    // Otro usuario lo borró: se quita de la lista para que no se pueda volver a editar.
+    if (reason === "not_found" && maintenanceId) {
+      await commitMaintenanceList(maintenance.filter((m) => m.id !== maintenanceId));
+    }
+
+    toast({
+      title: getMaintenanceErrorTitle(reason, rawDetail, status, action),
+      description:
+        reason === "spare_part_missing"
+          ? `${message} Se actualizó la lista de repuestos: elige otro o guarda solo la descripción.`
+          : message,
+      variant: "destructive",
+    });
+
+    return { ok: false, reason };
+  };
+
+  const createMaintenance = async (formData: MaintenanceFormData): Promise<MaintenanceMutationResult> => {
     const payload = buildMaintenancePayload(formData);
     let response: Response;
     try {
@@ -513,88 +643,96 @@ export function useMaintenance() {
       });
     } catch (networkErr) {
       console.error('[createMaintenance] network/CORS error:', networkErr, '| payload:', payload);
-      toast({
-        title: "Error de red al registrar",
-        description: "No se pudo conectar con el servidor. Verifica tu conexión o contacta al administrador.",
-        variant: "destructive",
-      });
-      return false;
+      notifyNetworkError(networkErr, "registrar");
+      return { ok: false, reason: "error" };
     }
 
-    if (response.ok) {
-      const newMaintenance = await response.json();
-      const normalizedNew = normalizeMaintenanceEntries([newMaintenance], vehicles)[0] ?? newMaintenance;
-      const updatedList = [...maintenance, normalizedNew];
-      setMaintenance(updatedList);
-      await reloadVehicles(updatedList);
-      toast({
-        title: "Mantenimiento registrado",
-        description: `El mantenimiento ${formData.type} ha sido registrado correctamente.`,
-      });
-      return true;
-    } else {
-      const msg = await extractErrorMessage(response);
-      console.error('[createMaintenance] error status:', response.status, '| detail:', msg, '| payload:', payload);
-      toast({
-        title: response.status === 400 || response.status === 422 ? "Validación de kilometraje" : `Error ${response.status} al registrar`,
-        description: msg,
-        variant: "destructive",
-      });
-      return false;
+    if (!response.ok) {
+      return handleMaintenanceError(response, "registrar");
     }
-  };
 
-  const updateMaintenance = async (id: string, formData: any) => {
-    const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildMaintenancePayload(formData)),
+    const newMaintenance = await response.json();
+    const normalizedNew = normalizeMaintenanceEntries([newMaintenance], vehicles)[0] ?? newMaintenance;
+    await commitMaintenanceList([...maintenance, normalizedNew]);
+    toast({
+      title: "Mantenimiento registrado",
+      description: `El mantenimiento ${formData.type.toUpperCase()} ha sido registrado correctamente.`,
     });
-
-    if (response.ok) {
-      const updated = await response.json();
-      const normalizedUpdated = normalizeMaintenanceEntries([updated], vehicles)[0] ?? updated;
-      const updatedList = maintenance.map(m => m.id === id ? normalizedUpdated : m);
-      setMaintenance(updatedList);
-      await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
-      toast({ title: "Mantenimiento actualizado", description: `El mantenimiento ${formData.type} ha sido actualizado.` });
-      return true;
-    } else {
-      const msg = await extractErrorMessage(response);
-      console.error("Error al actualizar mantenimiento:", msg);
-      toast({
-        title: response.status === 400 || response.status === 422 ? "Validación de kilometraje" : "Error al actualizar",
-        description: msg,
-        variant: "destructive",
-      });
-      return false;
-    }
+    return { ok: true };
   };
 
-  const deleteMaintenance = async (maintenanceItem: MaintenanceType) => {
+  const updateMaintenance = async (
+    id: string,
+    formData: MaintenanceFormData
+  ): Promise<MaintenanceMutationResult> => {
+    let response: Response;
     try {
-      const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${encodeURIComponent(maintenanceItem.id)}`, {
+      response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildMaintenancePayload(formData)),
+      });
+    } catch (networkErr) {
+      console.error('[updateMaintenance] network/CORS error:', networkErr);
+      notifyNetworkError(networkErr, "actualizar");
+      return { ok: false, reason: "error" };
+    }
+
+    if (!response.ok) {
+      return handleMaintenanceError(response, "actualizar", id);
+    }
+
+    const updated = await response.json();
+    const normalizedUpdated = normalizeMaintenanceEntries([updated], vehicles)[0] ?? updated;
+    await commitMaintenanceList(maintenance.map(m => m.id === id ? normalizedUpdated : m));
+    toast({
+      title: "Mantenimiento actualizado",
+      description: `El mantenimiento ${formData.type.toUpperCase()} ha sido actualizado.`,
+    });
+    return { ok: true };
+  };
+
+  const deleteMaintenance = async (maintenanceItem: MaintenanceType): Promise<boolean> => {
+    let response: Response;
+    try {
+      response = await fetchRef.current(`${API_URL}/api/v1/maintenances/${encodeURIComponent(maintenanceItem.id)}`, {
         method: "DELETE",
       });
-      if (response.ok) {
-        const updatedList = maintenance.filter(m => m.id !== maintenanceItem.id);
-        setMaintenance(updatedList);
-        await reloadVehicles(updatedList); // ya llama fetchAlerts internamente
-        toast({ title: "Mantenimiento eliminado", description: "El registro ha sido eliminado correctamente." });
-      }
     } catch (error) {
       console.error('Error deleting maintenance:', error);
+      notifyNetworkError(error, "eliminar");
+      return false;
     }
+
+    const updatedList = maintenance.filter(m => m.id !== maintenanceItem.id);
+
+    if (response.ok) {
+      await commitMaintenanceList(updatedList);
+      toast({ title: "Mantenimiento eliminado", description: "El registro ha sido eliminado correctamente." });
+      return true;
+    }
+
+    const { status, message } = await readErrorResponse(response);
+
+    if (status === 404) {
+      // Ya no estaba en el backend: el resultado es el mismo que si se hubiera borrado.
+      await commitMaintenanceList(updatedList);
+      toast({ title: "Mantenimiento no encontrado", description: message });
+      return true;
+    }
+
+    toast({ title: "Error al eliminar", description: message, variant: "destructive" });
+    return false;
   };
 
   const dismissAlert = (alert: MaintenanceAlert) => {
-    const alertKey = `${alert.vehicle_plate}-${alert.type}`;
+    const alertKey = getAlertKey(alert);
     // Actualizar localStorage directamente (sin estado de React)
     const current = getDismissedAlerts();
     current.add(alertKey);
-    localStorage.setItem('dismissedMaintenanceAlerts', JSON.stringify([...current]));
+    localStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify([...current]));
     // Filtrar solo el estado local de alerts sin refetch
-    setAlerts(prev => prev.filter(a => `${a.vehicle_plate}-${a.type}` !== alertKey));
+    setAlerts(prev => prev.filter(a => getAlertKey(a) !== alertKey));
   };
 
   /**
