@@ -44,12 +44,62 @@ export interface User extends BaseEntity {
   document_number: string;
 }
 
+/**
+ * Estados de contrato del backend. Un contrato nuevo solo puede nacer como
+ * borrador o activo; el resto se alcanza por transiciones.
+ */
+export const CONTRACT_STATUS_OPTIONS = [
+  { value: "borrador", label: "Borrador" },
+  { value: "activo", label: "Activo" },
+  { value: "paralizado", label: "Paralizado" },
+  { value: "terminado", label: "Terminado" },
+  { value: "cerrado", label: "Cerrado" },
+] as const;
+
+export type ContractStatus = (typeof CONTRACT_STATUS_OPTIONS)[number]["value"];
+
+export const CONTRACT_INITIAL_STATUSES: ContractStatus[] = ["borrador", "activo"];
+
+export const CONTRACT_CURRENCIES = ["USD", "VES"] as const;
+
 export interface Contract extends BaseEntity {
   description: string;
   start_date: string;
   end_date: string;
   location: string;
+  /** Uno de CONTRACT_STATUS_OPTIONS; los datos viejos (`active`) los migró el backend. */
   status: string;
+  contract_number?: string | null;
+  sap_order_number?: string | null;
+  client?: string | null;
+  user_management?: string | null;
+  administrator_name?: string | null;
+  currency?: (typeof CONTRACT_CURRENCIES)[number] | null;
+  /** El backend lo serializa como decimal: puede llegar como texto. */
+  contract_amount?: number | string | null;
+  valuation_frequency_days?: number;
+  approval_lead_days?: number;
+  warning_pct?: number | string;
+  critical_pct?: number | string;
+}
+
+export interface ContractPayload {
+  description: string;
+  start_date: string;
+  end_date: string;
+  location: string;
+  status: ContractStatus;
+  contract_number: string | null;
+  sap_order_number: string | null;
+  client: string | null;
+  user_management: string | null;
+  administrator_name: string | null;
+  currency: (typeof CONTRACT_CURRENCIES)[number] | null;
+  contract_amount: number | null;
+  valuation_frequency_days: number;
+  approval_lead_days: number;
+  warning_pct: number;
+  critical_pct: number;
 }
 
 export interface Route extends BaseEntity {

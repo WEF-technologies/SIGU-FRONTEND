@@ -11,6 +11,7 @@ import {
   FuelVehicleStatus,
 } from "@/types";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { withAllPages } from "@/lib/apiClient";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL ?? ""}/api/v1/fuel`;
 
@@ -127,7 +128,7 @@ export const fuelApi = {
     });
 
     return requestJson<FuelLog[]>(
-      authenticatedFetch,
+      withAllPages(authenticatedFetch),
       `${API_BASE_URL}/logs/${query}`,
       { method: "GET" },
       "No se pudo cargar el historial de cargas."
@@ -167,7 +168,7 @@ export const fuelApi = {
     });
 
     return requestJson<FuelReading[]>(
-      authenticatedFetch,
+      withAllPages(authenticatedFetch),
       `${API_BASE_URL}/readings/${query}`,
       { method: "GET" },
       "No se pudo cargar el historial de lecturas."

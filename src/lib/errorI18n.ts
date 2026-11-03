@@ -202,6 +202,35 @@ const translateVehicleModuleMessage = (raw: string): string | null => {
     return "No es un identificador valido.";
   }
 
+  return translateContractMessage(raw);
+};
+
+/** Mensajes del modulo de contratos (validaciones de valuacion y estados). */
+const translateContractMessage = (raw: string): string | null => {
+  if (/contract number already exists/i.test(raw)) {
+    return "Ya existe un contrato con ese numero.";
+  }
+  if (/start date must be before end date/i.test(raw)) {
+    return "La fecha de inicio debe ser anterior a la fecha de fin.";
+  }
+  if (/new contracts must be borrador or activo/i.test(raw)) {
+    return "Un contrato nuevo solo puede crearse como borrador o activo.";
+  }
+  if (/thresholds must satisfy/i.test(raw)) {
+    return "Los umbrales deben cumplir: 0 < advertencia < critico <= 100.";
+  }
+  if (/contract amount cannot be negative/i.test(raw)) {
+    return "El monto del contrato no puede ser negativo.";
+  }
+  if (/valuation frequency must be a positive integer/i.test(raw)) {
+    return "La frecuencia de valuacion debe ser un numero entero de dias mayor a 0.";
+  }
+  if (/approval lead time must be a positive integer/i.test(raw)) {
+    return "Los dias de anticipacion para aprobar deben ser un numero entero mayor a 0.";
+  }
+  if (/currency must be ves or usd/i.test(raw)) {
+    return "La moneda debe ser VES o USD.";
+  }
   return null;
 };
 

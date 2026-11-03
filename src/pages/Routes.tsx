@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Route, Contract } from "@/types";
 import { Plus } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/useConfirm";
 import { RouteActions } from "@/components/routes/RouteActions";
@@ -42,7 +43,7 @@ export default function Routes() {
         ? `${API_URL}/api/v1/routes/?contract_description=${encodeURIComponent(contractDescription)}`
         : `${API_URL}/api/v1/routes/`;
       
-      const response = await authenticatedFetch(url);
+      const response = await fetchAllPages(authenticatedFetch, url);
       const data = response.ok ? await response.json() : [];
       const normalize = (r: any) => ({ ...(r || {}), id: r?.id || r?.route_id });
       setRoutes(Array.isArray(data) ? data.map(normalize) : []);
@@ -59,7 +60,7 @@ export default function Routes() {
       setContractsLoading(true);
       setContractsError(null);
       try {
-        const resp = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        const resp = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/contracts/`);
         if (resp.ok) {
           const data = await resp.json();
           setContracts(Array.isArray(data) ? data : []);

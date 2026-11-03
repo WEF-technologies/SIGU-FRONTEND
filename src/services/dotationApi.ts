@@ -1,4 +1,5 @@
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { withAllPages } from "@/lib/apiClient";
 import {
   DotationAlert,
   DotationAlertFilters,
@@ -258,7 +259,7 @@ export const dotationApi = {
     });
 
     return requestJson<DotationDelivery[]>(
-      authenticatedFetch,
+      withAllPages(authenticatedFetch),
       `${API_BASE_URL}/deliveries/${query}`,
       { method: "GET" },
       "No se pudo cargar el historial de entregas de dotación."
@@ -293,7 +294,7 @@ export const dotationApi = {
     });
 
     return requestJson<DotationAlert[]>(
-      authenticatedFetch,
+      withAllPages(authenticatedFetch),
       `${API_BASE_URL}/alerts${query}`,
       { method: "GET" },
       "No se pudieron cargar las alertas de dotación."

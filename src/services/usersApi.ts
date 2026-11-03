@@ -1,7 +1,7 @@
 
 import { useAuthenticatedFetch } from '@/hooks/useAuthenticatedFetch';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { requestJson } from '@/lib/apiClient';
+import { requestJson, withAllPages } from '@/lib/apiClient';
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -42,7 +42,7 @@ export const useUsers = () => {
     // reintento por defecto no distingue un 4xx de un fallo de red.
     queryFn: async (): Promise<User[]> =>
       (await requestJson(
-        authenticatedFetch,
+        withAllPages(authenticatedFetch),
         `${API_URL}/api/v1/users/`,
         {},
         'Error al obtener usuarios'
@@ -64,25 +64,6 @@ export const useCreateUser = () => {
         throw new Error('Error al crear usuario');
       }
       return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-};
-
-export const useDeleteUser = () => {
-  const authenticatedFetch = useAuthenticatedFetch();
-  const queryClient = useQueryClient();
-  
-  return useMutation({
-    mutationFn: async (userId: string): Promise<void> => {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/users/${encodeURIComponent(userId)}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        throw new Error('Error al eliminar usuario');
-      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });

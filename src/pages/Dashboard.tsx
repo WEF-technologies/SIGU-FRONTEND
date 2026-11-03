@@ -20,10 +20,17 @@ import {
   Hammer,
 } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages } from "@/lib/apiClient";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
 import { Contract, DriverAlert, Route, ToolAlert } from "@/types";
+
+/** Desde el 13/10 el backend usa "activo"; "active" queda por si llega un dato viejo. */
+const isActiveContractStatus = (status: string | null | undefined) => {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return normalized === "activo" || normalized === "active";
+};
 import { VEHICLE_SEDE_STATUS_OPTIONS } from "@/constants/filterOptions";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -88,10 +95,10 @@ export default function Dashboard() {
           contractsResult,
           maintenancesResult,
         ] = await Promise.allSettled([
-          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
-          authenticatedFetch(`${API_URL}/api/v1/drivers/`),
-          authenticatedFetch(`${API_URL}/api/v1/contracts/`),
-          authenticatedFetch(`${API_URL}/api/v1/maintenances/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/vehicles/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/contracts/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/maintenances/`),
         ]);
 
         let vehicles = [];
@@ -129,7 +136,9 @@ export default function Dashboard() {
             totalVehicles,
             activeVehicles,
             totalDrivers: drivers.length,
-            activeContracts: contracts.length,
+            activeContracts: (Array.isArray(contracts) ? contracts : []).filter((contract: Contract) =>
+              isActiveContractStatus(contract.status)
+            ).length,
             totalMaintenances: maintenances.length,
           });
         }
@@ -137,7 +146,7 @@ export default function Dashboard() {
         void (async () => {
           try {
             setRoutesLoading(true);
-            const routesResponse = await authenticatedFetch(`${API_URL}/api/v1/routes/`);
+            const routesResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/routes/`);
             if (!isMounted) return;
 
             if (!routesResponse.ok) {
@@ -159,7 +168,8 @@ export default function Dashboard() {
               const contractStatus =
                 route.contract?.status ||
                 contractsById.get(route.contract_id || route.contract?.id || "")?.status;
-              return (contractStatus || "active").toLowerCase() === "active";
+              // Una ruta cuyo contrato no se encuentra se sigue mostrando, como antes.
+              return contractStatus ? isActiveContractStatus(contractStatus) : true;
             });
 
             setActiveRoutes(activeRoutesData.slice(0, 5));
@@ -172,7 +182,7 @@ export default function Dashboard() {
 
         void (async () => {
           try {
-            const driverAlertsResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`);
+            const driverAlertsResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/alerts`);
             if (!isMounted) return;
 
             if (driverAlertsResponse.ok) {

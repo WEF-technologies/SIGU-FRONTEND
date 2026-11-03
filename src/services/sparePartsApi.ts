@@ -1,4 +1,5 @@
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { withAllPages } from "@/lib/apiClient";
 import {
   SparePart,
   SparePartFitment,
@@ -220,7 +221,7 @@ const sanitizeSparePartPayload = (payload: SparePartPayload) => {
 export const sparePartsApi = {
   listAll: async (authenticatedFetch: AuthenticatedFetch): Promise<SparePart[]> => {
     const payload = await requestJson(
-      authenticatedFetch,
+      withAllPages(authenticatedFetch),
       `${API_BASE_URL}/`,
       { method: "GET" },
       "No se pudo cargar el inventario de repuestos."
@@ -235,8 +236,10 @@ export const sparePartsApi = {
     params: { limit?: number; offset?: number } = {}
   ): Promise<SparePart[]> => {
     const query = buildQueryString({ limit: params.limit, offset: params.offset });
+    // Sin limit/offset explícitos se traen todas las páginas (el backend corta en 100).
+    const paginate = params.limit === undefined && params.offset === undefined;
     const payload = await requestJson(
-      authenticatedFetch,
+      paginate ? withAllPages(authenticatedFetch) : authenticatedFetch,
       `${API_BASE_URL}/vehicle/${encodeURIComponent(vehiclePlate.trim())}${query}`,
       { method: "GET" },
       "No se pudieron cargar los repuestos compatibles de la unidad."

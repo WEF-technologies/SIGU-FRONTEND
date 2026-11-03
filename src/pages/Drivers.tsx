@@ -18,6 +18,8 @@ import {
 import { Driver, Contract, DriverAlert } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages, isSessionExpiredError } from "@/lib/apiClient";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 
@@ -57,7 +59,7 @@ export default function Drivers() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        const contractsResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/contracts/`);
         let contractsData: Contract[] = [];
         if (contractsResponse.ok) {
           const payload = await contractsResponse.json();
@@ -65,7 +67,7 @@ export default function Drivers() {
         }
         setContracts(contractsData);
 
-        const driversResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/`);
+        const driversResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/`);
         if (driversResponse.ok) {
           const driversData = await driversResponse.json();
 
@@ -83,7 +85,7 @@ export default function Drivers() {
           setDrivers([]);
         }
 
-        const alertsResponse = await authenticatedFetch(`${API_URL}/api/v1/drivers/alerts`);
+        const alertsResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/alerts`);
         if (alertsResponse.ok) {
           const alertsData = await alertsResponse.json();
           setAlerts(Array.isArray(alertsData) ? alertsData : []);
@@ -186,6 +188,21 @@ export default function Drivers() {
     setIsModalOpen(true);
   };
 
+  /** Muestra el motivo que da el backend (documento duplicado, datos inválidos, etc.). */
+  const notifyDriverError = async (response: Response, action: "crear" | "actualizar" | "eliminar") => {
+    let payload: unknown = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    toast({
+      title: `No se pudo ${action} el chofer`,
+      description: localizeApiErrorPayload(payload, `No se pudo ${action} el chofer (${response.status}).`),
+      variant: "destructive",
+    });
+  };
+
   const handleDelete = async (driver: Driver) => {
     if (!(await confirm({
       title: "Eliminar chofer",
@@ -204,9 +221,12 @@ export default function Drivers() {
           title: "Chofer eliminado",
           description: `${driver.name} ${driver.last_name} ha sido eliminado correctamente.`,
         });
+      } else {
+        await notifyDriverError(response, "eliminar");
       }
     } catch (error) {
       console.error('Error deleting driver:', error);
+      if (isSessionExpiredError(error)) return;
       toast({
         title: "Error",
         description: "Error al eliminar el chofer.",
@@ -228,6 +248,8 @@ export default function Drivers() {
       defensive_driving_expiry_date: formData.defensive_driving_expiry_date || null
     };
 
+    // Si el backend rechaza los datos, el modal queda abierto para corregirlos.
+    let saved = false;
     try {
       if (editingDriver) {
         const response = await authenticatedFetch(
@@ -249,6 +271,9 @@ export default function Drivers() {
             title: "Chofer actualizado",
             description: `${formData.name} ${formData.last_name} ha sido actualizado correctamente.`,
           });
+          saved = true;
+        } else {
+          await notifyDriverError(response, "actualizar");
         }
       } else {
         const response = await authenticatedFetch(`${API_URL}/api/v1/drivers/`, {
@@ -265,17 +290,20 @@ export default function Drivers() {
             title: "Chofer creado",
             description: `${formData.name} ${formData.last_name} ha sido creado correctamente.`,
           });
+          saved = true;
+        } else {
+          await notifyDriverError(response, "crear");
         }
       }
     } catch (error) {
       console.error('Error with driver operation:', error);
-      toast({
+      if (!isSessionExpiredError(error)) toast({
         title: "Error",
         description: "Error al procesar la operación.",
         variant: "destructive"
       });
     }
-    setIsModalOpen(false);
+    if (saved) setIsModalOpen(false);
   };
 
   const renderDriverRow = (driver: Driver) => {
