@@ -3,7 +3,6 @@ import { FormModal } from "@/components/shared/FormModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ContractDetailsModal } from "@/components/contracts/ContractDetailsModal";
 import { ContractForm } from "@/components/contracts/ContractForm";
-import { ShiftForm } from "@/components/contracts/ShiftForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,33 +15,33 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { Contract, Shift, Vehicle, User, Driver } from "@/types";
+import { Contract, ContractPayload } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import { useConfirm } from "@/hooks/useConfirm";
+import { fetchAllPages } from "@/lib/apiClient";
 import { matchesSearch } from "@/lib/filtering";
-import { Eye, Edit, Trash2, Plus, Search, Loader2, RefreshCw, Download } from "lucide-react";
+import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { isSessionExpiredError } from "@/lib/apiClient";
+import { CONTRACT_STATUS_OPTIONS } from "@/types";
+import { Eye, Plus, Search, Loader2, RefreshCw } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 export default function Contracts() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
-  const confirm = useConfirm();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFormLoading, setIsFormLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
-  const [editingShift, setEditingShift] = useState<Shift | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const fetchContracts = async () => {
     setLoading(true);
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+      const response = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/contracts/`);
       if (response.ok) {
         const data = await response.json();
         setContracts(Array.isArray(data) ? data : []);
@@ -62,7 +61,7 @@ export default function Contracts() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const contractsResponse = await authenticatedFetch(`${API_URL}/api/v1/contracts/`);
+        const contractsResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/contracts/`);
         
         if (contractsResponse.ok) {
           const contractsData = await contractsResponse.json();
@@ -82,7 +81,14 @@ export default function Contracts() {
   }, []);
 
   const filteredContracts = contracts.filter(contract =>
-    matchesSearch(searchTerm, [contract.description, contract.location, contract.status])
+    matchesSearch(searchTerm, [
+      contract.description,
+      contract.location,
+      contract.status,
+      CONTRACT_STATUS_OPTIONS.find((option) => option.value === contract.status)?.label,
+      contract.contract_number,
+      contract.client,
+    ])
   );
 
   const handleAdd = () => {
@@ -95,102 +101,48 @@ export default function Contracts() {
   };
 
 
-  const handleSubmit = async (contractData: Omit<Contract, 'id' | 'created_at' | 'updated_at'>) => {
+  /** Devuelve true si se creó; si falla, el modal queda abierto con lo escrito. */
+  const handleSubmit = async (contractData: ContractPayload): Promise<boolean> => {
     setIsFormLoading(true);
     try {
       const response = await authenticatedFetch(`${API_URL}/api/v1/contracts/`, {
         method: "POST",
         body: JSON.stringify(contractData),
       });
-      if (response.ok) {
-        const newContract = await response.json();
-        setContracts(prev => [...prev, newContract]);
+      if (!response.ok) {
+        let payload: unknown = null;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
         toast({
-          title: "Contrato creado",
-          description: `${contractData.description} ha sido creado correctamente.`,
+          title: response.status === 409 ? "Contrato duplicado" : "No se pudo crear el contrato",
+          description: localizeApiErrorPayload(payload, `No se pudo crear el contrato (${response.status}).`),
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const newContract = await response.json();
+      setContracts(prev => [...prev, newContract]);
+      toast({
+        title: "Contrato creado",
+        description: `${contractData.description} ha sido creado correctamente.`,
+      });
+      setIsModalOpen(false);
+      return true;
+    } catch (error) {
+      if (!isSessionExpiredError(error)) {
+        toast({
+          title: "Error",
+          description: "No se pudo conectar con el servidor para crear el contrato.",
+          variant: "destructive",
         });
       }
-      setIsModalOpen(false);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "No se pudo crear el contrato",
-        variant: "destructive",
-      });
+      return false;
     } finally {
       setIsFormLoading(false);
-    }
-  };
-
-  // Turnos (shifts)
-  const handleAddShift = (contract: Contract) => {
-    setSelectedContract(contract);
-    setEditingShift(null);
-    setIsShiftModalOpen(true);
-  };
-
-  const handleEditShift = (shift: Shift) => {
-    setEditingShift(shift);
-    setIsShiftModalOpen(true);
-  };
-
-  const handleDeleteShift = async (shift: Shift) => {
-    if (!(await confirm({
-      title: "Eliminar turno",
-      description: `Se eliminará el turno ${shift.description}. Esta acción no se puede deshacer.`,
-    }))) return;
-    try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${encodeURIComponent(shift.id)}`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
-        toast({
-          title: "Turno eliminado",
-          description: "El turno ha sido eliminado correctamente.",
-        });
-      }
-    } catch (error) {
-      console.error('Error deleting shift:', error);
-    }
-  };
-
-
-  const handleShiftSubmit = async (shiftData: Omit<Shift, 'id' | 'created_at' | 'updated_at'>) => {
-    const completeShiftData = {
-      ...shiftData,
-      contract_id: selectedContract?.id || shiftData.contract_id
-    };
-
-    try {
-      if (editingShift) {
-        // EDITAR turno (PUT)
-        const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/${encodeURIComponent(editingShift.id)}`, {
-          method: "PUT",
-          body: JSON.stringify(completeShiftData),
-        });
-        if (response.ok) {
-          toast({
-            title: "Turno actualizado",
-            description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido actualizado correctamente.`,
-          });
-        }
-      } else {
-        // CREAR turno (POST)
-        const response = await authenticatedFetch(`${API_URL}/api/v1/shifts/`, {
-          method: "POST",
-          body: JSON.stringify(completeShiftData),
-        });
-        if (response.ok) {
-          toast({
-            title: "Turno creado",
-            description: `El turno ${shiftData.description} (${shiftData.start_time} - ${shiftData.end_time}) ha sido creado correctamente.`,
-          });
-        }
-      }
-      setIsShiftModalOpen(false);
-      setEditingShift(null);
-    } catch (error) {
-      console.error('Error with shift operation:', error);
     }
   };
 
@@ -313,22 +265,7 @@ export default function Contracts() {
         contract={selectedContract}
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
-        onEditShift={handleEditShift}
-        onDeleteShift={handleDeleteShift}
-        onAddShift={handleAddShift}
       />
-
-      <FormModal
-        isOpen={isShiftModalOpen}
-        onClose={() => setIsShiftModalOpen(false)}
-        title={editingShift ? "Editar Turno de Trabajo" : "Crear Nuevo Turno de Trabajo"}
-      >
-        <ShiftForm
-          onSubmit={handleShiftSubmit}
-          onCancel={() => setIsShiftModalOpen(false)}
-          editingShift={editingShift}
-        />
-      </FormModal>
     </div>
   );
 }

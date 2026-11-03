@@ -53,6 +53,32 @@ export function StatusBadge({ status, variant, text, type = 'default' }: StatusB
           text: text || 'Completado',
           className: 'bg-blue-100 text-blue-800 border-blue-200'
         };
+      // Estados de contrato (el backend los usa en español).
+      case 'borrador':
+        return {
+          text: text || 'Borrador',
+          className: 'bg-slate-100 text-slate-700 border-slate-200'
+        };
+      case 'activo':
+        return {
+          text: text || 'Activo',
+          className: 'bg-green-100 text-green-800 border-green-200'
+        };
+      case 'paralizado':
+        return {
+          text: text || 'Paralizado',
+          className: 'bg-amber-100 text-amber-800 border-amber-200'
+        };
+      case 'terminado':
+        return {
+          text: text || 'Terminado',
+          className: 'bg-blue-100 text-blue-800 border-blue-200'
+        };
+      case 'cerrado':
+        return {
+          text: text || 'Cerrado',
+          className: 'bg-gray-100 text-gray-800 border-gray-200'
+        };
       default:
         return {
           text: text || status,

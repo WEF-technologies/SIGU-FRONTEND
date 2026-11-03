@@ -121,6 +121,62 @@ export const requestJson = async (
   return response.json();
 };
 
+/** El máximo `limit` que aceptan los listados del backend. */
+export const LIST_PAGE_SIZE = 500;
+/** Tope de páginas por listado: 20.000 registros, para no quedar en un bucle. */
+const MAX_LIST_PAGES = 40;
+
+const withPagination = (url: string, limit: number, offset: number) =>
+  `${url}${url.includes("?") ? "&" : "?"}limit=${limit}&offset=${offset}`;
+
+/**
+ * Los listados del backend devuelven 100 registros si no se pide otro `limit`
+ * (y como máximo 500). Esta función pide todas las páginas con `limit` y
+ * `offset` y devuelve una sola respuesta con la lista completa, así que
+ * reemplaza a `authenticatedFetch(url)` sin tocar el resto del código.
+ *
+ * La URL no debe traer ya `limit` ni `offset`. Si una página falla, se
+ * devuelve esa respuesta tal cual para que quien llama vea el error.
+ */
+export const fetchAllPages = async (
+  authenticatedFetch: AuthenticatedFetch,
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  const items: unknown[] = [];
+
+  for (let page = 0; page < MAX_LIST_PAGES; page += 1) {
+    const response = await authenticatedFetch(
+      withPagination(url, LIST_PAGE_SIZE, page * LIST_PAGE_SIZE),
+      options
+    );
+    if (!response.ok) return response;
+
+    const payload: unknown = await response.json();
+    if (!Array.isArray(payload)) {
+      // No es un listado paginado: se devuelve lo que llegó.
+      return new Response(JSON.stringify(page === 0 ? payload : items), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    items.push(...payload);
+    if (payload.length < LIST_PAGE_SIZE) break;
+  }
+
+  return new Response(JSON.stringify(items), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+};
+
+/** Variante de `authenticatedFetch` que pagina sola; útil para pasarla a `requestJson`. */
+export const withAllPages =
+  (authenticatedFetch: AuthenticatedFetch): AuthenticatedFetch =>
+  (url, options) =>
+    fetchAllPages(authenticatedFetch, url, options);
+
 /** Para respuestas sin cuerpo, como el 204 de un DELETE. */
 export const requestVoid = async (
   authenticatedFetch: AuthenticatedFetch,

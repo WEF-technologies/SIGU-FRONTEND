@@ -10,7 +10,7 @@ import {
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
-import { isRecord, isSessionExpiredError } from "@/lib/apiClient";
+import { fetchAllPages, isRecord, isSessionExpiredError } from "@/lib/apiClient";
 import { toNullableNumber } from "@/lib/kilometers";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -442,7 +442,7 @@ export function useMaintenance() {
         return Array.from(dedupedById.values());
       }
 
-      const fallbackResponse = await fetchRef.current(`${API_URL}/api/v1/maintenances/`);
+      const fallbackResponse = await fetchAllPages(fetchRef.current, `${API_URL}/api/v1/maintenances/`);
       if (!fallbackResponse.ok) return [];
 
       const fallbackPayload = await fallbackResponse.json();
@@ -488,7 +488,7 @@ export function useMaintenance() {
       }
 
       try {
-        const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
+        const vehiclesResponse = await fetchAllPages(fetchRef.current, `${API_URL}/api/v1/vehicles/`);
         const vehiclesData = vehiclesResponse.ok ? await vehiclesResponse.json() : [];
         const normalizedVehicles = Array.isArray(vehiclesData) ? vehiclesData : [];
 
@@ -537,7 +537,7 @@ export function useMaintenance() {
 
   /** Rehidrata vehículos desde el backend usando la lista de mantenimientos proporcionada. */
   const reloadVehicles = async (currentMaintenances: MaintenanceType[]) => {
-    const vehiclesResponse = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
+    const vehiclesResponse = await fetchAllPages(fetchRef.current, `${API_URL}/api/v1/vehicles/`);
     if (vehiclesResponse.ok) {
       const vehiclesData = await vehiclesResponse.json();
       const mapped = (Array.isArray(vehiclesData) ? vehiclesData : []).map((v: any) =>

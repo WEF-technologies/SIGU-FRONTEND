@@ -12,6 +12,7 @@ import { SectionSwitch } from "@/components/shared/SectionSwitch";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages } from "@/lib/apiClient";
 import { useConfirm } from "@/hooks/useConfirm";
 import {
   CreateFuelLogPayload,
@@ -154,7 +155,7 @@ export default function Fluids() {
   );
 
   const loadVehicles = useCallback(async (): Promise<Vehicle[]> => {
-    const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/vehicles/`);
+    const response = await fetchAllPages(authenticatedFetch, `${API_BASE_URL}/api/v1/vehicles/`);
     if (!response.ok) {
       throw new FluidsApiError(
         response.status,

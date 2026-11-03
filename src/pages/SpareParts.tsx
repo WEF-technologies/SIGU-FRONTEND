@@ -10,6 +10,7 @@ import {
 import { SparePart, SparePartPayload, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages } from "@/lib/apiClient";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,7 +269,7 @@ export default function SpareParts() {
       try {
         const [sparePartsData, vRes] = await Promise.all([
           sparePartsApi.listAll(authenticatedFetch),
-          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/vehicles/`),
         ]);
         setSpareParts(sparePartsData);
         setVehicles(vRes.ok ? await vRes.json() : []);

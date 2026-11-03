@@ -14,6 +14,7 @@ import {
   Vehicle,
 } from "@/types";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 import { FuelApiError, fuelApi } from "@/services/fuelApi";
 import { localizeApiError } from "@/lib/errorI18n";
@@ -113,7 +114,7 @@ export const useFuel = () => {
     setVehiclesError(null);
 
     try {
-      const response = await fetchRef.current(`${API_URL}/api/v1/vehicles/`);
+      const response = await fetchAllPages(fetchRef.current, `${API_URL}/api/v1/vehicles/`);
 
       if (!response.ok) {
         throw new Error(`No se pudo obtener la lista de vehiculos (${response.status})`);

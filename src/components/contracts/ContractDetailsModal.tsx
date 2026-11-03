@@ -1,143 +1,107 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Contract, Shift, Route, Driver } from "@/types";
+import { Contract, Route, Driver } from "@/types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import { Edit, Trash2, Plus, Download, FileText, Loader2, Users } from "lucide-react";
+import { fetchAllPages, isSessionExpiredError } from "@/lib/apiClient";
+import { Loader2, Users } from "lucide-react";
+
+const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 interface ContractDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   contract: Contract | null;
-  onEditShift: (shift: Shift) => void;
-  onDeleteShift: (shift: Shift) => void;
-  onAddShift: (contract: Contract) => void;
 }
 
+/** Los decimales del backend llegan como texto ("1500.00"). */
+const toNumber = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 
-const mockShifts: Shift[] = [
-  {
-    id: '1',
-    contract_id: '1',
-    description: 'Turno Matutino',
-    start_time: '06:00',
-    end_time: '14:00',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '2',
-    contract_id: '1',
-    description: 'Turno Vespertino',
-    start_time: '14:00',
-    end_time: '22:00',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  },
-  {
-    id: '3',
-    contract_id: '1',
-    description: 'Turno Nocturno',
-    start_time: '22:00',
-    end_time: '06:00',
-    created_at: '2024-01-01',
-    updated_at: '2024-01-01'
-  }
-];
+const formatAmount = (contract: Contract) => {
+  const amount = toNumber(contract.contract_amount);
+  if (amount === null) return null;
+  const formatted = amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return contract.currency ? `${contract.currency} ${formatted}` : formatted;
+};
 
-export function ContractDetailsModal({ 
-  isOpen, 
-  onClose, 
-  contract, 
-  onEditShift, 
-  onDeleteShift, 
-  onAddShift 
-}: ContractDetailsModalProps) {
+const formatPct = (value: number | string | undefined) => {
+  const parsed = toNumber(value);
+  return parsed === null ? null : `${parsed.toLocaleString(undefined, { maximumFractionDigits: 2 })} %`;
+};
+
+function DetailItem({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <span className="font-medium text-gray-700">{label}:</span>
+      <p className="text-gray-900">{value ?? <span className="text-gray-400">No registrado</span>}</p>
+    </div>
+  );
+}
+
+export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDetailsModalProps) {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
   const [routes, setRoutes] = useState<Route[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(false);
-  const [downloadingDoc, setDownloadingDoc] = useState(false);
 
   useEffect(() => {
-    if (contract && isOpen) {
-      loadContractDetails();
-    }
-  }, [contract, isOpen]);
+    if (!contract || !isOpen) return;
 
-  const loadContractDetails = async () => {
-    if (!contract) return;
-    
-    setLoading(true);
-    
-    try {
-      // Fetch routes for this contract using contract description
-      const routesResponse = await authenticatedFetch(`${import.meta.env.VITE_API_URL ?? ""}/api/v1/routes/?contract_description=${encodeURIComponent(contract.description)}`);
-      if (routesResponse.ok) {
-        const contractRoutes = await routesResponse.json();
-        setRoutes(contractRoutes);
-      } else {
+    let isActive = true;
+
+    const loadContractDetails = async () => {
+      setLoading(true);
+
+      try {
+        const [routesResponse, driversResponse] = await Promise.all([
+          // El backend filtra las rutas por la descripción del contrato.
+          fetchAllPages(
+            authenticatedFetch,
+            `${API_URL}/api/v1/routes/?contract_description=${encodeURIComponent(contract.description)}`
+          ),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/`),
+        ]);
+        if (!isActive) return;
+
+        const contractRoutes = routesResponse.ok ? await routesResponse.json() : [];
+        setRoutes(Array.isArray(contractRoutes) ? contractRoutes : []);
+
+        const allDrivers = driversResponse.ok ? await driversResponse.json() : [];
+        setDrivers(
+          Array.isArray(allDrivers)
+            ? allDrivers.filter((driver: Driver) => driver.contract_id === contract.id)
+            : []
+        );
+      } catch (error) {
+        if (!isActive) return;
+        console.error('Error loading contract details:', error);
         setRoutes([]);
-      }
-
-      // Fetch available drivers
-      const driversResponse = await authenticatedFetch(`${import.meta.env.VITE_API_URL ?? ""}/api/v1/drivers/`);
-      if (driversResponse.ok) {
-        const allDrivers = await driversResponse.json();
-        const contractDrivers = allDrivers.filter((driver: Driver) => driver.contract_id === contract.id);
-        setDrivers(contractDrivers);
-      } else {
         setDrivers([]);
+        if (!isSessionExpiredError(error)) {
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar todos los detalles del contrato",
+            variant: "destructive",
+          });
+        }
+      } finally {
+        if (isActive) setLoading(false);
       }
-      
-      // For now, shifts are still mock data
-      const contractShifts = mockShifts.filter(shift => shift.contract_id === contract.id);
-      setShifts(contractShifts);
-    } catch (error) {
-      console.error('Error loading contract details:', error);
-      setRoutes([]);
-      setShifts([]);
-      setDrivers([]);
-      toast({
-        title: "Error",
-        description: "No se pudieron cargar todos los detalles del contrato",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const handleDownloadDocument = async () => {
-    if (!contract) return;
+    void loadContractDetails();
 
-    setDownloadingDoc(true);
-    
-    // Simular descarga
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    try {
-      toast({
-        title: "Descarga simulada",
-        description: "En un entorno real se descargaría el documento del contrato",
-      });
-    } catch (error) {
-      console.error('Error downloading document:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo descargar el documento",
-        variant: "destructive",
-      });
-    } finally {
-      setDownloadingDoc(false);
-    }
-  };
+    return () => {
+      isActive = false;
+    };
+  }, [authenticatedFetch, contract, isOpen, toast]);
 
   if (!contract) return null;
 
@@ -149,7 +113,7 @@ export function ContractDetailsModal({
             Detalles del Contrato
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
           <div className="space-y-4">
             <Card>
@@ -157,31 +121,45 @@ export function ContractDetailsModal({
                 <CardTitle className="text-lg">Información General</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <span className="font-medium text-gray-700">Descripción:</span>
-                  <p className="text-gray-900">{contract.description}</p>
-                </div>
-                <div>
-                  <span className="font-medium text-gray-700">Ubicación:</span>
-                  <p className="text-gray-900">{contract.location}</p>
-                </div>
+                <DetailItem label="Descripción" value={contract.description} />
+                <DetailItem label="Ubicación" value={contract.location} />
                 <div>
                   <span className="font-medium text-gray-700">Estado:</span>
                   <StatusBadge status={contract.status} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="font-medium text-gray-700">Fecha Inicio:</span>
-                    <p className="text-gray-900">{new Date(contract.start_date).toLocaleDateString()}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Fecha Fin:</span>
-                    <p className="text-gray-900">{new Date(contract.end_date).toLocaleDateString()}</p>
-                  </div>
+                  <DetailItem label="Fecha Inicio" value={new Date(contract.start_date).toLocaleDateString()} />
+                  <DetailItem label="Fecha Fin" value={new Date(contract.end_date).toLocaleDateString()} />
                 </div>
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Datos del Contrato</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <DetailItem label="Número de contrato" value={contract.contract_number} />
+                <DetailItem label="Orden SAP" value={contract.sap_order_number} />
+                <DetailItem label="Cliente" value={contract.client} />
+                <DetailItem label="Gerencia usuaria" value={contract.user_management} />
+                <DetailItem label="Administrador" value={contract.administrator_name} />
+                <DetailItem label="Monto" value={formatAmount(contract)} />
+                <DetailItem
+                  label="Frecuencia de valuación"
+                  value={contract.valuation_frequency_days != null ? `${contract.valuation_frequency_days} días` : null}
+                />
+                <DetailItem
+                  label="Anticipación para aprobar"
+                  value={contract.approval_lead_days != null ? `${contract.approval_lead_days} días` : null}
+                />
+                <DetailItem label="Umbral de advertencia" value={formatPct(contract.warning_pct)} />
+                <DetailItem label="Umbral crítico" value={formatPct(contract.critical_pct)} />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
@@ -214,9 +192,7 @@ export function ContractDetailsModal({
                 )}
               </CardContent>
             </Card>
-          </div>
 
-          <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Rutas del Contrato</CardTitle>
@@ -231,77 +207,15 @@ export function ContractDetailsModal({
                   <div className="space-y-3">
                     {routes.length > 0 ? (
                       routes.map((route) => (
-                         <div key={route.id} className="border rounded-lg p-3">
-                           <h4 className="font-medium text-gray-900">{route.description}</h4>
-                           <p className="text-sm text-gray-600 mt-1">
-                             {route.from_location} → {route.to_location}
-                           </p>
-                         </div>
-                      ))
-                    ) : (
-                      <p className="text-gray-500">No hay rutas asignadas</p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Turnos de Trabajo</CardTitle>
-                  <Button
-                    size="sm"
-                    onClick={() => onAddShift(contract)}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Agregar
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                    <span>Cargando turnos...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {shifts.length > 0 ? (
-                      shifts.map((shift) => (
-                        <div key={shift.id} className="border rounded-lg p-3 flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium text-gray-900">{shift.description}</h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {shift.start_time} - {shift.end_time}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Creado: {new Date(shift.created_at).toLocaleDateString()}
-                            </p>
-                          </div>
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onEditShift(shift)}
-                              className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                            >
-                              <Edit className="w-3 h-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onDeleteShift(shift)}
-                              className="border-red-200 text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
+                        <div key={route.id} className="border rounded-lg p-3">
+                          <h4 className="font-medium text-gray-900">{route.description}</h4>
+                          <p className="text-sm text-gray-600 mt-1">
+                            {route.from_location} → {route.to_location}
+                          </p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-gray-500">No hay turnos asignados</p>
+                      <p className="text-gray-500">No hay rutas asignadas</p>
                     )}
                   </div>
                 )}

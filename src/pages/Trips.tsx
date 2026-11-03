@@ -6,6 +6,7 @@ import { TripForm, TripFormData } from "@/components/trips/TripForm";
 import { Trip, Route, Vehicle, Driver } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { fetchAllPages } from "@/lib/apiClient";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -154,9 +155,9 @@ export default function Trips() {
       try {
         const [tripsData, routesRes, vehiclesRes, driversRes] = await Promise.all([
           fetchTrips(),
-          authenticatedFetch(`${API_URL}/api/v1/routes/`),
-          authenticatedFetch(`${API_URL}/api/v1/vehicles/`),
-          authenticatedFetch(`${API_URL}/api/v1/drivers/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/routes/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/vehicles/`),
+          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/`),
         ]);
         setTrips(tripsData);
         if (routesRes.ok) setRoutes(await routesRes.json());
@@ -230,7 +231,7 @@ export default function Trips() {
         );
 
         // Refrescar vehículos para mostrar km actualizado
-        const vehiclesRes = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        const vehiclesRes = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/vehicles/`);
         if (vehiclesRes.ok) setVehicles(await vehiclesRes.json());
 
         toast({
@@ -470,7 +471,7 @@ export default function Trips() {
 
       // Refrescar vehículos al completar un viaje para ver los km actualizados
       if (operationSucceeded && data.status === "completed") {
-        const res = await authenticatedFetch(`${API_URL}/api/v1/vehicles/`);
+        const res = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/vehicles/`);
         if (res.ok) setVehicles(await res.json());
       }
     } catch (error) {
