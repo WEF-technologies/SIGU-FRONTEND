@@ -61,23 +61,38 @@ const EMPTY_FORM = {
 type VehicleFormData = typeof EMPTY_FORM;
 
 /**
- * PUT /vehicles/{plate} acepta actualizaciones parciales: solo se envían los
- * campos que el usuario cambió respecto a lo que se cargó en el formulario.
- * El kilometraje se manda como `kilometers`, que es como lo nombra el backend.
+ * Marca, modelo, año y estado van siempre en el PUT /vehicles/{plate}, aunque
+ * no cambien. El backend anterior a SIGU-BACK #38 copiaba los campos ausentes
+ * como null y el guardado fallaba con un 500 (`model` es NOT NULL); con el
+ * backend nuevo mandarlos es inofensivo.
+ */
+const getVehicleRequiredFields = (vehicle: Pick<Vehicle, "brand" | "model" | "year" | "status">) => ({
+  brand: vehicle.brand,
+  model: vehicle.model,
+  year: vehicle.year,
+  status: vehicle.status,
+});
+
+/**
+ * El kilometraje se manda (como `kilometers`, el nombre del backend) solo si
+ * cambió: así no se vuelve a validar cuando se edita otra cosa.
  */
 const buildVehicleUpdatePayload = (initial: VehicleFormData, current: VehicleFormData) => {
-  const payload: Record<string, string | number> = {};
+  const payload: Record<string, string | number> = getVehicleRequiredFields(current);
 
-  if (current.brand !== initial.brand) payload.brand = current.brand;
-  if (current.model !== initial.model) payload.model = current.model;
-  if (current.year !== initial.year) payload.year = current.year;
-  if (current.status !== initial.status) payload.status = current.status;
   if (current.current_kilometers !== initial.current_kilometers) {
     payload.kilometers = current.current_kilometers;
   }
 
   return payload;
 };
+
+const hasVehicleChanges = (initial: VehicleFormData, current: VehicleFormData) =>
+  current.brand !== initial.brand ||
+  current.model !== initial.model ||
+  current.year !== initial.year ||
+  current.status !== initial.status ||
+  current.current_kilometers !== initial.current_kilometers;
 
 /** KM del último mantenimiento por tipo, vacío = nunca realizado */
 type BaselineData = Record<string, string>; // type -> km string
@@ -302,11 +317,26 @@ export default function Vehicles() {
     }
   };
 
+  /**
+   * El backend no tiene un endpoint solo para el kilometraje: se usa el PUT de la
+   * unidad. (Antes se llamaba a /vehicles/{plate}/kilometers, que no existe y
+   * respondía 404.)
+   */
   const handleUpdateKilometers = async (plateNumber: string, kilometers: number) => {
+    const vehicle = vehicles.find((item) => item.plate_number === plateNumber);
+    if (!vehicle) {
+      toast({
+        title: "Error al actualizar kilometraje",
+        description: "No se encontró la unidad. Recarga la página e intenta de nuevo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(plateNumber)}/kilometers`, {
+      const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(plateNumber)}`, {
         method: "PUT",
-        body: JSON.stringify({ kilometers }),
+        body: JSON.stringify({ ...getVehicleRequiredFields(vehicle), kilometers }),
       });
       if (response.ok) {
         toast({ title: "Kilometraje actualizado" });
@@ -408,13 +438,13 @@ export default function Vehicles() {
     setIsSavingVehicle(true);
     try {
       if (editingVehicle) {
-        const payload = buildVehicleUpdatePayload(initialFormData, formData);
-        if (Object.keys(payload).length === 0) {
+        if (!hasVehicleChanges(initialFormData, formData)) {
           // Nada cambió: no hace falta llamar al backend.
           setIsModalOpen(false);
           resetForm();
           return;
         }
+        const payload = buildVehicleUpdatePayload(initialFormData, formData);
 
         const response = await authenticatedFetch(`${API_URL}/api/v1/vehicles/${encodeURIComponent(editingVehicle.plate_number)}`, {
           method: "PUT",
@@ -770,7 +800,10 @@ export default function Vehicles() {
 
       {/* Modal de detalles */}
       <VehicleDetailsModal
-        vehicle={selectedVehicle}
+        // La versión de la lista, para que el detalle muestre el km recién guardado.
+        vehicle={
+          vehicles.find((item) => item.plate_number === selectedVehicle?.plate_number) ?? selectedVehicle
+        }
         isOpen={isDetailsModalOpen}
         onClose={() => setIsDetailsModalOpen(false)}
         onUpdateKilometers={handleUpdateKilometers}

@@ -230,8 +230,8 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   const hasM3 = vehicle.next_m3_kilometers != null || Boolean(vehicle.last_m3_date);
 
   const handleSaveKilometers = () => {
-    const km = parseInt(kmValue);
-    if (!isNaN(km) && km > 0) {
+    const km = Number(kmValue);
+    if (kmValue.trim() !== "" && Number.isFinite(km) && km > 0) {
       onUpdateKilometers(vehicle.plate_number, km);
       setEditingKm(false);
     }
