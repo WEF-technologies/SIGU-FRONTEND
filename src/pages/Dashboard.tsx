@@ -20,18 +20,28 @@ import {
   Hammer,
 } from "lucide-react";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllPages } from "@/lib/apiClient";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
 import { Contract, DriverAlert, Route, ToolAlert } from "@/types";
+import { VEHICLE_SEDE_STATUS_OPTIONS } from "@/constants/filterOptions";
 
 /** Desde el 13/10 el backend usa "activo"; "active" queda por si llega un dato viejo. */
 const isActiveContractStatus = (status: string | null | undefined) => {
   const normalized = (status ?? "").trim().toLowerCase();
   return normalized === "activo" || normalized === "active";
 };
-import { VEHICLE_SEDE_STATUS_OPTIONS } from "@/constants/filterOptions";
+
+/** Clases completas para que Tailwind las genere: una columna por tarjeta visible. */
+const STATS_GRID_COLUMNS: Record<number, string> = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-5",
+};
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 
@@ -61,12 +71,21 @@ type RouteRecord = Route & {
 export default function Dashboard() {
   const navigate = useNavigate();
   const authenticatedFetch = useAuthenticatedFetch();
+  const { can } = useAuth();
+  // Cada rol ve en el resumen solo los modulos que puede abrir: pedir el resto
+  // al backend solo devolveria 403.
+  const canSeeVehicles = can("vehicles");
+  const canSeeDrivers = can("drivers");
+  const canSeeContracts = can("contracts");
+  const canSeeMaintenances = can("maintenances");
+  const canSeeTools = can("tools");
+  const canSeeRoutes = can("routes");
   const {
     alerts,
     dismissAlert,
     vehicles,
     isLoadingData: isLoadingMaintenanceAlerts,
-  } = useMaintenance();
+  } = useMaintenance({ includeMaintenances: canSeeMaintenances });
   const [driverAlerts, setDriverAlerts] = useState<DriverAlert[]>([]);
   const [toolAlerts, setToolAlerts] = useState<ToolAlert[]>([]);
   const [toolAlertQuickFilter, setToolAlertQuickFilter] = useState<"all" | "critical" | "warning">("all");
@@ -89,35 +108,39 @@ export default function Dashboard() {
       try {
         setIsLoading(true);
 
+        // Un modulo sin permiso se resuelve como "sin respuesta" sin llamar al backend.
+        const fetchIfAllowed = (allowed: boolean, url: string) =>
+          allowed ? fetchAllPages(authenticatedFetch, url) : Promise.resolve(null);
+
         const [
           vehiclesResult,
           driversResult,
           contractsResult,
           maintenancesResult,
         ] = await Promise.allSettled([
-          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/vehicles/`),
-          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/`),
-          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/contracts/`),
-          fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/maintenances/`),
+          fetchIfAllowed(canSeeVehicles, `${API_URL}/api/v1/vehicles/`),
+          fetchIfAllowed(canSeeDrivers, `${API_URL}/api/v1/drivers/`),
+          fetchIfAllowed(canSeeContracts, `${API_URL}/api/v1/contracts/`),
+          fetchIfAllowed(canSeeMaintenances, `${API_URL}/api/v1/maintenances/`),
         ]);
 
         let vehicles = [];
-        if (vehiclesResult.status === "fulfilled" && vehiclesResult.value.ok) {
+        if (vehiclesResult.status === "fulfilled" && vehiclesResult.value?.ok) {
           vehicles = await vehiclesResult.value.json();
         }
 
         let drivers = [];
-        if (driversResult.status === "fulfilled" && driversResult.value.ok) {
+        if (driversResult.status === "fulfilled" && driversResult.value?.ok) {
           drivers = await driversResult.value.json();
         }
 
         let contracts = [];
-        if (contractsResult.status === "fulfilled" && contractsResult.value.ok) {
+        if (contractsResult.status === "fulfilled" && contractsResult.value?.ok) {
           contracts = await contractsResult.value.json();
         }
 
         let maintenances = [];
-        if (maintenancesResult.status === "fulfilled" && maintenancesResult.value.ok) {
+        if (maintenancesResult.status === "fulfilled" && maintenancesResult.value?.ok) {
           maintenances = await maintenancesResult.value.json();
         }
         if (isMounted) {
@@ -143,7 +166,12 @@ export default function Dashboard() {
           });
         }
 
-        void (async () => {
+        if (!canSeeRoutes && isMounted) {
+          setActiveRoutes([]);
+          setRoutesLoading(false);
+        }
+
+        if (canSeeRoutes) void (async () => {
           try {
             setRoutesLoading(true);
             const routesResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/routes/`);
@@ -180,7 +208,7 @@ export default function Dashboard() {
           }
         })();
 
-        void (async () => {
+        if (canSeeDrivers) void (async () => {
           try {
             const driverAlertsResponse = await fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/drivers/alerts`);
             if (!isMounted) return;
@@ -196,7 +224,7 @@ export default function Dashboard() {
           }
         })();
 
-        void (async () => {
+        if (canSeeTools) void (async () => {
           try {
             const toolAlertsResponse = await authenticatedFetch(
               `${API_URL}/api/v1/tools/alerts?near_days=30&include_ok=false`
@@ -227,7 +255,24 @@ export default function Dashboard() {
     return () => {
       isMounted = false;
     };
-  }, [authenticatedFetch]);
+  }, [
+    authenticatedFetch,
+    canSeeVehicles,
+    canSeeDrivers,
+    canSeeContracts,
+    canSeeMaintenances,
+    canSeeTools,
+    canSeeRoutes,
+  ]);
+
+  const visibleStatsCount = [
+    canSeeVehicles,
+    canSeeDrivers,
+    canSeeContracts,
+    canSeeMaintenances,
+    canSeeTools,
+  ].filter(Boolean).length;
+  const showRecentActivity = canSeeRoutes || canSeeMaintenances;
 
   const criticalAlerts = alerts.filter((a) => a.severity >= 3);
   const nearAlerts = alerts.filter((a) => a.severity === 2);
@@ -297,8 +342,12 @@ export default function Dashboard() {
       )}
 
       {/* ─── STATS ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      {visibleStatsCount > 0 && (
+      <div
+        className={`grid grid-cols-1 md:grid-cols-2 ${STATS_GRID_COLUMNS[visibleStatsCount] ?? "lg:grid-cols-5"} gap-4`}
+      >
         {/* Vehículos */}
+        {canSeeVehicles && (
         <Card
           className="border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5"
           onClick={() => navigate("/vehiculos")}
@@ -323,8 +372,10 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Choferes */}
+        {canSeeDrivers && (
         <Card
           className="border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5"
           onClick={() => navigate("/choferes")}
@@ -354,8 +405,10 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Contratos */}
+        {canSeeContracts && (
         <Card
           className="border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5"
           onClick={() => navigate("/contratos")}
@@ -380,8 +433,10 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Mantenimientos */}
+        {canSeeMaintenances && (
         <Card
           className={`border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5 ${
             criticalAlerts.length > 0 ? "border-red-300 bg-red-50/30" : ""
@@ -435,8 +490,10 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Herramientas */}
+        {canSeeTools && (
         <Card
           className={`border-secondary-medium hover:shadow-md transition-all cursor-pointer hover:-translate-y-0.5 ${
             criticalToolAlerts.length > 0 ? "border-red-300 bg-red-50/30" : ""
@@ -485,9 +542,12 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
+      )}
 
       {/* ─── ALERTAS DE MANTENIMIENTO ─────────────────────────────────── */}
+      {canSeeMaintenances && (
       <Card
         className={`border-secondary-medium ${
           criticalAlerts.length > 0 ? "border-red-300 shadow-red-100 shadow-md" : ""
@@ -543,8 +603,10 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* ─── ALERTAS DE HERRAMIENTAS ─────────────────────────────────── */}
+      {canSeeTools && (
       <Card className={`border-secondary-medium ${criticalToolAlerts.length > 0 ? "border-red-300 shadow-red-100 shadow-md" : ""}`}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -653,8 +715,10 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* ─── ALERTAS DE CHOFERES ─────────────────────────────────────── */}
+      {canSeeDrivers && (
       <Card className="border-secondary-medium">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -704,9 +768,14 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* ─── ACTIVIDAD RECIENTE ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {showRecentActivity && (
+      <div
+        className={`grid grid-cols-1 gap-4 ${canSeeRoutes && canSeeMaintenances ? "lg:grid-cols-2" : ""}`}
+      >
+        {canSeeRoutes && (
         <Card className="border-secondary-medium">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -753,7 +822,9 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        )}
 
+        {canSeeMaintenances && (
         <Card className="border-secondary-medium cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/mantenimiento")}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -804,7 +875,9 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+        )}
       </div>
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import {
 import { Contract, ContractPayload } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
+import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllPages } from "@/lib/apiClient";
 import { matchesSearch } from "@/lib/filtering";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -30,6 +31,9 @@ const API_URL = import.meta.env.VITE_API_URL ?? "";
 export default function Contracts() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  const { can } = useAuth();
+  // El administrador consulta contratos; crearlos queda para el gerente.
+  const canWriteContracts = can("contracts", "write");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -151,8 +155,13 @@ export default function Contracts() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-2xl font-bold text-primary-900">
+            <CardTitle className="text-2xl font-bold text-primary-900 flex items-center gap-2">
               Gestión de Contratos
+              {!canWriteContracts && (
+                <Badge variant="outline" className="text-xs font-medium text-secondary-dark">
+                  Solo lectura
+                </Badge>
+              )}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Button
@@ -163,10 +172,12 @@ export default function Contracts() {
                 <RefreshCw className="w-4 h-4 mr-1" />
                 Actualizar
               </Button>
-              <Button onClick={handleAdd} className="bg-primary hover:bg-primary-600">
-                <Plus className="w-4 h-4 mr-1" />
-                Crear Nuevo Contrato
-              </Button>
+              {canWriteContracts && (
+                <Button onClick={handleAdd} className="bg-primary hover:bg-primary-600">
+                  <Plus className="w-4 h-4 mr-1" />
+                  Crear Nuevo Contrato
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
