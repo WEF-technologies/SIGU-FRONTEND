@@ -10,7 +10,6 @@ import {
 import { SparePart, SparePartPayload, Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import { useAuth } from "@/contexts/AuthContext";
 import { fetchAllPages } from "@/lib/apiClient";
 import { useConfirm } from "@/hooks/useConfirm";
 import { Button } from "@/components/ui/button";
@@ -70,9 +69,8 @@ function SparePartCard({
   part: SparePart;
   vehicleMap: Map<string, Vehicle>;
   onView: (p: SparePart) => void;
-  /** Sin callback no se muestra el boton (rol sin permiso de escritura). */
-  onEdit?: (p: SparePart) => void;
-  onDelete?: (p: SparePart) => void;
+  onEdit: (p: SparePart) => void;
+  onDelete: (p: SparePart) => void;
 }) {
   const isLowStock = part.min_stock != null && part.quantity <= part.min_stock;
   const fitmentCount = part.fitments?.length ?? 0;
@@ -155,16 +153,12 @@ function SparePartCard({
         <button onClick={() => onView(part)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500" title="Ver detalles">
           <Eye className="h-4 w-4" />
         </button>
-        {onEdit && (
-          <button onClick={() => onEdit(part)} className="p-1.5 rounded hover:bg-amber-50 text-amber-500" title="Editar">
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {onDelete && (
-          <button onClick={() => onDelete(part)} className="p-1.5 rounded hover:bg-red-50 text-red-500" title="Eliminar">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        <button onClick={() => onEdit(part)} className="p-1.5 rounded hover:bg-amber-50 text-amber-500" title="Editar">
+          <Pencil className="h-4 w-4" />
+        </button>
+        <button onClick={() => onDelete(part)} className="p-1.5 rounded hover:bg-red-50 text-red-500" title="Eliminar">
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -180,7 +174,7 @@ function VehiclePartsCard({
   vehicle: Vehicle;
   parts: SparePart[];
   onView: (p: SparePart) => void;
-  onEdit?: (p: SparePart) => void;
+  onEdit: (p: SparePart) => void;
 }) {
   const [open, setOpen] = useState(true);
   const lowStock = parts.filter(p => p.min_stock != null && p.quantity <= p.min_stock).length;
@@ -240,11 +234,9 @@ function VehiclePartsCard({
                     <button onClick={() => onView(part)} className="p-1 rounded hover:bg-blue-50 text-blue-500">
                       <Eye className="h-3.5 w-3.5" />
                     </button>
-                    {onEdit && (
-                      <button onClick={() => onEdit(part)} className="p-1 rounded hover:bg-amber-50 text-amber-500" title="Editar">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    <button onClick={() => onEdit(part)} className="p-1 rounded hover:bg-amber-50 text-amber-500">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -261,11 +253,6 @@ export default function SpareParts() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
   const confirm = useConfirm();
-  const { can } = useAuth();
-  // El administrador consulta el inventario y pide repuestos; darlos de alta,
-  // editarlos o borrarlos es del rol de mantenimiento.
-  const canWriteSpareParts = can("spare_parts", "write");
-  const canRequestSpareParts = can("spare_part_requests", "write");
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -469,21 +456,13 @@ export default function SpareParts() {
           </p>
         </div>
         <div className="flex gap-2">
-          {canRequestSpareParts && (
-            <Button onClick={() => setIsRequestModalOpen(true)} variant="outline"
-              className="border-blue-200 text-blue-700 hover:bg-blue-50 gap-2">
-              <ShoppingCart className="h-4 w-4" /> Solicitar
-            </Button>
-          )}
-          {canWriteSpareParts ? (
-            <Button onClick={handleAdd} className="bg-primary hover:bg-primary/90 text-white gap-2">
-              <Plus className="h-4 w-4" /> Agregar Repuesto
-            </Button>
-          ) : (
-            <Badge variant="outline" className="self-center text-xs font-medium text-gray-500">
-              Inventario en solo lectura
-            </Badge>
-          )}
+          <Button onClick={() => setIsRequestModalOpen(true)} variant="outline"
+            className="border-blue-200 text-blue-700 hover:bg-blue-50 gap-2">
+            <ShoppingCart className="h-4 w-4" /> Solicitar
+          </Button>
+          <Button onClick={handleAdd} className="bg-primary hover:bg-primary/90 text-white gap-2">
+            <Plus className="h-4 w-4" /> Agregar Repuesto
+          </Button>
         </div>
       </div>
 
@@ -536,8 +515,8 @@ export default function SpareParts() {
                   part={part}
                   vehicleMap={vehicleMap}
                   onView={handleViewDetails}
-                  onEdit={canWriteSpareParts ? handleEdit : undefined}
-                  onDelete={canWriteSpareParts ? handleDelete : undefined}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>
@@ -561,7 +540,7 @@ export default function SpareParts() {
                   vehicle={vehicle}
                   parts={parts}
                   onView={handleViewDetails}
-                  onEdit={canWriteSpareParts ? handleEdit : undefined}
+                  onEdit={handleEdit}
                 />
               ))}
             </div>

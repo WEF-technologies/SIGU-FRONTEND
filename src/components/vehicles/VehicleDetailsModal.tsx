@@ -24,7 +24,6 @@ import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
 import { VEHICLE_STATUS_OPTIONS } from "@/constants/filterOptions";
 import { getOptionLabel } from "@/lib/filtering";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { maintenancesApi, ApiRequestError } from "@/services/maintenancesApi";
@@ -92,14 +91,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
     createEmptyVehicleSpecificationForm()
   );
   const [spareParts, setSpareParts] = useState<SparePart[]>([]);
-  const { can } = useAuth();
-  // El rol administrador ve la unidad, su ficha y sus repuestos, pero no el
-  // modulo de mantenimiento: sin este control el historial seria un 403.
-  const canReadMaintenances = can("maintenances");
-  const canWriteMaintenances = can("maintenances", "write");
-  const { maintenance, vehicles, createMaintenance } = useMaintenance({
-    includeMaintenances: canReadMaintenances,
-  });
+  const { maintenance, vehicles, createMaintenance } = useMaintenance();
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
 
@@ -449,16 +441,13 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
             </Card>
 
             {/* Tabs para historial, ficha técnica y repuestos */}
-            <Tabs defaultValue={canReadMaintenances ? "maintenance" : "specs"} className="w-full">
-              <TabsList className={`grid w-full ${canReadMaintenances ? "grid-cols-3" : "grid-cols-2"}`}>
-                {canReadMaintenances && (
-                  <TabsTrigger value="maintenance">Historial de Mantenimientos</TabsTrigger>
-                )}
+            <Tabs defaultValue="maintenance" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="maintenance">Historial de Mantenimientos</TabsTrigger>
                 <TabsTrigger value="specs">Ficha Técnica</TabsTrigger>
                 <TabsTrigger value="parts">Repuestos</TabsTrigger>
               </TabsList>
 
-              {canReadMaintenances && (
               <TabsContent value="maintenance" className="space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="font-medium">Historial de Mantenimientos ({vehicleMaintenances.length})</h3>
@@ -476,16 +465,14 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                       )}
                       {isDownloadingReport ? "Descargando..." : "Descargar historial PDF"}
                     </Button>
-                    {canWriteMaintenances && (
-                      <Button
-                        size="sm"
-                        className="bg-primary"
-                        onClick={() => setShowMaintenanceForm(true)}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Registrar Mantenimiento
-                      </Button>
-                    )}
+                    <Button 
+                      size="sm" 
+                      className="bg-primary"
+                      onClick={() => setShowMaintenanceForm(true)}
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Registrar Mantenimiento
+                    </Button>
                   </div>
                 </div>
 
@@ -531,7 +518,6 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                   </Table>
                 </Card>
               </TabsContent>
-              )}
 
               <TabsContent value="specs" className="space-y-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -698,7 +684,6 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
         </DialogContent>
       </Dialog>
 
-      {canWriteMaintenances && (
       <MaintenanceFormModal
         isOpen={showMaintenanceForm}
         onClose={() => setShowMaintenanceForm(false)}
@@ -706,7 +691,6 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
         vehicles={vehicles}
         onSubmit={handleMaintenanceSubmit}
       />
-      )}
     </>
   );
 }
