@@ -217,15 +217,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [applySession, logout]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/api/v1/users/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}/api/v1/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      // Sin red, CORS rechazado o un error del backend que llega sin cabeceras CORS.
+      throw new Error('No se pudo conectar con el servidor. Verifica tu conexión o intenta más tarde.');
+    }
 
-    if (!response.ok) {
+    // Solo un 401 significa credenciales incorrectas. Un 500 (backend caído, sin
+    // migrar o mal configurado) no debe decirle al usuario que revise su clave.
+    if (response.status === 401) {
       throw new Error(
         await extractErrorMessage(response, 'Credenciales inválidas. Verifica tu correo y contraseña.')
+      );
+    }
+    if (!response.ok) {
+      throw new Error(
+        response.status >= 500
+          ? `El servidor no pudo procesar el inicio de sesión (error ${response.status}). Intenta más tarde o avisa al administrador del sistema.`
+          : await extractErrorMessage(response, `No se pudo iniciar sesión (error ${response.status}).`)
       );
     }
 
