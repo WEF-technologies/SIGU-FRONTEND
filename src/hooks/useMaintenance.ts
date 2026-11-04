@@ -219,9 +219,21 @@ function enrichWithM3(vehicle: any, maintenances: MaintenanceType[]) {
   };
 }
 
-export function useMaintenance() {
+interface UseMaintenanceOptions {
+  /**
+   * Pedir mantenimientos y alertas al backend. El rol administrador ve las
+   * unidades pero no el modulo de mantenimiento: para el, esas peticiones solo
+   * devolverian 403. Con `false` se cargan unicamente los vehiculos.
+   */
+  includeMaintenances?: boolean;
+}
+
+export function useMaintenance({ includeMaintenances = true }: UseMaintenanceOptions = {}) {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
+  // Por ref, igual que fetchRef: las cargas se disparan solo al montar.
+  const includeMaintenancesRef = useRef(includeMaintenances);
+  includeMaintenancesRef.current = includeMaintenances;
 
   /**
    * Ref que siempre apunta a la versión más reciente de authenticatedFetch.
@@ -454,6 +466,11 @@ export function useMaintenance() {
   }, []);
 
   const fetchAlerts = useCallback(async (enrichedVehicles?: Vehicle[]) => {
+    if (!includeMaintenancesRef.current) {
+      setAlerts([]);
+      return;
+    }
+
     try {
       const response = await fetchRef.current(`${API_URL}/api/v1/maintenances/alerts`);
       const dismissed = getDismissedAlerts();
@@ -492,7 +509,9 @@ export function useMaintenance() {
         const vehiclesData = vehiclesResponse.ok ? await vehiclesResponse.json() : [];
         const normalizedVehicles = Array.isArray(vehiclesData) ? vehiclesData : [];
 
-        const maintenanceData = await fetchMaintenanceRecords(normalizedVehicles);
+        const maintenanceData = includeMaintenancesRef.current
+          ? await fetchMaintenanceRecords(normalizedVehicles)
+          : [];
 
         if (isActive) {
           setMaintenance(maintenanceData);
