@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { RequireAccess } from "@/components/auth/RequireAccess";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { ConfirmProvider } from "@/components/shared/ConfirmProvider";
 import { shouldRetryRequest } from "@/lib/apiClient";
@@ -68,21 +67,21 @@ const App = () => (
                     <Suspense fallback={<RouteLoader />}>
                       <Routes>
                         <Route path="/" element={<Dashboard />} />
-                        <Route path="/vehiculos" element={<RequireAccess module="vehicles"><Vehicles /></RequireAccess>} />
-                        <Route path="/usuarios" element={<RequireAccess module="users"><Users /></RequireAccess>} />
-                        <Route path="/contratos" element={<RequireAccess module="contracts"><Contracts /></RequireAccess>} />
-                        <Route path="/rutas" element={<RequireAccess module="routes"><RoutesPage /></RequireAccess>} />
-                        <Route path="/choferes" element={<RequireAccess module="drivers"><Drivers /></RequireAccess>} />
-                        <Route path="/repuestos" element={<RequireAccess module="spare_parts"><SpareParts /></RequireAccess>} />
-                        <Route path="/solicitudes-repuestos" element={<RequireAccess module="spare_part_requests"><SparePartRequests /></RequireAccess>} />
-                        <Route path="/mantenimiento" element={<RequireAccess module="maintenances"><Maintenance /></RequireAccess>} />
-                        <Route path="/combustible" element={<RequireAccess module="fuel"><FuelPage /></RequireAccess>} />
-                        <Route path="/fluidos" element={<RequireAccess module="fluids"><Fluids /></RequireAccess>} />
-                        <Route path="/herramientas" element={<RequireAccess module="tools"><Tools /></RequireAccess>} />
-                        <Route path="/dotacion" element={<RequireAccess module="dotation"><Dotation /></RequireAccess>} />
-                        <Route path="/proveedores" element={<RequireAccess module="suppliers"><Suppliers /></RequireAccess>} />
-                        <Route path="/viajes" element={<RequireAccess module="trips"><Trips /></RequireAccess>} />
-                        <Route path="/manual-fallas" element={<RequireAccess module="troubleshooting"><Troubleshooting /></RequireAccess>} />
+                        <Route path="/vehiculos" element={<Vehicles />} />
+                        <Route path="/usuarios" element={<Users />} />
+                        <Route path="/contratos" element={<Contracts />} />
+                        <Route path="/rutas" element={<RoutesPage />} />
+                        <Route path="/choferes" element={<Drivers />} />
+                        <Route path="/repuestos" element={<SpareParts />} />
+                        <Route path="/solicitudes-repuestos" element={<SparePartRequests />} />
+                        <Route path="/mantenimiento" element={<Maintenance />} />
+                        <Route path="/combustible" element={<FuelPage />} />
+                        <Route path="/fluidos" element={<Fluids />} />
+                        <Route path="/herramientas" element={<Tools />} />
+                        <Route path="/dotacion" element={<Dotation />} />
+                        <Route path="/proveedores" element={<Suppliers />} />
+                        <Route path="/viajes" element={<Trips />} />
+                        <Route path="/manual-fallas" element={<Troubleshooting />} />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>

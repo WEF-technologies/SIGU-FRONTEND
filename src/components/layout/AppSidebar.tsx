@@ -17,7 +17,6 @@ import {
   Package,
   Building2,
   LifeBuoy,
-  type LucideIcon,
 } from "lucide-react";
 
 import {
@@ -32,26 +31,24 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useAuth } from "@/contexts/AuthContext";
-import { AppModule } from "@/lib/permissions";
 
-const menuItems: Array<{ title: string; url: string; icon: LucideIcon; module?: AppModule }> = [
+const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Usuarios", url: "/usuarios", icon: Users, module: "users" },
-  { title: "Contratos", url: "/contratos", icon: FileText, module: "contracts" },
-  { title: "Vehículos", url: "/vehiculos", icon: Car, module: "vehicles" },
-  { title: "Rutas", url: "/rutas", icon: MapPin, module: "routes" },
-  { title: "Viajes", url: "/viajes", icon: Route, module: "trips" },
-  { title: "Choferes", url: "/choferes", icon: UserCheck, module: "drivers" },
-  { title: "Repuestos", url: "/repuestos", icon: Settings, module: "spare_parts" },
-  { title: "Solicitudes", url: "/solicitudes-repuestos", icon: ClipboardList, module: "spare_part_requests" },
-  { title: "Mantenimiento", url: "/mantenimiento", icon: Wrench, module: "maintenances" },
-  { title: "Combustible", url: "/combustible", icon: Droplets, module: "fuel" },
-  { title: "Fluidos", url: "/fluidos", icon: FlaskConical, module: "fluids" },
-  { title: "Herramientas", url: "/herramientas", icon: Hammer, module: "tools" },
-  { title: "Dotación", url: "/dotacion", icon: Package, module: "dotation" },
-  { title: "Proveedores", url: "/proveedores", icon: Building2, module: "suppliers" },
-  { title: "Manual de fallas", url: "/manual-fallas", icon: LifeBuoy, module: "troubleshooting" },
+  { title: "Usuarios", url: "/usuarios", icon: Users },
+  { title: "Contratos", url: "/contratos", icon: FileText },
+  { title: "Vehículos", url: "/vehiculos", icon: Car },
+  { title: "Rutas", url: "/rutas", icon: MapPin },
+  { title: "Viajes", url: "/viajes", icon: Route },
+  { title: "Choferes", url: "/choferes", icon: UserCheck },
+  { title: "Repuestos", url: "/repuestos", icon: Settings },
+  { title: "Solicitudes", url: "/solicitudes-repuestos", icon: ClipboardList },
+  { title: "Mantenimiento", url: "/mantenimiento", icon: Wrench },
+  { title: "Combustible", url: "/combustible", icon: Droplets },
+  { title: "Fluidos", url: "/fluidos", icon: FlaskConical },
+  { title: "Herramientas", url: "/herramientas", icon: Hammer },
+  { title: "Dotación", url: "/dotacion", icon: Package },
+  { title: "Proveedores", url: "/proveedores", icon: Building2 },
+  { title: "Manual de fallas", url: "/manual-fallas", icon: LifeBuoy },
 ];
 
 export function AppSidebar() {
@@ -59,9 +56,6 @@ export function AppSidebar() {
   const location = useLocation();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
-  const { can } = useAuth();
-  // Solo los modulos que el rol puede abrir: el resto responderia 403.
-  const visibleItems = menuItems.filter((item) => !item.module || can(item.module));
 
   const isActive = (path: string) => {
     if (path === "/" && currentPath === "/") return true;
@@ -110,7 +104,7 @@ export function AppSidebar() {
           
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {visibleItems.map((item) => (
+              {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild className="p-0">
                     <NavLink

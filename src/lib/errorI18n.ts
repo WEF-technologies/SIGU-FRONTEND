@@ -81,12 +81,6 @@ const FIELD_LABELS: Record<string, string> = {
   requires_workshop: "Requiere taller",
   safety_notes: "Notas de seguridad",
   prevention_tips: "Recomendaciones de prevencion",
-  // Usuarios
-  role: "Rol",
-  lastname: "Apellido",
-  telephone: "Telefono",
-  password: "Contraseña",
-  document_type: "Documento",
 };
 
 const cleanText = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -208,30 +202,7 @@ const translateVehicleModuleMessage = (raw: string): string | null => {
     return "No es un identificador valido.";
   }
 
-  return translateContractMessage(raw) ?? translateUserMessage(raw);
-};
-
-/** Mensajes del modulo de usuarios y de los permisos por rol. */
-const translateUserMessage = (raw: string): string | null => {
-  if (/your role cannot access this module/i.test(raw)) {
-    return "Tu rol no tiene permiso para esta accion en este modulo.";
-  }
-  if (/manager role required/i.test(raw)) {
-    return "Esta accion requiere el rol de gerente.";
-  }
-  if (/role must be manager, maintenance,? or administrator/i.test(raw)) {
-    return "El rol debe ser gerente, mantenimiento o administrador.";
-  }
-  if (/^email already exists$/i.test(raw)) {
-    return "Ya existe un usuario con ese correo.";
-  }
-  if (/^document type already exists$/i.test(raw)) {
-    return "Ya existe un usuario con ese documento.";
-  }
-  if (/^invalid email or password$/i.test(raw)) {
-    return "Correo o contraseña incorrectos.";
-  }
-  return null;
+  return translateContractMessage(raw);
 };
 
 /** Mensajes del modulo de contratos (validaciones de valuacion y estados). */

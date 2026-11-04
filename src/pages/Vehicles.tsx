@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
-import { useAuth } from "@/contexts/AuthContext";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { useConfirm } from "@/hooks/useConfirm";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
@@ -142,11 +141,6 @@ export default function Vehicles() {
   const { toast } = useToast();
   const authenticatedFetch = useAuthenticatedFetch();
   const confirm = useConfirm();
-  const { can } = useAuth();
-  // El historial PDF y el baseline son del modulo de mantenimiento: el rol
-  // administrador gestiona las unidades pero no ese modulo.
-  const canReadMaintenances = can("maintenances");
-  const canWriteMaintenances = can("maintenances", "write");
   const {
     vehicles,
     isLoadingData,
@@ -154,7 +148,7 @@ export default function Vehicles() {
     updateVehicleInState,
     removeVehicleFromState,
     createBaselineMaintenances,
-  } = useMaintenance({ includeMaintenances: canReadMaintenances });
+  } = useMaintenance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalStep, setModalStep] = useState<ModalStep>("vehicle");
@@ -474,15 +468,9 @@ export default function Vehicles() {
         if (response.ok) {
           const vehicle = await response.json();
           updateVehicleInState(vehicle);
-          const goToBaseline = canWriteMaintenances && formData.current_kilometers > 0;
-          toast({
-            title: "Vehículo registrado",
-            description: goToBaseline
-              ? `${vehicle.plate_number} creado. Ahora configura el baseline de mantenimiento.`
-              : `${vehicle.plate_number} creado.`,
-          });
-          // Avanzar al paso 2 solo si el vehículo tiene KM > 0 y el rol puede registrar mantenimientos
-          if (goToBaseline) {
+          toast({ title: "Vehículo registrado", description: `${vehicle.plate_number} creado. Ahora configura el baseline de mantenimiento.` });
+          // Avanzar al paso 2 solo si el vehículo tiene KM > 0
+          if (formData.current_kilometers > 0) {
             setNewVehiclePlate(vehicle.plate_number);
             setModalStep("baseline");
           } else {
@@ -649,22 +637,20 @@ export default function Vehicles() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-1">
-                        {canReadMaintenances && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDownloadVehicleReport(vehicle)}
-                            className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                            title="Descargar historial PDF"
-                            disabled={downloadingPlate === vehicle.plate_number}
-                          >
-                            {downloadingPlate === vehicle.plate_number ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <Download className="w-4 h-4" />
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDownloadVehicleReport(vehicle)}
+                          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                          title="Descargar historial PDF"
+                          disabled={downloadingPlate === vehicle.plate_number}
+                        >
+                          {downloadingPlate === vehicle.plate_number ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleViewDetails(vehicle)} className="border-blue-200 text-blue-600 hover:bg-blue-50" title="Ver detalles">
                           <Eye className="w-4 h-4" />
                         </Button>
@@ -739,7 +725,7 @@ export default function Vehicles() {
             </div>
 
             {/* Info hint al agregar con KM > 0 */}
-            {!editingVehicle && canWriteMaintenances && formData.current_kilometers > 0 && (
+            {!editingVehicle && formData.current_kilometers > 0 && (
               <div className="flex items-start gap-2 p-3 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-sm">
                 <Info className="h-4 w-4 shrink-0 mt-0.5" />
                 <p>
@@ -751,13 +737,7 @@ export default function Vehicles() {
             <div className="flex justify-end gap-2 pt-4">
               <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm(); }}>Cancelar</Button>
               <Button type="submit" className="bg-primary hover:bg-primary-600" disabled={isSavingVehicle}>
-                {isSavingVehicle
-                  ? "Guardando..."
-                  : editingVehicle
-                  ? "Actualizar"
-                  : canWriteMaintenances && formData.current_kilometers > 0
-                  ? "Registrar y Continuar"
-                  : "Registrar"}
+                {isSavingVehicle ? "Guardando..." : editingVehicle ? "Actualizar" : "Registrar y Continuar"}
               </Button>
             </div>
           </form>
