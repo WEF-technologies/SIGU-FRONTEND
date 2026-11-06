@@ -35,3 +35,13 @@ export const DOTATION_ALERT_STATUS_OPTIONS: FilterOption[] = [
   { value: "por_vencer", label: "Por vencer" },
   { value: "vencida", label: "Vencida" },
 ];
+
+/**
+ * Estados que muestra el historial de entregas. "renovada" lo calcula el
+ * frontend: la entrega ya fue reemplazada por otra mas reciente del mismo
+ * item a la misma persona.
+ */
+export const DOTATION_DELIVERY_STATUS_OPTIONS: FilterOption[] = [
+  ...DOTATION_ALERT_STATUS_OPTIONS,
+  { value: "renovada", label: "Renovada" },
+];
