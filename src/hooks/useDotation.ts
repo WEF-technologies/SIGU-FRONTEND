@@ -3,10 +3,7 @@ import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { dotationApi, DotationApiError } from "@/services/dotationApi";
 import {
-  DotationAlert,
-  DotationAlertFilters,
   DotationDelivery,
-  DotationDeliveryFilters,
   DotationDeliveryPayload,
   DotationItem,
   DotationItemFilters,
@@ -30,17 +27,15 @@ export const useDotation = () => {
   const [staffMembers, setStaffMembers] = useState<DotationStaffMember[]>([]);
   const [items, setItems] = useState<DotationItem[]>([]);
   const [deliveries, setDeliveries] = useState<DotationDelivery[]>([]);
-  const [alerts, setAlerts] = useState<DotationAlert[]>([]);
+  const [hasDeliveriesError, setHasDeliveriesError] = useState(false);
 
-  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
-  const [isLoadingItems, setIsLoadingItems] = useState(false);
-  const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(false);
-  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
+  // Empiezan en true porque la primera carga arranca al montar.
+  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [isLoadingDeliveries, setIsLoadingDeliveries] = useState(true);
 
   const lastStaffFiltersRef = useRef<DotationStaffFilters>({});
   const lastItemFiltersRef = useRef<DotationItemFilters>({});
-  const lastDeliveryFiltersRef = useRef<DotationDeliveryFilters>({ near_days: 30 });
-  const lastAlertFiltersRef = useRef<DotationAlertFilters>({ near_days: 30, include_vigente: false });
 
   const fetchStaffMembers = async (filters: DotationStaffFilters = {}) => {
     lastStaffFiltersRef.current = filters;
@@ -90,13 +85,18 @@ export const useDotation = () => {
     }
   };
 
-  const fetchDeliveries = async (filters: DotationDeliveryFilters = { near_days: 30 }) => {
-    lastDeliveryFiltersRef.current = filters;
+  /**
+   * Trae el historial completo: las alertas se calculan en pantalla a partir
+   * de la ultima entrega de cada persona e item, y los filtros de la pestaña
+   * Entregas se aplican en el cliente.
+   */
+  const fetchDeliveries = async () => {
     setIsLoadingDeliveries(true);
 
     try {
-      const data = await dotationApi.listDeliveries(authenticatedFetch, filters);
+      const data = await dotationApi.listDeliveries(authenticatedFetch);
       setDeliveries(Array.isArray(data) ? data : []);
+      setHasDeliveriesError(false);
       return true;
     } catch (error) {
       console.error("Error fetching dotation deliveries:", error);
@@ -108,33 +108,10 @@ export const useDotation = () => {
         });
       }
       setDeliveries([]);
+      setHasDeliveriesError(true);
       return false;
     } finally {
       setIsLoadingDeliveries(false);
-    }
-  };
-
-  const fetchAlerts = async (filters: DotationAlertFilters = { near_days: 30, include_vigente: false }) => {
-    lastAlertFiltersRef.current = filters;
-    setIsLoadingAlerts(true);
-
-    try {
-      const data = await dotationApi.listAlerts(authenticatedFetch, filters);
-      setAlerts(Array.isArray(data) ? data : []);
-      return true;
-    } catch (error) {
-      console.error("Error fetching dotation alerts:", error);
-      if (!isSessionExpiredError(error)) {
-        toast({
-          title: "Error",
-          description: getErrorMessage(error, "No se pudieron cargar las alertas de dotación."),
-          variant: "destructive",
-        });
-      }
-      setAlerts([]);
-      return false;
-    } finally {
-      setIsLoadingAlerts(false);
     }
   };
 
@@ -244,10 +221,7 @@ export const useDotation = () => {
     try {
       await dotationApi.createDelivery(authenticatedFetch, payload);
       toast({ title: "Entrega registrada", description: "La entrega de dotación se registró correctamente." });
-      await Promise.all([
-        fetchDeliveries(lastDeliveryFiltersRef.current),
-        fetchAlerts(lastAlertFiltersRef.current),
-      ]);
+      await fetchDeliveries();
       return true;
     } catch (error) {
       console.error("Error creating dotation delivery:", error);
@@ -264,8 +238,7 @@ export const useDotation = () => {
     await Promise.all([
       fetchStaffMembers(lastStaffFiltersRef.current),
       fetchItems(lastItemFiltersRef.current),
-      fetchDeliveries(lastDeliveryFiltersRef.current),
-      fetchAlerts(lastAlertFiltersRef.current),
+      fetchDeliveries(),
     ]);
   };
 
@@ -273,8 +246,7 @@ export const useDotation = () => {
     void Promise.all([
       fetchStaffMembers({}),
       fetchItems({}),
-      fetchDeliveries({ near_days: 30 }),
-      fetchAlerts({ near_days: 30, include_vigente: false }),
+      fetchDeliveries(),
     ]);
   }, []);
 
@@ -282,15 +254,13 @@ export const useDotation = () => {
     staffMembers,
     items,
     deliveries,
-    alerts,
+    hasDeliveriesError,
     isLoadingStaff,
     isLoadingItems,
     isLoadingDeliveries,
-    isLoadingAlerts,
     fetchStaffMembers,
     fetchItems,
     fetchDeliveries,
-    fetchAlerts,
     createStaffMember,
     updateStaffMember,
     deleteStaffMember,

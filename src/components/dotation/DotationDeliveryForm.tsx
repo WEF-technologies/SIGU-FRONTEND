@@ -13,9 +13,16 @@ import {
 import { DotationDeliveryPayload, DotationItem, DotationStaffMember } from "@/types";
 import { toDateOnlyLocalValue } from "@/lib/dates";
 
+export interface DotationDeliverySelection {
+  staff_member_id: string;
+  dotation_item_id: string;
+}
+
 interface DotationDeliveryFormProps {
   staffMembers: DotationStaffMember[];
   items: DotationItem[];
+  /** Persona e item ya elegidos, p. ej. al renovar desde una alerta. */
+  initialSelection?: DotationDeliverySelection | null;
   onSubmit: (payload: DotationDeliveryPayload) => Promise<boolean>;
   onCancel: () => void;
 }
@@ -29,17 +36,23 @@ interface DeliveryFormState {
   notes: string;
 }
 
-const createEmptyState = (): DeliveryFormState => ({
-  staff_member_id: "",
-  dotation_item_id: "",
+const createEmptyState = (selection?: DotationDeliverySelection | null): DeliveryFormState => ({
+  staff_member_id: selection?.staff_member_id ?? "",
+  dotation_item_id: selection?.dotation_item_id ?? "",
   delivered_at: toDateOnlyLocalValue(),
   quantity: "1",
   delivered_by: "",
   notes: "",
 });
 
-export function DotationDeliveryForm({ staffMembers, items, onSubmit, onCancel }: DotationDeliveryFormProps) {
-  const [formData, setFormData] = useState<DeliveryFormState>(createEmptyState());
+export function DotationDeliveryForm({
+  staffMembers,
+  items,
+  initialSelection,
+  onSubmit,
+  onCancel,
+}: DotationDeliveryFormProps) {
+  const [formData, setFormData] = useState<DeliveryFormState>(() => createEmptyState(initialSelection));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const staffOptions = useMemo(
