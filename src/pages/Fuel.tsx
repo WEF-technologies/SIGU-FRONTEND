@@ -1,6 +1,12 @@
 import { ReactNode, Suspense, lazy, memo, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { FuelVehicleReportUiFilters } from "@/components/fuel/FuelVehicleReportSection";
 import { FormModal } from "@/components/shared/FormModal";
+import { AlertCountBadge } from "@/components/shared/AlertCountBadge";
+import { AlertSummaryBanner } from "@/components/shared/AlertSummaryBanner";
+import { DataTable, type Column } from "@/components/shared/DataTable";
+import { FilterField, FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { TwoLineCell } from "@/components/shared/TwoLineCell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,8 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -24,9 +28,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SectionSwitch } from "@/components/shared/SectionSwitch";
 import {
-  AlertTriangle,
   BarChart3,
-  Calendar,
   Car,
   ChevronDown,
   ChevronRight,
@@ -39,7 +41,9 @@ import {
   Search,
 } from "lucide-react";
 import { useFuel } from "@/hooks/useFuel";
-import { matchesSearch } from "@/lib/filtering";
+import { useAutoApplyFilters } from "@/hooks/useAutoApplyFilters";
+import { getAlertToneBadgeClass, pluralize } from "@/lib/alertTone";
+import { FilterOption, countActiveFilters, matchesOption, matchesSearch } from "@/lib/filtering";
 import { useFluidProducts } from "@/hooks/useFluidProducts";
 import { buildLastOdometerMap } from "@/components/consumption/lastOdometer";
 import { fluidsApi } from "@/services/fluidsApi";
@@ -48,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   CreateFluidServicePayload,
   FuelAnomalyFilters,
+  FuelConsumptionAnomaly,
   FuelLog,
   FuelReading,
   FuelType,
@@ -105,6 +110,18 @@ interface FuelReadingsGroup {
   maxLitersReference: number;
   primaryUnit: "percent" | "liters";
 }
+
+type FuelTab = "alertas" | "historial" | "unidad";
+
+type FuelAnomalyRow = FuelConsumptionAnomaly & { id: string; vehicle_label: string };
+
+/** Filtros de la pestaña Alertas que se aplican en el cliente; "" = sin filtro. */
+const EMPTY_ANOMALY_VIEW = { severity: "", vehicle_id: "", fuel_type: "" };
+
+const ANOMALY_SEVERITY_OPTIONS: FilterOption[] = [
+  { value: "critical", label: "Críticas" },
+  { value: "warning", label: "Moderadas" },
+];
 
 const FUEL_TYPE_OPTIONS: Array<{ value: FuelType; label: string }> = [
   { value: "gasoil", label: "Gasoil" },
@@ -794,6 +811,67 @@ const ReadingsByVehicle = memo(({
   );
 });
 
+interface HistoryToolbarProps<TSort extends string> {
+  summary: ReactNode;
+  sortValue: TSort;
+  sortOptions: Array<{ value: TSort; label: string }>;
+  onSortChange: (value: TSort) => void;
+  viewMode: "grouped" | "table";
+  onViewModeChange: (value: "grouped" | "table") => void;
+}
+
+/** Barra compacta del historial: resumen a la izquierda, orden y vista a la derecha. */
+function HistoryToolbar<TSort extends string>({
+  summary,
+  sortValue,
+  sortOptions,
+  onSortChange,
+  viewMode,
+  onViewModeChange,
+}: HistoryToolbarProps<TSort>) {
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-secondary-medium bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600">{summary}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={sortValue} onValueChange={(value) => onSortChange(value as TSort)}>
+          <SelectTrigger className="h-9 w-44" aria-label="Ordenar">
+            <SelectValue placeholder="Orden" />
+          </SelectTrigger>
+          <SelectContent>
+            {sortOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="inline-flex rounded-md border border-secondary-medium p-0.5" role="group" aria-label="Vista">
+          <Button
+            type="button"
+            size="sm"
+            variant={viewMode === "grouped" ? "default" : "ghost"}
+            className={viewMode === "grouped" ? "bg-primary text-white" : ""}
+            onClick={() => onViewModeChange("grouped")}
+          >
+            <BarChart3 className="mr-1.5 h-4 w-4" />
+            Por unidad
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={viewMode === "table" ? "default" : "ghost"}
+            className={viewMode === "table" ? "bg-primary text-white" : ""}
+            onClick={() => onViewModeChange("table")}
+          >
+            <List className="mr-1.5 h-4 w-4" />
+            Tabla
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FuelPage() {
   const { toast } = useToast();
   const {
@@ -826,7 +904,6 @@ export default function FuelPage() {
     downloadVehicleReportPdf,
     isLoadingVehicleReport,
     isDownloadingVehicleReport,
-    refreshCoreData,
     refreshAll,
     defaultAnomalyFilters,
   } = useFuel();
@@ -879,10 +956,10 @@ export default function FuelPage() {
   };
   // Las pestañas responden a "que quiero hacer"; la vista interna elige el
   // detalle dentro de esa respuesta.
-  const [activeTab, setActiveTab] = useState<"historial" | "unidad" | "pendientes">("historial");
+  const [activeTab, setActiveTab] = useState<FuelTab>("alertas");
   const [historyView, setHistoryView] = useState<"logs" | "readings">("logs");
   const [unitView, setUnitView] = useState<"status" | "report">("status");
-  const [hasFetchedAnomalies, setHasFetchedAnomalies] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [historyFilters, setHistoryFilters] = useState<{
     vehicle_id?: string;
@@ -897,30 +974,35 @@ export default function FuelPage() {
     bucket: "month",
   });
 
+  /** Parametros de deteccion (servidor): cambian que cuenta como anomalia. */
   const [anomalyFilters, setAnomalyFilters] = useState<FuelAnomalyFilters>(defaultAnomalyFilters);
+  /** Unidad, combustible y gravedad se filtran en pantalla para no alterar el resumen. */
+  const [anomalyView, setAnomalyView] = useState(EMPTY_ANOMALY_VIEW);
   const [logsSortMode, setLogsSortMode] = useState<LogsSortMode>("latest_desc");
   const [logsViewMode, setLogsViewMode] = useState<LogsViewMode>("grouped");
   const [readingSortMode, setReadingSortMode] = useState<ReadingSortMode>("plate_asc");
   const [readingsViewMode, setReadingsViewMode] = useState<ReadingsViewMode>("grouped");
   const deferredHistoryQuery = useDeferredValue(historyFilters.query);
 
+  /** Filtros del historial que resuelve el servidor (la busqueda es local). */
+  const historyServerFilters = useMemo(
+    () => ({
+      vehicle_id: historyFilters.vehicle_id,
+      fuel_type: historyFilters.fuel_type,
+      date_from: historyFilters.date_from,
+      date_to: historyFilters.date_to,
+    }),
+    [historyFilters.vehicle_id, historyFilters.fuel_type, historyFilters.date_from, historyFilters.date_to]
+  );
+
+  useAutoApplyFilters(historyServerFilters, (filters) => Promise.all([fetchLogs(filters), fetchReadings(filters)]));
+  useAutoApplyFilters(anomalyFilters, fetchAnomalies);
+
+  // El estado de la unidad se consulta al elegirla, sin boton "Consultar".
   useEffect(() => {
-    let cancelled = false;
-
-    const maybeFetchAnomalies = async () => {
-      if (activeTab !== "pendientes" || hasFetchedAnomalies) return;
-      await fetchAnomalies(defaultAnomalyFilters);
-      if (!cancelled) {
-        setHasFetchedAnomalies(true);
-      }
-    };
-
-    maybeFetchAnomalies();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab, hasFetchedAnomalies, fetchAnomalies, defaultAnomalyFilters]);
+    if (!statusFilters.vehicle_id) return;
+    void fetchVehicleStatus(statusFilters.vehicle_id, statusFilters.fuel_type);
+  }, [fetchVehicleStatus, statusFilters.vehicle_id, statusFilters.fuel_type]);
 
   const vehicleMap = useMemo(() => {
     return new Map(vehicles.map((vehicle) => [vehicle.id, vehicle]));
@@ -1144,19 +1226,7 @@ export default function FuelPage() {
     : false;
 
   const applyHistoryFilters = async () => {
-    const filters = {
-      vehicle_id: historyFilters.vehicle_id,
-      fuel_type: historyFilters.fuel_type,
-      date_from: historyFilters.date_from,
-      date_to: historyFilters.date_to,
-    };
-
-    await Promise.all([fetchLogs(filters), fetchReadings(filters)]);
-  };
-
-  const clearHistoryFilters = async () => {
-    setHistoryFilters({ query: "" });
-    await Promise.all([fetchLogs({}), fetchReadings({})]);
+    await Promise.all([fetchLogs(historyServerFilters), fetchReadings(historyServerFilters)]);
   };
 
   const applyStatusFilter = async () => {
@@ -1175,11 +1245,16 @@ export default function FuelPage() {
     await fetchAnomalies(anomalyFilters);
   };
 
-  const clearAnomalyFilters = async () => {
+  const clearAnomalyFilters = () => {
+    setAnomalyView(EMPTY_ANOMALY_VIEW);
     setAnomalyFilters(defaultAnomalyFilters);
-    await fetchAnomalies(defaultAnomalyFilters);
-    setHasFetchedAnomalies(true);
   };
+
+  const isDefaultDetection =
+    anomalyFilters.lookback === defaultAnomalyFilters.lookback &&
+    anomalyFilters.min_history === defaultAnomalyFilters.min_history &&
+    anomalyFilters.threshold_percent === defaultAnomalyFilters.threshold_percent &&
+    anomalyFilters.min_distance_km === defaultAnomalyFilters.min_distance_km;
 
   const buildVehicleReportRequestFilters = (filters: FuelVehicleReportUiFilters) => ({
     fuel_type: filters.fuel_type,
@@ -1232,27 +1307,21 @@ export default function FuelPage() {
   };
 
   const handleRefresh = async () => {
-    if (activeTab === "unidad" && unitView === "report" && reportFilters.vehicle_id) {
-      const reportPromise = fetchVehicleReport(
-        reportFilters.vehicle_id,
-        buildVehicleReportRequestFilters(reportFilters)
-      );
+    setIsRefreshing(true);
+    try {
+      const tasks: Array<Promise<unknown>> = [refreshAll()];
 
-      if (hasFetchedAnomalies) {
-        await Promise.all([refreshAll(), reportPromise]);
-        return;
+      if (activeTab === "unidad" && unitView === "report" && reportFilters.vehicle_id) {
+        tasks.push(fetchVehicleReport(reportFilters.vehicle_id, buildVehicleReportRequestFilters(reportFilters)));
+      }
+      if (activeTab === "unidad" && unitView === "status" && statusFilters.vehicle_id) {
+        tasks.push(fetchVehicleStatus(statusFilters.vehicle_id, statusFilters.fuel_type));
       }
 
-      await Promise.all([refreshCoreData(), reportPromise]);
-      return;
+      await Promise.all(tasks);
+    } finally {
+      setIsRefreshing(false);
     }
-
-    if (hasFetchedAnomalies) {
-      await refreshAll();
-      return;
-    }
-
-    await refreshCoreData();
   };
 
   const showInitialLoader =
@@ -1263,419 +1332,475 @@ export default function FuelPage() {
     logs.length === 0 &&
     readings.length === 0;
 
-  const statusSummary = useMemo(() => {
-    const totalLogs = logs.length;
-    const totalReadings = readings.length;
-    const totalAnomalies = anomalies.length;
-    const criticalAnomalies = anomalies.filter((item) => item.severity === "critical").length;
+  const vehicleOptions = useMemo<FilterOption[]>(
+    () => vehicles.map((vehicle) => ({ value: vehicle.id, label: getVehicleDisplayLabel(vehicle) })),
+    [vehicles]
+  );
 
-    return {
-      totalLogs,
-      totalReadings,
-      totalAnomalies,
-      criticalAnomalies,
-    };
-  }, [logs, readings, anomalies]);
+  const anomalyRows = useMemo<FuelAnomalyRow[]>(
+    () =>
+      anomalies.map((anomaly) => ({
+        ...anomaly,
+        id: `${anomaly.vehicle_id}-${anomaly.as_of}-${anomaly.fuel_type}`,
+        vehicle_label: getVehicleDisplayLabel(vehicleMap.get(anomaly.vehicle_id), anomaly.vehicle_plate),
+      })),
+    [anomalies, vehicleMap]
+  );
+
+  const visibleAnomalyRows = useMemo(
+    () =>
+      anomalyRows.filter(
+        (row) =>
+          matchesOption(anomalyView.severity, row.severity) &&
+          matchesOption(anomalyView.vehicle_id, row.vehicle_id) &&
+          matchesOption(anomalyView.fuel_type, row.fuel_type)
+      ),
+    [anomalyRows, anomalyView]
+  );
+
+  const criticalAnomalies = anomalies.filter((item) => item.severity === "critical");
+  const warningAnomalyCount = anomalies.length - criticalAnomalies.length;
+  const criticalUnitCount = new Set(criticalAnomalies.map((item) => item.vehicle_id)).size;
+
+  const showAlertsTab = () => {
+    setAnomalyView(EMPTY_ANOMALY_VIEW);
+    setActiveTab("alertas");
+  };
+
+  const formatNumber = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+  const anomalyColumns: Column<FuelAnomalyRow>[] = [
+    {
+      key: "vehicle_plate",
+      header: "Unidad",
+      render: (_, row) => <TwoLineCell primary={row.vehicle_label} secondary={getFuelTypeLabel(row.fuel_type)} />,
+      sortValue: (row) => row.vehicle_label,
+    },
+    {
+      key: "as_of",
+      header: "Fecha",
+      render: (value: string) => formatShortDate(value),
+      sortValue: (row) => row.as_of,
+    },
+    {
+      key: "observed_liters_per_100km",
+      header: "Consumo",
+      render: (_, row) => (
+        <TwoLineCell
+          primary={`${formatNumber(row.observed_liters_per_100km)} L/100 km`}
+          secondary={`Normal: ${formatNumber(row.baseline_liters_per_100km)} L/100 km`}
+        />
+      ),
+    },
+    {
+      key: "deviation_percent",
+      header: "Diferencia",
+      render: (_, row) => (
+        <Badge variant="outline" className={getAlertToneBadgeClass(row.severity === "critical" ? "critical" : "warning")}>
+          {formatNumber(Math.abs(row.deviation_percent))} % {row.deviation_percent >= 0 ? "más" : "menos"}
+        </Badge>
+      ),
+      sortValue: (row) => Math.abs(row.deviation_percent),
+    },
+    {
+      key: "distance_km",
+      header: "Tramo",
+      render: (_, row) => `${formatNumber(row.distance_km)} km · ${formatNumber(row.liters)} L`,
+    },
+  ];
+
+  const summarySeparator = <span className="text-gray-300">·</span>;
 
   return (
-    <div className="animate-fade-in space-y-5">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-primary-900">Modulo de Combustible</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            El historial de cada unidad, su estado actual y lo que queda por atender.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handleRefresh} aria-label="Actualizar datos" title="Actualizar datos">
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-white">
-                Registrar
-                <ChevronDown className="w-4 h-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onSelect={() => setIsLogModalOpen(true)}>
-                <Droplets className="w-4 h-4 mr-2" />
-                Registrar consumo
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setIsReadingModalOpen(true)}>
-                <Gauge className="w-4 h-4 mr-2" />
-                Registrar lectura
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
+    <div className="animate-fade-in space-y-6">
+      <PageHeader
+        title="Combustible"
+        description="Cargas, lecturas y consumo de cada unidad."
+        actions={
+          <>
+            <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Actualizar
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="bg-primary text-white hover:bg-primary/90">
+                  Registrar
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onSelect={() => setIsLogModalOpen(true)}>
+                  <Droplets className="mr-2 h-4 w-4" />
+                  Registrar consumo
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setIsReadingModalOpen(true)}>
+                  <Gauge className="mr-2 h-4 w-4" />
+                  Registrar lectura
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
       {vehiclesError ? <ErrorState message={vehiclesError} onRetry={refreshAll} /> : null}
 
+      <AlertSummaryBanner
+        criticalCount={criticalAnomalies.length}
+        warningCount={warningAnomalyCount}
+        critical={{
+          title: `${criticalAnomalies.length} ${pluralize(criticalAnomalies.length, "consumo crítico", "consumos críticos")} fuera de lo normal`,
+          description: `${criticalUnitCount} ${pluralize(criticalUnitCount, "unidad gasta", "unidades gastan")} muy distinto a lo habitual: revisa fugas, fallas o cargas mal registradas.${
+            warningAnomalyCount > 0 ? ` Además, ${warningAnomalyCount} con diferencia moderada.` : ""
+          }`,
+        }}
+        warning={{
+          title: `${warningAnomalyCount} ${pluralize(warningAnomalyCount, "consumo", "consumos")} fuera de lo normal`,
+          description: "Diferencias moderadas frente al consumo habitual de cada unidad.",
+        }}
+        ok={{
+          title: "Consumo dentro de lo normal",
+          description: "No se detectaron cargas con un consumo fuera de lo habitual.",
+        }}
+        isLoading={isLoadingAnomalies && anomalies.length === 0}
+        loadingText="Revisando el consumo de las unidades..."
+        hasError={Boolean(anomaliesError)}
+        errorText='No se pudo revisar el consumo. Usa "Actualizar" para intentar de nuevo.'
+        onShowAlerts={activeTab !== "alertas" ? showAlertsTab : undefined}
+      />
+
       {showInitialLoader ? <InitialDataLoader /> : null}
 
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => setActiveTab(value as typeof activeTab)}
-        className="space-y-4"
-      >
-        <TabsList className="w-full lg:w-auto grid grid-cols-3 h-auto">
-          <TabsTrigger value="historial" className="gap-2">
-            Historial
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-              {statusSummary.totalLogs + statusSummary.totalReadings}
-            </Badge>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FuelTab)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 gap-2">
+          <TabsTrigger value="alertas" className="gap-2">
+            Alertas
+            <AlertCountBadge criticalCount={criticalAnomalies.length} warningCount={warningAnomalyCount} />
           </TabsTrigger>
-          <TabsTrigger value="unidad">Estado por unidad</TabsTrigger>
-          <TabsTrigger value="pendientes" className="gap-1.5">
-            Pendientes
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{statusSummary.totalAnomalies}</Badge>
-            <Badge
-              className={`text-[10px] h-5 px-1.5 ${
-                statusSummary.criticalAnomalies > 0
-                  ? "bg-red-100 text-red-700"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              C {statusSummary.criticalAnomalies}
-            </Badge>
-          </TabsTrigger>
+          <TabsTrigger value="historial">Historial</TabsTrigger>
+          <TabsTrigger value="unidad">Por unidad</TabsTrigger>
         </TabsList>
 
-        {activeTab === "historial" ? (
-          <Card className="p-3">
-            <div className="flex flex-col xl:flex-row xl:items-center gap-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_180px_minmax(280px,1fr)_auto] gap-2 flex-1">
-                <Select
-                  value={historyFilters.vehicle_id || "all"}
-                  onValueChange={(value) =>
-                    setHistoryFilters((prev) => ({ ...prev, vehicle_id: value === "all" ? undefined : value }))
-                  }
+        <TabsContent value="alertas" className="space-y-4">
+          <FilterPanel
+            title="Filtros"
+            activeCount={countActiveFilters([...Object.values(anomalyView), !isDefaultDetection])}
+            onClear={clearAnomalyFilters}
+            advanced={
+              <>
+                <FilterSelect
+                  id="fuel-anomaly-vehicle"
+                  label="Unidad"
+                  value={anomalyView.vehicle_id}
+                  onChange={(value) => setAnomalyView((prev) => ({ ...prev, vehicle_id: value }))}
+                  options={vehicleOptions}
+                  allLabel="Todas"
                   disabled={isLoadingVehicles}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas las unidades" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas las unidades</SelectItem>
-                    {vehicles.map((vehicle) => (
-                      <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {getVehicleDisplayLabel(vehicle)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={historyFilters.fuel_type || "all"}
-                  onValueChange={(value) =>
-                    setHistoryFilters((prev) => ({
-                      ...prev,
-                      fuel_type: value === "all" ? undefined : (value as FuelType),
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos los combustibles" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los combustibles</SelectItem>
-                    {FUEL_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                />
+                <FilterSelect
+                  id="fuel-anomaly-type"
+                  label="Combustible"
+                  value={anomalyView.fuel_type}
+                  onChange={(value) => setAnomalyView((prev) => ({ ...prev, fuel_type: value }))}
+                  options={FUEL_TYPE_OPTIONS}
+                />
+                <FilterField label="Diferencia mínima (%)" htmlFor="fuel-anomaly-threshold">
                   <Input
-                    className="pl-9"
-                    placeholder="Buscar por placa, unidad, notas o estación..."
-                    value={historyFilters.query}
+                    id="fuel-anomaly-threshold"
+                    type="number"
+                    min={1}
+                    value={anomalyFilters.threshold_percent ?? defaultAnomalyFilters.threshold_percent}
                     onChange={(event) =>
-                      setHistoryFilters((prev) => ({
+                      setAnomalyFilters((prev) => ({
                         ...prev,
-                        query: event.target.value,
+                        threshold_percent: Number(event.target.value) || defaultAnomalyFilters.threshold_percent,
                       }))
                     }
                   />
-                </div>
+                </FilterField>
+                <FilterField label="Cargas para el promedio" htmlFor="fuel-anomaly-lookback">
+                  <Input
+                    id="fuel-anomaly-lookback"
+                    type="number"
+                    min={3}
+                    max={30}
+                    value={anomalyFilters.lookback ?? defaultAnomalyFilters.lookback}
+                    onChange={(event) =>
+                      setAnomalyFilters((prev) => ({
+                        ...prev,
+                        lookback: Number(event.target.value) || defaultAnomalyFilters.lookback,
+                      }))
+                    }
+                  />
+                </FilterField>
+                <FilterField label="Historial mínimo (cargas)" htmlFor="fuel-anomaly-history">
+                  <Input
+                    id="fuel-anomaly-history"
+                    type="number"
+                    min={2}
+                    value={anomalyFilters.min_history ?? defaultAnomalyFilters.min_history}
+                    onChange={(event) =>
+                      setAnomalyFilters((prev) => ({
+                        ...prev,
+                        min_history: Number(event.target.value) || defaultAnomalyFilters.min_history,
+                      }))
+                    }
+                  />
+                </FilterField>
+                <FilterField label="Recorrido mínimo (km)" htmlFor="fuel-anomaly-distance">
+                  <Input
+                    id="fuel-anomaly-distance"
+                    type="number"
+                    min={1}
+                    value={anomalyFilters.min_distance_km ?? defaultAnomalyFilters.min_distance_km}
+                    onChange={(event) =>
+                      setAnomalyFilters((prev) => ({
+                        ...prev,
+                        min_distance_km: Number(event.target.value) || defaultAnomalyFilters.min_distance_km,
+                      }))
+                    }
+                  />
+                </FilterField>
+              </>
+            }
+          >
+            <FilterSelect
+              id="fuel-anomaly-severity"
+              label="Estado"
+              value={anomalyView.severity}
+              onChange={(value) => setAnomalyView((prev) => ({ ...prev, severity: value }))}
+              options={ANOMALY_SEVERITY_OPTIONS}
+              allLabel="Todas"
+            />
+          </FilterPanel>
 
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button type="button" variant="outline" className="justify-start gap-2">
-                      <Calendar className="w-4 h-4" />
-                      {historyFilters.date_from || historyFilters.date_to
-                        ? `${historyFilters.date_from || "..."} a ${historyFilters.date_to || "..."}`
-                        : "Fechas"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-80">
-                    <div className="space-y-3">
-                      <div>
-                        <Label>Desde</Label>
-                        <Input
-                          type="date"
-                          value={historyFilters.date_from || ""}
-                          onChange={(event) =>
-                            setHistoryFilters((prev) => ({
-                              ...prev,
-                              date_from: event.target.value || undefined,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label>Hasta</Label>
-                        <Input
-                          type="date"
-                          value={historyFilters.date_to || ""}
-                          onChange={(event) =>
-                            setHistoryFilters((prev) => ({
-                              ...prev,
-                              date_to: event.target.value || undefined,
-                            }))
-                          }
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full"
-                        onClick={() =>
-                          setHistoryFilters((prev) => ({
-                            ...prev,
-                            date_from: undefined,
-                            date_to: undefined,
-                          }))
-                        }
-                      >
-                        Limpiar fechas
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              </div>
+          {anomaliesError ? <ErrorState message={anomaliesError} onRetry={applyAnomalyFilters} /> : null}
 
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={clearHistoryFilters}>
-                  Limpiar
-                </Button>
-                <Button onClick={applyHistoryFilters}>Aplicar</Button>
-              </div>
-            </div>
-          </Card>
-        ) : null}
+          <DataTable
+            data={visibleAnomalyRows}
+            columns={anomalyColumns}
+            title="Consumo fuera de lo normal"
+            hideAddButton
+            isLoading={isLoadingAnomalies}
+            searchFields={["vehicle_plate", "vehicle_label"]}
+            searchAccessor={(row) => getFuelTypeLabel(row.fuel_type)}
+            searchPlaceholder="Buscar por unidad..."
+            initialPageSize={20}
+          />
+          <p className="text-xs text-gray-500">
+            Cada carga se compara con el consumo promedio (L/100 km) de las cargas anteriores de la misma unidad.
+          </p>
+        </TabsContent>
 
         <TabsContent value="historial" className="space-y-4">
+          <FilterPanel
+            title="Filtros"
+            activeCount={countActiveFilters([
+              historyFilters.query,
+              historyFilters.vehicle_id,
+              historyFilters.fuel_type,
+              historyFilters.date_from,
+              historyFilters.date_to,
+            ])}
+            onClear={() => setHistoryFilters({ query: "" })}
+            advanced={
+              <>
+                <FilterSelect
+                  id="fuel-history-type"
+                  label="Combustible"
+                  value={historyFilters.fuel_type}
+                  onChange={(value) =>
+                    setHistoryFilters((prev) => ({ ...prev, fuel_type: (value || undefined) as FuelType | undefined }))
+                  }
+                  options={FUEL_TYPE_OPTIONS}
+                />
+                <FilterField label="Desde" htmlFor="fuel-history-from">
+                  <Input
+                    id="fuel-history-from"
+                    type="date"
+                    value={historyFilters.date_from || ""}
+                    onChange={(event) =>
+                      setHistoryFilters((prev) => ({ ...prev, date_from: event.target.value || undefined }))
+                    }
+                  />
+                </FilterField>
+                <FilterField label="Hasta" htmlFor="fuel-history-to">
+                  <Input
+                    id="fuel-history-to"
+                    type="date"
+                    value={historyFilters.date_to || ""}
+                    onChange={(event) =>
+                      setHistoryFilters((prev) => ({ ...prev, date_to: event.target.value || undefined }))
+                    }
+                  />
+                </FilterField>
+              </>
+            }
+          >
+            <FilterField label="Buscar" htmlFor="fuel-history-search">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  id="fuel-history-search"
+                  className="pl-9"
+                  placeholder="Placa, unidad, notas o estación..."
+                  value={historyFilters.query}
+                  onChange={(event) => setHistoryFilters((prev) => ({ ...prev, query: event.target.value }))}
+                />
+              </div>
+            </FilterField>
+            <FilterSelect
+              id="fuel-history-vehicle"
+              label="Unidad"
+              value={historyFilters.vehicle_id}
+              onChange={(value) => setHistoryFilters((prev) => ({ ...prev, vehicle_id: value || undefined }))}
+              options={vehicleOptions}
+              allLabel="Todas"
+              disabled={isLoadingVehicles}
+            />
+          </FilterPanel>
+
           <SectionSwitch<"logs" | "readings">
             aria-label="Vista del historial"
             value={historyView}
             onChange={setHistoryView}
             options={[
-              { value: "logs", label: "Cargas", count: statusSummary.totalLogs },
-              { value: "readings", label: "Lecturas", count: statusSummary.totalReadings },
+              { value: "logs", label: "Cargas", count: logs.length },
+              { value: "readings", label: "Lecturas", count: readings.length },
             ]}
           />
 
           {historyView === "logs" ? (
             <div className="space-y-4">
-            {logsError ? <ErrorState message={logsError} onRetry={applyHistoryFilters} /> : null}
+              {logsError ? <ErrorState message={logsError} onRetry={applyHistoryFilters} /> : null}
 
-            {!isLoadingLogs && filteredLogs.length > 0 ? (
-              <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
-                <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
-                  <span>
-                    <span className="font-semibold text-primary-900">{groupedLogsSummary.units}</span> unidades
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span>
-                    <span className="font-semibold text-primary-900">
-                      {groupedLogsSummary.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
-                    </span>
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span>
-                    Costo <span className="font-semibold text-primary-900">{groupedLogsSummary.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span>
-                    <span className="font-semibold text-primary-900">{groupedLogsSummary.updatedLast7d}</span> con actividad en 7 días
-                  </span>
-                </div>
+              {!isLoadingLogs && filteredLogs.length > 0 ? (
+                <HistoryToolbar<LogsSortMode>
+                  summary={
+                    <>
+                      <span>
+                        <span className="font-semibold text-primary-900">{groupedLogsSummary.units}</span> unidades
+                      </span>
+                      {summarySeparator}
+                      <span className="font-semibold text-primary-900">
+                        {groupedLogsSummary.totalLiters.toLocaleString(undefined, { maximumFractionDigits: 2 })} L
+                      </span>
+                      {summarySeparator}
+                      <span>
+                        Costo{" "}
+                        <span className="font-semibold text-primary-900">
+                          {groupedLogsSummary.totalCost.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </span>
+                      </span>
+                      {summarySeparator}
+                      <span>
+                        <span className="font-semibold text-primary-900">{groupedLogsSummary.updatedLast7d}</span> con
+                        actividad en 7 días
+                      </span>
+                    </>
+                  }
+                  sortValue={logsSortMode}
+                  sortOptions={[
+                    { value: "latest_desc", label: "Más recientes" },
+                    { value: "liters_desc", label: "Mayor volumen (L)" },
+                    { value: "plate_asc", label: "Placa A-Z" },
+                  ]}
+                  onSortChange={setLogsSortMode}
+                  viewMode={logsViewMode}
+                  onViewModeChange={setLogsViewMode}
+                />
+              ) : null}
 
-                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                  <div className="w-full lg:w-64">
-                    <Label>Ordenar cargas por unidad</Label>
-                    <Select
-                      value={logsSortMode}
-                      onValueChange={(value) =>
-                        setLogsSortMode(value as "plate_asc" | "latest_desc" | "liters_desc")
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Orden" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="latest_desc">Más recientes</SelectItem>
-                        <SelectItem value="liters_desc">Mayor volumen (L)</SelectItem>
-                        <SelectItem value="plate_asc">Placa A-Z</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant={logsViewMode === "grouped" ? "default" : "outline"}
-                      className={logsViewMode === "grouped" ? "bg-primary text-white" : ""}
-                      onClick={() => setLogsViewMode("grouped")}
-                    >
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      Vista por unidad
+              {isLoadingLogs ? (
+                <Card className="space-y-3 p-4">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </Card>
+              ) : filteredLogs.length === 0 ? (
+                <EmptyState
+                  title="Sin cargas registradas"
+                  description="No hay datos para los filtros seleccionados."
+                  action={
+                    <Button onClick={() => setIsLogModalOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Registrar primera carga
                     </Button>
-                    <Button
-                      type="button"
-                      variant={logsViewMode === "table" ? "default" : "outline"}
-                      className={logsViewMode === "table" ? "bg-primary text-white" : ""}
-                      onClick={() => setLogsViewMode("table")}
-                    >
-                      <List className="w-4 h-4 mr-2" />
-                      Vista tabla
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ) : null}
-
-            {isLoadingLogs ? (
-              <Card className="p-4 space-y-3">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-              </Card>
-            ) : filteredLogs.length === 0 ? (
-              <EmptyState
-                title="Sin cargas registradas"
-                description="No hay datos para los filtros seleccionados."
-                action={
-                  <Button onClick={() => setIsLogModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Registrar primera carga
-                  </Button>
-                }
-              />
-            ) : (
-              logsViewMode === "grouped" ? (
+                  }
+                />
+              ) : logsViewMode === "grouped" ? (
                 <LogsByVehicle groups={groupedLogs} />
               ) : (
                 <LogsTable items={filteredLogs} />
-              )
-            )}
+              )}
             </div>
           ) : (
             <div className="space-y-4">
-            {readingsError ? <ErrorState message={readingsError} onRetry={applyHistoryFilters} /> : null}
+              {readingsError ? <ErrorState message={readingsError} onRetry={applyHistoryFilters} /> : null}
 
-            {!isLoadingReadings && filteredReadings.length > 0 ? (
-              <Card className="p-4 space-y-3 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-sky-50/40">
-                <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-gray-600 flex flex-wrap items-center gap-2">
-                  <span>
-                    <span className="font-semibold text-primary-900">{groupedReadingsSummary.units}</span> unidades
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span>
-                    Nivel promedio{" "}
-                    <span className="font-semibold text-primary-900">
-                      {groupedReadingsSummary.avgRelativeLevelPercent === null
-                        ? "s/d"
-                        : `${groupedReadingsSummary.avgRelativeLevelPercent}%`}
-                    </span>
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span>
-                    <span className="font-semibold text-primary-900">{groupedReadingsSummary.updatedLast24h}</span> actualizadas en 24h
-                  </span>
-                  <span className="text-gray-300">·</span>
-                  <span>
-                    <span className="font-semibold text-red-600">{groupedReadingsSummary.lowLevelUnits}</span> en nivel bajo
-                  </span>
-                </div>
+              {!isLoadingReadings && filteredReadings.length > 0 ? (
+                <HistoryToolbar<ReadingSortMode>
+                  summary={
+                    <>
+                      <span>
+                        <span className="font-semibold text-primary-900">{groupedReadingsSummary.units}</span> unidades
+                      </span>
+                      {summarySeparator}
+                      <span>
+                        Nivel promedio{" "}
+                        <span className="font-semibold text-primary-900">
+                          {groupedReadingsSummary.avgRelativeLevelPercent === null
+                            ? "s/d"
+                            : `${groupedReadingsSummary.avgRelativeLevelPercent}%`}
+                        </span>
+                      </span>
+                      {summarySeparator}
+                      <span>
+                        <span className="font-semibold text-primary-900">{groupedReadingsSummary.updatedLast24h}</span>{" "}
+                        actualizadas en 24 h
+                      </span>
+                      {summarySeparator}
+                      <span>
+                        <span className="font-semibold text-red-600">{groupedReadingsSummary.lowLevelUnits}</span> en
+                        nivel bajo
+                      </span>
+                    </>
+                  }
+                  sortValue={readingSortMode}
+                  sortOptions={[
+                    { value: "plate_asc", label: "Placa A-Z" },
+                    { value: "latest_desc", label: "Más recientes" },
+                    { value: "level_desc", label: "Mayor nivel" },
+                  ]}
+                  onSortChange={setReadingSortMode}
+                  viewMode={readingsViewMode}
+                  onViewModeChange={setReadingsViewMode}
+                />
+              ) : null}
 
-                <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
-                  <div className="w-full lg:w-64">
-                    <Label>Ordenar lecturas por unidad</Label>
-                    <Select
-                      value={readingSortMode}
-                      onValueChange={(value) =>
-                        setReadingSortMode(value as "plate_asc" | "latest_desc" | "level_desc")
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Orden" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="plate_asc">Placa A-Z</SelectItem>
-                        <SelectItem value="latest_desc">Más recientes</SelectItem>
-                        <SelectItem value="level_desc">Mayor nivel relativo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant={readingsViewMode === "grouped" ? "default" : "outline"}
-                      className={readingsViewMode === "grouped" ? "bg-primary text-white" : ""}
-                      onClick={() => setReadingsViewMode("grouped")}
-                    >
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      Vista por unidad
+              {isLoadingReadings ? (
+                <Card className="space-y-3 p-4">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </Card>
+              ) : filteredReadings.length === 0 ? (
+                <EmptyState
+                  title="Sin lecturas registradas"
+                  description="No hay lecturas para los filtros seleccionados."
+                  action={
+                    <Button onClick={() => setIsReadingModalOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Registrar primera lectura
                     </Button>
-                    <Button
-                      type="button"
-                      variant={readingsViewMode === "table" ? "default" : "outline"}
-                      className={readingsViewMode === "table" ? "bg-primary text-white" : ""}
-                      onClick={() => setReadingsViewMode("table")}
-                    >
-                      <List className="w-4 h-4 mr-2" />
-                      Vista tabla
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ) : null}
-
-            {isLoadingReadings ? (
-              <Card className="p-4 space-y-3">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-full" />
-              </Card>
-            ) : filteredReadings.length === 0 ? (
-              <EmptyState
-                title="Sin lecturas registradas"
-                description="No hay lecturas para los filtros seleccionados."
-                action={
-                  <Button onClick={() => setIsReadingModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Registrar primera lectura
-                  </Button>
-                }
-              />
-            ) : (
-              readingsViewMode === "grouped" ? (
+                  }
+                />
+              ) : readingsViewMode === "grouped" ? (
                 <ReadingsByVehicle groups={groupedReadings} />
               ) : (
                 <ReadingsTable items={filteredReadings} />
-              )
-            )}
+              )}
             </div>
           )}
         </TabsContent>
@@ -1693,332 +1818,78 @@ export default function FuelPage() {
 
           {unitView === "status" ? (
             <div className="space-y-4">
-            <Card className="p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <Label>Unidad</Label>
-                  <Select
-                    value={statusFilters.vehicle_id || "all"}
-                    onValueChange={(value) =>
-                      setStatusFilters((prev) => ({ ...prev, vehicle_id: value === "all" ? undefined : value }))
-                    }
-                    disabled={isLoadingVehicles}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar unidad" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Seleccionar...</SelectItem>
-                      {vehicles.map((vehicle) => (
-                        <SelectItem key={vehicle.id} value={vehicle.id}>
-                          {getVehicleDisplayLabel(vehicle)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label>Tipo de combustible</Label>
-                  <Select
-                    value={statusFilters.fuel_type || "all"}
-                    onValueChange={(value) =>
-                      setStatusFilters((prev) => ({
-                        ...prev,
-                        fuel_type: value === "all" ? undefined : (value as FuelType),
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todos" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {FUEL_TYPE_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-end gap-2">
-                  <Button onClick={applyStatusFilter} disabled={!statusFilters.vehicle_id || selectedStatusLoading}>
-                    {selectedStatusLoading ? "Consultando..." : "Consultar"}
-                  </Button>
-                  <Button variant="outline" onClick={clearStatusFilter}>
-                    Limpiar
-                  </Button>
-                </div>
-              </div>
-            </Card>
-
-            {!statusFilters.vehicle_id ? (
-              <EmptyState
-                title="Selecciona una unidad"
-                description="Consulta el estado actual basado en la observacion mas reciente entre carga y lectura."
-              />
-            ) : selectedStatusLoading ? (
-              <Card className="p-4 space-y-3">
-                <Skeleton className="h-6 w-2/3" />
-                <Skeleton className="h-24 w-full" />
-              </Card>
-            ) : selectedStatusError ? (
-              <ErrorState message={selectedStatusError} onRetry={applyStatusFilter} />
-            ) : selectedStatus ? (
-              <StatusCard
-                unitLabel={getVehicleDisplayLabel(vehicleMap.get(selectedStatus.vehicle_id), selectedStatus.vehicle_plate)}
-                source={selectedStatus.source}
-                asOf={selectedStatus.as_of}
-                fuelType={selectedStatus.fuel_type}
-                message={selectedStatus.message}
-                liters={selectedStatus.liters}
-                totalCost={selectedStatus.total_cost}
-                readingValue={selectedStatus.reading_value}
-                readingUnit={selectedStatus.reading_unit}
-                odometerKm={selectedStatus.odometer_km}
-              />
-            ) : (
-              <EmptyState title="Sin informacion reciente" description="No se encontro estado para la seleccion actual." />
-            )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-            {unitView === "report" ? (
-              <Suspense fallback={<DeferredSectionLoader message="Cargando reporte de combustible..." />}>
-                <FuelVehicleReportSection
-                  vehicles={vehicles}
-                  vehicleMap={vehicleMap}
-                  isLoadingVehicles={isLoadingVehicles}
-                  filters={reportFilters}
-                  setFilters={setReportFilters}
-                  report={vehicleReport}
-                  isLoadingReport={isLoadingVehicleReport}
-                  isDownloadingReport={isDownloadingVehicleReport}
-                  reportError={vehicleReportError}
-                  onApply={applyVehicleReportFilters}
-                  onClear={clearVehicleReportFilters}
-                  onDownload={handleDownloadVehicleReport}
-                  getVehicleDisplayLabel={getVehicleDisplayLabel}
-                />
-              </Suspense>
-            ) : null}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="pendientes" className="space-y-4">
-          <Card className="p-4 space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <div>
-                <Label>Unidad</Label>
-                <Select
-                  value={anomalyFilters.vehicle_id || "all"}
-                  onValueChange={(value) =>
-                    setAnomalyFilters((prev) => ({
-                      ...prev,
-                      vehicle_id: value === "all" ? undefined : value,
-                    }))
-                  }
-                  disabled={isLoadingVehicles}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
-                    {vehicles.map((vehicle) => (
-                      <SelectItem key={vehicle.id} value={vehicle.id}>
-                        {getVehicleDisplayLabel(vehicle)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Combustible</Label>
-                <Select
-                  value={anomalyFilters.fuel_type || "all"}
-                  onValueChange={(value) =>
-                    setAnomalyFilters((prev) => ({
-                      ...prev,
-                      fuel_type: value === "all" ? undefined : (value as FuelType),
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {FUEL_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label>Lookback</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={anomalyFilters.lookback ?? defaultAnomalyFilters.lookback}
-                  onChange={(event) =>
-                    setAnomalyFilters((prev) => ({
-                      ...prev,
-                      lookback: Number(event.target.value) || defaultAnomalyFilters.lookback,
-                    }))
-                  }
-                />
-              </div>
-
-              <div>
-                <Label>Historial minimo</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={anomalyFilters.min_history ?? defaultAnomalyFilters.min_history}
-                  onChange={(event) =>
-                    setAnomalyFilters((prev) => ({
-                      ...prev,
-                      min_history: Number(event.target.value) || defaultAnomalyFilters.min_history,
-                    }))
-                  }
-                />
-              </div>
-
-              <div>
-                <Label>Umbral desviacion %</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={anomalyFilters.threshold_percent ?? defaultAnomalyFilters.threshold_percent}
-                  onChange={(event) =>
-                    setAnomalyFilters((prev) => ({
-                      ...prev,
-                      threshold_percent:
-                        Number(event.target.value) || defaultAnomalyFilters.threshold_percent,
-                    }))
-                  }
-                />
-              </div>
-
-              <div>
-                <Label>Distancia minima km</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={anomalyFilters.min_distance_km ?? defaultAnomalyFilters.min_distance_km}
-                  onChange={(event) =>
-                    setAnomalyFilters((prev) => ({
-                      ...prev,
-                      min_distance_km:
-                        Number(event.target.value) || defaultAnomalyFilters.min_distance_km,
-                    }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" onClick={clearAnomalyFilters}>
-                Limpiar
-              </Button>
-              <Button
-                onClick={async () => {
-                  await applyAnomalyFilters();
-                  setHasFetchedAnomalies(true);
-                }}
+              <FilterPanel
+                title="Unidad"
+                activeCount={countActiveFilters([statusFilters.vehicle_id, statusFilters.fuel_type])}
+                onClear={clearStatusFilter}
               >
-                Aplicar filtros
-              </Button>
+                <FilterSelect
+                  id="fuel-status-vehicle"
+                  label="Unidad"
+                  value={statusFilters.vehicle_id}
+                  onChange={(value) => setStatusFilters((prev) => ({ ...prev, vehicle_id: value || undefined }))}
+                  options={vehicleOptions}
+                  allLabel="Selecciona una unidad"
+                  disabled={isLoadingVehicles}
+                />
+                <FilterSelect
+                  id="fuel-status-type"
+                  label="Combustible"
+                  value={statusFilters.fuel_type}
+                  onChange={(value) =>
+                    setStatusFilters((prev) => ({ ...prev, fuel_type: (value || undefined) as FuelType | undefined }))
+                  }
+                  options={FUEL_TYPE_OPTIONS}
+                />
+              </FilterPanel>
+
+              {!statusFilters.vehicle_id ? (
+                <EmptyState
+                  title="Selecciona una unidad"
+                  description="Muestra su estado actual según la carga o lectura más reciente."
+                />
+              ) : selectedStatusLoading ? (
+                <Card className="space-y-3 p-4">
+                  <Skeleton className="h-6 w-2/3" />
+                  <Skeleton className="h-24 w-full" />
+                </Card>
+              ) : selectedStatusError ? (
+                <ErrorState message={selectedStatusError} onRetry={applyStatusFilter} />
+              ) : selectedStatus ? (
+                <StatusCard
+                  unitLabel={getVehicleDisplayLabel(vehicleMap.get(selectedStatus.vehicle_id), selectedStatus.vehicle_plate)}
+                  source={selectedStatus.source}
+                  asOf={selectedStatus.as_of}
+                  fuelType={selectedStatus.fuel_type}
+                  message={selectedStatus.message}
+                  liters={selectedStatus.liters}
+                  totalCost={selectedStatus.total_cost}
+                  readingValue={selectedStatus.reading_value}
+                  readingUnit={selectedStatus.reading_unit}
+                  odometerKm={selectedStatus.odometer_km}
+                />
+              ) : (
+                <EmptyState title="Sin información reciente" description="No se encontró estado para la selección actual." />
+              )}
             </div>
-          </Card>
-
-          {anomaliesError ? <ErrorState message={anomaliesError} onRetry={applyAnomalyFilters} /> : null}
-
-          {isLoadingAnomalies ? (
-            <Card className="p-4 space-y-3">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </Card>
-          ) : anomalies.length === 0 ? (
-            <EmptyState
-              title="Sin anomalias detectadas"
-              description="No hay suficientes observaciones o no se supero el umbral para marcar desviaciones."
-            />
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-secondary-medium bg-white">
-              <table className="w-full min-w-[960px]">
-                <thead className="bg-secondary-light">
-                  <tr>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Unidad</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Combustible</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">as_of</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Observado L/100km</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Baseline L/100km</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Desviacion %</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Distancia</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Litros</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Severidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {anomalies.map((anomaly) => (
-                    <tr key={`${anomaly.vehicle_id}-${anomaly.as_of}-${anomaly.fuel_type}`} className="border-t">
-                      <td className="px-3 py-2 text-sm font-medium">
-                        {getVehicleDisplayLabel(vehicleMap.get(anomaly.vehicle_id), anomaly.vehicle_plate)}
-                      </td>
-                      <td className="px-3 py-2 text-sm">{getFuelTypeLabel(anomaly.fuel_type)}</td>
-                      <td className="px-3 py-2 text-sm">{formatShortDate(anomaly.as_of)}</td>
-                      <td className="px-3 py-2 text-sm">
-                        {anomaly.observed_liters_per_100km.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-3 py-2 text-sm">
-                        {anomaly.baseline_liters_per_100km.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-3 py-2 text-sm font-semibold">
-                        {anomaly.deviation_percent.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })}
-                        %
-                      </td>
-                      <td className="px-3 py-2 text-sm">
-                        {anomaly.distance_km.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })} km
-                      </td>
-                      <td className="px-3 py-2 text-sm">
-                        {anomaly.liters.toLocaleString(undefined, {
-                          maximumFractionDigits: 2,
-                        })} L
-                      </td>
-                      <td className="px-3 py-2 text-sm">
-                        <Badge
-                          className={
-                            anomaly.severity === "critical"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-amber-100 text-amber-700"
-                          }
-                        >
-                          {anomaly.severity === "critical" ? "Critica" : "Advertencia"}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Suspense fallback={<DeferredSectionLoader message="Cargando reporte de combustible..." />}>
+              <FuelVehicleReportSection
+                vehicles={vehicles}
+                vehicleMap={vehicleMap}
+                isLoadingVehicles={isLoadingVehicles}
+                filters={reportFilters}
+                setFilters={setReportFilters}
+                report={vehicleReport}
+                isLoadingReport={isLoadingVehicleReport}
+                isDownloadingReport={isDownloadingVehicleReport}
+                reportError={vehicleReportError}
+                onApply={applyVehicleReportFilters}
+                onClear={clearVehicleReportFilters}
+                onDownload={handleDownloadVehicleReport}
+                getVehicleDisplayLabel={getVehicleDisplayLabel}
+              />
+            </Suspense>
           )}
         </TabsContent>
       </Tabs>

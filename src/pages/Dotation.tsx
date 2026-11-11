@@ -2,7 +2,11 @@ import { useMemo, useState } from "react";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterField, FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { FormModal } from "@/components/shared/FormModal";
-import { DotationAlertBanner } from "@/components/dotation/DotationAlertBanner";
+import { AlertCountBadge } from "@/components/shared/AlertCountBadge";
+import { AlertSummaryBanner } from "@/components/shared/AlertSummaryBanner";
+import { ExpiryCell as SharedExpiryCell } from "@/components/shared/ExpiryCell";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { TwoLineCell } from "@/components/shared/TwoLineCell";
 import { DotationDeliveryForm } from "@/components/dotation/DotationDeliveryForm";
 import { DotationItemForm } from "@/components/dotation/DotationItemForm";
 import { DotationStaffForm } from "@/components/dotation/DotationStaffForm";
@@ -10,10 +14,9 @@ import {
   DEFAULT_NEAR_DAYS,
   DotationDeliveryRow,
   buildDeliveryRows,
-  getExpiryBadgeClass,
+  getDeliveryTone,
   getExpiryDetail,
   getExpiryStatusLabel,
-  isAlertStatus,
   selectCurrentDeliveries,
 } from "@/components/dotation/dotationStatus";
 import { Button } from "@/components/ui/button";
@@ -24,6 +27,8 @@ import { useDotation } from "@/hooks/useDotation";
 import { useConfirm } from "@/hooks/useConfirm";
 import { ACTIVE_STATUS_OPTIONS, DOTATION_DELIVERY_STATUS_OPTIONS } from "@/constants/filterOptions";
 import { formatDateOnly } from "@/lib/dates";
+import { formatDayCount, pluralize } from "@/lib/alertTone";
+import { isExpiryAlert } from "@/lib/expiry";
 import {
   FilterOption,
   buildOptionsFromValues,
@@ -81,24 +86,14 @@ function ActiveStatusBadge({ status }: { status?: string | null }) {
   );
 }
 
-function TwoLineCell({ primary, secondary }: { primary: string; secondary?: string | null }) {
-  return (
-    <div>
-      <p className="font-medium text-gray-900">{primary}</p>
-      {secondary ? <p className="text-xs text-gray-500">{secondary}</p> : null}
-    </div>
-  );
-}
-
 /** Fecha de vencimiento y, debajo, su estado en una sola columna. */
 function ExpiryCell({ row }: { row: DotationDeliveryRow }) {
   return (
-    <div className="space-y-1">
-      <p className="text-gray-900">{formatDateOnly(row.expires_at)}</p>
-      <Badge variant="outline" className={getExpiryBadgeClass(row.expiry_status)}>
-        {getExpiryDetail(row)}
-      </Badge>
-    </div>
+    <SharedExpiryCell
+      date={formatDateOnly(row.expires_at)}
+      label={getExpiryDetail(row)}
+      tone={getDeliveryTone(row.expiry_status)}
+    />
   );
 }
 
@@ -181,13 +176,12 @@ export default function Dotation() {
 
   const expiredCount = currentDeliveries.filter((row) => row.expiry_status === "vencida").length;
   const nearCount = currentDeliveries.filter((row) => row.expiry_status === "por_vencer").length;
-  const alertCount = expiredCount + nearCount;
   const isLoadingAlerts = isLoadingDeliveries || isLoadingStaff || isLoadingItems;
 
   const alertRows = useMemo(
     () =>
       currentDeliveries.filter((row) =>
-        alertFilters.status ? row.expiry_status === alertFilters.status : isAlertStatus(row.expiry_status)
+        alertFilters.status ? row.expiry_status === alertFilters.status : isExpiryAlert(row.expiry_status)
       ),
     [alertFilters.status, currentDeliveries]
   );
@@ -418,23 +412,38 @@ export default function Dotation() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-primary-900">Dotación</h1>
-          <p className="text-sm text-gray-500">Entregas al personal y control de vencimientos.</p>
-        </div>
-        <Button variant="outline" onClick={handleRefreshAll} disabled={isRefreshing}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          Actualizar
-        </Button>
-      </div>
+      <PageHeader
+        title="Dotación"
+        description="Entregas al personal y control de vencimientos."
+        actions={
+          <Button variant="outline" onClick={handleRefreshAll} disabled={isRefreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+        }
+      />
 
-      <DotationAlertBanner
-        expiredCount={expiredCount}
-        nearCount={nearCount}
-        nearDays={nearDays}
+      <AlertSummaryBanner
+        criticalCount={expiredCount}
+        warningCount={nearCount}
+        critical={{
+          title: `${expiredCount} ${pluralize(expiredCount, "dotación vencida", "dotaciones vencidas")}`,
+          description: `${
+            nearCount > 0 ? `Además, ${nearCount} por vencer en los próximos ${formatDayCount(nearDays)}. ` : ""
+          }Registra la renovación para mantener al personal al día.`,
+        }}
+        warning={{
+          title: `${nearCount} ${pluralize(nearCount, "dotación", "dotaciones")} por vencer en los próximos ${formatDayCount(nearDays)}`,
+          description: "Planifica la entrega antes de que venzan.",
+        }}
+        ok={{
+          title: "Toda la dotación al día",
+          description: `No hay entregas vencidas ni por vencer en los próximos ${formatDayCount(nearDays)}.`,
+        }}
         isLoading={isLoadingAlerts && deliveries.length === 0}
+        loadingText="Revisando vencimientos de dotación..."
         hasError={hasDeliveriesError}
+        errorText='No se pudieron revisar los vencimientos. Usa "Actualizar" para intentar de nuevo.'
         onShowAlerts={activeTab !== "alerts" ? showAlertsTab : undefined}
       />
 
@@ -442,15 +451,7 @@ export default function Dotation() {
         <TabsList className="grid w-full grid-cols-2 gap-2 md:grid-cols-4">
           <TabsTrigger value="alerts" className="gap-2">
             Alertas
-            {alertCount > 0 && (
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  expiredCount > 0 ? "bg-red-600 text-white" : "bg-amber-400 text-amber-950"
-                }`}
-              >
-                {alertCount}
-              </span>
-            )}
+            <AlertCountBadge criticalCount={expiredCount} warningCount={nearCount} />
           </TabsTrigger>
           <TabsTrigger value="deliveries">Entregas</TabsTrigger>
           <TabsTrigger value="staff">Personal</TabsTrigger>

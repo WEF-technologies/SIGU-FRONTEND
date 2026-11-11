@@ -1,69 +1,62 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DataTable } from "@/components/shared/DataTable";
-import { ToolAlerts } from "@/components/tools/ToolAlerts";
+import { AlertCountBadge } from "@/components/shared/AlertCountBadge";
+import { AlertSummaryBanner } from "@/components/shared/AlertSummaryBanner";
+import { FilterField, FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { ToolDetailsModal } from "@/components/tools/ToolDetailsModal";
 import { ToolFormModal } from "@/components/tools/ToolFormModal";
-import { getToolTableColumns } from "@/components/tools/ToolTableColumns";
-import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
+import { getToolAlertColumns, getToolTableColumns } from "@/components/tools/ToolTableColumns";
+import { TOOL_STATUS_OPTIONS, ToolRow, buildToolRows } from "@/components/tools/toolExpiry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTools } from "@/hooks/useTools";
 import { useConfirm } from "@/hooks/useConfirm";
-import { buildOptionsFromValues, countActiveFilters, getOptionLabel, matchesOption } from "@/lib/filtering";
-import { Tool, ToolPayload, ToolStatus } from "@/types";
+import { formatDayCount, pluralize } from "@/lib/alertTone";
+import { DEFAULT_NEAR_DAYS, describeExpiry, isExpiryAlert } from "@/lib/expiry";
+import {
+  FilterOption,
+  buildOptionsFromValues,
+  countActiveFilters,
+  getOptionLabel,
+  matchesOption,
+} from "@/lib/filtering";
+import { Tool, ToolPayload } from "@/types";
 import { RefreshCw } from "lucide-react";
 
-const STATUS_OPTIONS: Array<{ value: ToolStatus; label: string }> = [
-  { value: "disponible", label: "Disponible" },
-  { value: "en_uso", label: "En uso" },
-  { value: "en_mantenimiento", label: "En mantenimiento" },
-  { value: "retirada", label: "Retirada" },
-];
+type ToolsTab = "alerts" | "tools";
 
 /** Filtros de la tabla; "" = sin filtro. Se aplican en el cliente al cambiarlos. */
-interface ToolFilterState {
-  category: string;
-  location: string;
-  status: string;
-  assigned_to: string;
-}
+const EMPTY_TOOL_FILTERS = { status: "", category: "", location: "", assigned_to: "" };
+/** Sin estado elegido, la pestaña Alertas muestra vencidas y por vencer. */
+const EMPTY_ALERT_FILTERS = { status: "", near_days: DEFAULT_NEAR_DAYS };
 
-const EMPTY_TOOL_FILTERS: ToolFilterState = {
-  category: "",
-  location: "",
-  status: "",
-  assigned_to: "",
-};
+const ALERT_STATUS_OPTIONS: FilterOption[] = [
+  { value: "vencida", label: "Vencidas" },
+  { value: "por_vencer", label: "Por vencer" },
+  { value: "vigente", label: "Vigentes (al día)" },
+];
+
+const TOOL_SEARCH_FIELDS: Array<keyof ToolRow> = ["code", "name", "category", "location", "assigned_to"];
 
 export default function Tools() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const {
-    tools,
-    alerts,
-    isLoadingTools,
-    isLoadingAlerts,
-    fetchAlerts,
-    fetchToolById,
-    createTool,
-    updateTool,
-    deleteTool,
-  } = useTools();
+  const { tools, isLoadingTools, hasToolsError, refreshTools, fetchToolById, createTool, updateTool, deleteTool } =
+    useTools();
   const confirm = useConfirm();
 
+  const [activeTab, setActiveTab] = useState<ToolsTab>("alerts");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [filters, setFilters] = useState<ToolFilterState>(EMPTY_TOOL_FILTERS);
-
-  const [alertFilters, setAlertFilters] = useState({
-    near_days: 30,
-    include_ok: false,
-  });
+  const [filters, setFilters] = useState(EMPTY_TOOL_FILTERS);
+  const [alertFilters, setAlertFilters] = useState(EMPTY_ALERT_FILTERS);
+  const nearDays = alertFilters.near_days;
 
   useEffect(() => {
     const toolIdFromQuery = searchParams.get("toolId");
@@ -84,6 +77,28 @@ export default function Tools() {
     openToolFromQuery();
   }, [fetchToolById, searchParams, setSearchParams]);
 
+  const toolRows = useMemo(() => buildToolRows(tools, nearDays), [tools, nearDays]);
+
+  const expiredCount = toolRows.filter((tool) => tool.expiry_status === "vencida").length;
+  const nearCount = toolRows.filter((tool) => tool.expiry_status === "por_vencer").length;
+
+  const alertRows = useMemo(
+    () =>
+      toolRows.filter((tool) =>
+        tool.expiry_status === null
+          ? false
+          : alertFilters.status
+            ? tool.expiry_status === alertFilters.status
+            : isExpiryAlert(tool.expiry_status)
+      ),
+    [alertFilters.status, toolRows]
+  );
+
+  const openEdit = (tool: Tool) => {
+    setEditingTool(tool);
+    setIsModalOpen(true);
+  };
+
   const columns = useMemo(
     () =>
       getToolTableColumns({
@@ -94,10 +109,7 @@ export default function Tools() {
             setIsDetailsModalOpen(true);
           }
         },
-        onEdit: (tool) => {
-          setEditingTool(tool);
-          setIsModalOpen(true);
-        },
+        onEdit: openEdit,
         onDelete: async (tool) => {
           if (!(await confirm({
             title: "Eliminar herramienta",
@@ -108,6 +120,8 @@ export default function Tools() {
       }),
     [confirm, deleteTool, fetchToolById]
   );
+
+  const alertColumns = useMemo(() => getToolAlertColumns({ onEdit: openEdit }), []);
 
   const filterOptions = useMemo(
     () => ({
@@ -120,27 +134,31 @@ export default function Tools() {
 
   const filteredTools = useMemo(
     () =>
-      tools.filter(
+      toolRows.filter(
         (tool) =>
+          matchesOption(filters.status, tool.status) &&
           matchesOption(filters.category, tool.category) &&
           matchesOption(filters.location, tool.location) &&
-          matchesOption(filters.status, tool.status) &&
           matchesOption(filters.assigned_to, tool.assigned_to)
       ),
-    [tools, filters]
+    [toolRows, filters]
   );
 
-  const updateFilter = (key: keyof ToolFilterState, value: string) =>
+  const updateFilter = (key: keyof typeof EMPTY_TOOL_FILTERS, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
-  const refreshAlerts = async () => {
-    await fetchAlerts({
-      near_days: alertFilters.near_days,
-      include_ok: alertFilters.include_ok,
-      category: filters.category,
-      location: filters.location,
-      status: (filters.status || undefined) as ToolStatus | undefined,
-    });
+  const showAlertsTab = () => {
+    setAlertFilters((prev) => ({ ...prev, status: "" }));
+    setActiveTab("alerts");
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshTools();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleSubmit = async (payload: ToolPayload) => {
@@ -152,102 +170,159 @@ export default function Tools() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <FilterPanel
-        title="Filtros de herramientas"
-        activeCount={countActiveFilters(Object.values(filters))}
-        onClear={() => setFilters(EMPTY_TOOL_FILTERS)}
-      >
-        <FilterSelect
-          id="tool-category-filter"
-          label="Categoría"
-          value={filters.category}
-          onChange={(value) => updateFilter("category", value)}
-          options={filterOptions.category}
-          allLabel="Todas las categorías"
-        />
-        <FilterSelect
-          id="tool-location-filter"
-          label="Ubicación"
-          value={filters.location}
-          onChange={(value) => updateFilter("location", value)}
-          options={filterOptions.location}
-          allLabel="Todas las ubicaciones"
-        />
-        <FilterSelect
-          id="tool-status-filter"
-          label="Estado"
-          value={filters.status}
-          onChange={(value) => updateFilter("status", value)}
-          options={STATUS_OPTIONS}
-          allLabel="Todos los estados"
-        />
-        <FilterSelect
-          id="tool-assigned-filter"
-          label="Asignada a"
-          value={filters.assigned_to}
-          onChange={(value) => updateFilter("assigned_to", value)}
-          options={filterOptions.assignedTo}
-          allLabel="Cualquier responsable"
-        />
-      </FilterPanel>
-
-      <div className="bg-white border border-secondary-medium rounded-lg p-4 shadow-sm space-y-4">
-        <div className="flex flex-col md:flex-row md:items-end gap-3">
-          <div className="w-full md:w-40">
-            <Label htmlFor="near-days">Días para alerta</Label>
-            <Input
-              id="near-days"
-              type="number"
-              min={1}
-              value={alertFilters.near_days}
-              onChange={(e) =>
-                setAlertFilters((prev) => ({
-                  ...prev,
-                  near_days: Number(e.target.value) || 30,
-                }))
-              }
-            />
-          </div>
-
-          <div className="flex items-center gap-2 pb-1">
-            <Checkbox
-              id="include-ok"
-              checked={alertFilters.include_ok}
-              onCheckedChange={(checked) =>
-                setAlertFilters((prev) => ({ ...prev, include_ok: checked === true }))
-              }
-            />
-            <Label htmlFor="include-ok">Incluir estatus OK</Label>
-          </div>
-
-          <p className="text-xs text-secondary-dark md:ml-auto md:max-w-xs md:text-right">
-            Al actualizar, las alertas usan la categoría, ubicación y estado elegidos arriba.
-          </p>
-          <Button variant="outline" onClick={refreshAlerts}>
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Actualizar alertas
+      <PageHeader
+        title="Herramientas"
+        description="Herramientas de taller, dónde están y cuándo vencen."
+        actions={
+          <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Actualizar
           </Button>
-        </div>
-
-        <ToolAlerts alerts={alerts} isLoading={isLoadingAlerts} />
-      </div>
-
-      <DataTable
-        data={filteredTools}
-        columns={columns}
-        onAdd={() => {
-          setEditingTool(null);
-          setIsModalOpen(true);
-        }}
-        title="Control de Herramientas de Taller"
-        addButtonText="Registrar herramienta"
-        isLoading={isLoadingTools}
-        searchFields={["code", "name", "category", "location", "assigned_to", "status"]}
-        searchAccessor={(tool) => getOptionLabel(STATUS_OPTIONS, tool.status)}
-        searchPlaceholder="Buscar por código, nombre, categoría, ubicación o responsable..."
-        defaultSort={{ key: "name", direction: "asc" }}
-        initialPageSize={20}
+        }
       />
+
+      <AlertSummaryBanner
+        criticalCount={expiredCount}
+        warningCount={nearCount}
+        critical={{
+          title: `${expiredCount} ${pluralize(expiredCount, "herramienta vencida", "herramientas vencidas")}`,
+          description: `${
+            nearCount > 0 ? `Además, ${nearCount} por vencer en los próximos ${formatDayCount(nearDays)}. ` : ""
+          }Revísalas y actualiza su fecha de vencimiento.`,
+        }}
+        warning={{
+          title: `${nearCount} ${pluralize(nearCount, "herramienta", "herramientas")} por vencer en los próximos ${formatDayCount(nearDays)}`,
+          description: "Planifica su revisión antes de que venzan.",
+        }}
+        ok={{
+          title: "Herramientas al día",
+          description: `No hay herramientas vencidas ni por vencer en los próximos ${formatDayCount(nearDays)}.`,
+        }}
+        isLoading={isLoadingTools && tools.length === 0}
+        loadingText="Revisando vencimientos de herramientas..."
+        hasError={hasToolsError}
+        errorText='No se pudieron revisar los vencimientos. Usa "Actualizar" para intentar de nuevo.'
+        onShowAlerts={activeTab !== "alerts" ? showAlertsTab : undefined}
+      />
+
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ToolsTab)} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 gap-2">
+          <TabsTrigger value="alerts" className="gap-2">
+            Alertas
+            <AlertCountBadge criticalCount={expiredCount} warningCount={nearCount} />
+          </TabsTrigger>
+          <TabsTrigger value="tools">Herramientas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="alerts" className="space-y-4">
+          <FilterPanel
+            title="Filtros"
+            activeCount={countActiveFilters([alertFilters.status, alertFilters.near_days !== DEFAULT_NEAR_DAYS])}
+            onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
+            advanced={
+              <FilterField label="Avisar con (días de anticipación)" htmlFor="tools-alert-near">
+                <Input
+                  id="tools-alert-near"
+                  type="number"
+                  min="0"
+                  max="365"
+                  value={alertFilters.near_days}
+                  onChange={(event) =>
+                    setAlertFilters((prev) => ({ ...prev, near_days: Math.max(0, Number(event.target.value) || 0) }))
+                  }
+                />
+              </FilterField>
+            }
+          >
+            <FilterSelect
+              id="tools-alert-status"
+              label="Estado"
+              value={alertFilters.status}
+              onChange={(value) => setAlertFilters((prev) => ({ ...prev, status: value }))}
+              options={ALERT_STATUS_OPTIONS}
+              allLabel="Vencidas y por vencer"
+            />
+          </FilterPanel>
+
+          <DataTable
+            data={alertRows}
+            columns={alertColumns}
+            title="Alertas de vencimiento"
+            hideAddButton
+            isLoading={isLoadingTools}
+            searchFields={TOOL_SEARCH_FIELDS}
+            searchAccessor={(tool) =>
+              tool.expiry_status && tool.days_to_expiry !== null
+                ? describeExpiry(tool.expiry_status, tool.days_to_expiry)
+                : ""
+            }
+            searchPlaceholder="Buscar por código, nombre, ubicación o responsable..."
+            defaultSort={{ key: "expiry_date", direction: "asc" }}
+            initialPageSize={20}
+          />
+        </TabsContent>
+
+        <TabsContent value="tools" className="space-y-4">
+          <FilterPanel
+            title="Filtros"
+            activeCount={countActiveFilters(Object.values(filters))}
+            onClear={() => setFilters(EMPTY_TOOL_FILTERS)}
+            advanced={
+              <>
+                <FilterSelect
+                  id="tool-category-filter"
+                  label="Categoría"
+                  value={filters.category}
+                  onChange={(value) => updateFilter("category", value)}
+                  options={filterOptions.category}
+                  allLabel="Todas"
+                />
+                <FilterSelect
+                  id="tool-location-filter"
+                  label="Ubicación"
+                  value={filters.location}
+                  onChange={(value) => updateFilter("location", value)}
+                  options={filterOptions.location}
+                  allLabel="Todas"
+                />
+                <FilterSelect
+                  id="tool-assigned-filter"
+                  label="Asignada a"
+                  value={filters.assigned_to}
+                  onChange={(value) => updateFilter("assigned_to", value)}
+                  options={filterOptions.assignedTo}
+                  allLabel="Cualquiera"
+                />
+              </>
+            }
+          >
+            <FilterSelect
+              id="tool-status-filter"
+              label="Estado"
+              value={filters.status}
+              onChange={(value) => updateFilter("status", value)}
+              options={TOOL_STATUS_OPTIONS}
+            />
+          </FilterPanel>
+
+          <DataTable
+            data={filteredTools}
+            columns={columns}
+            onAdd={() => {
+              setEditingTool(null);
+              setIsModalOpen(true);
+            }}
+            title="Herramientas"
+            addButtonText="Registrar herramienta"
+            isLoading={isLoadingTools}
+            searchFields={TOOL_SEARCH_FIELDS}
+            searchAccessor={(tool) => getOptionLabel(TOOL_STATUS_OPTIONS, tool.status)}
+            searchPlaceholder="Buscar por código, nombre, ubicación o responsable..."
+            defaultSort={{ key: "name", direction: "asc" }}
+            initialPageSize={20}
+          />
+        </TabsContent>
+      </Tabs>
 
       <ToolFormModal
         isOpen={isModalOpen}

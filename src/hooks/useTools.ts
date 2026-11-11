@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Tool, ToolAlert, ToolFilters, ToolAlertFilters, ToolPayload } from "@/types";
+import { Tool, ToolFilters, ToolPayload } from "@/types";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -40,9 +40,9 @@ export const useTools = () => {
   const { toast } = useToast();
 
   const [tools, setTools] = useState<Tool[]>([]);
-  const [alerts, setAlerts] = useState<ToolAlert[]>([]);
-  const [isLoadingTools, setIsLoadingTools] = useState(false);
-  const [isLoadingAlerts, setIsLoadingAlerts] = useState(false);
+  // Empieza en true porque la primera carga arranca al montar.
+  const [isLoadingTools, setIsLoadingTools] = useState(true);
+  const [hasToolsError, setHasToolsError] = useState(false);
 
   const lastToolFiltersRef = useRef<ToolFilters>({});
 
@@ -71,66 +71,29 @@ export const useTools = () => {
         const message = await extractErrorMessage(response, "No se pudo cargar la lista de herramientas.");
         toast({ title: "Error", description: message, variant: "destructive" });
         setTools([]);
+        setHasToolsError(true);
         return;
       }
 
       const data = await response.json();
       setTools(Array.isArray(data) ? data : []);
+      setHasToolsError(false);
     } catch (error) {
       console.error("Error fetching tools:", error);
-      if (isSessionExpiredError(error)) {
-        setTools([]);
-        return;
-      }
-      toast({ title: "Error", description: "No se pudo cargar la lista de herramientas.", variant: "destructive" });
       setTools([]);
+      setHasToolsError(true);
+      if (isSessionExpiredError(error)) return;
+      toast({ title: "Error", description: "No se pudo cargar la lista de herramientas.", variant: "destructive" });
     } finally {
       setIsLoadingTools(false);
     }
   };
 
-  const fetchAlerts = async (filters?: ToolAlertFilters) => {
-    const normalized = {
-      near_days: filters?.near_days ?? 30,
-      include_ok: filters?.include_ok ?? false,
-      category: normalizeValue(filters?.category),
-      location: normalizeValue(filters?.location),
-      status: normalizeValue(filters?.status as string),
-    };
-
-    setIsLoadingAlerts(true);
-
-    try {
-      const query = buildQueryString({
-        near_days: normalized.near_days,
-        include_ok: normalized.include_ok,
-        category: normalized.category,
-        location: normalized.location,
-        status: normalized.status,
-      });
-
-      const response = await authenticatedFetch(`${API_BASE_URL}/tools/alerts${query}`);
-      if (!response.ok) {
-        const message = await extractErrorMessage(response, "No se pudieron cargar las alertas de vencimiento.");
-        toast({ title: "Error", description: message, variant: "destructive" });
-        setAlerts([]);
-        return;
-      }
-
-      const data = await response.json();
-      setAlerts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Error fetching tools alerts:", error);
-      if (isSessionExpiredError(error)) {
-        setAlerts([]);
-        return;
-      }
-      toast({ title: "Error", description: "No se pudieron cargar las alertas de vencimiento.", variant: "destructive" });
-      setAlerts([]);
-    } finally {
-      setIsLoadingAlerts(false);
-    }
-  };
+  /**
+   * Las alertas de vencimiento se calculan en pantalla sobre esta misma lista
+   * (ver toolExpiry.ts), asi que no hace falta una segunda consulta.
+   */
+  const refreshTools = () => fetchTools(lastToolFiltersRef.current);
 
   const fetchToolById = async (toolId: string) => {
     try {
@@ -262,16 +225,14 @@ export const useTools = () => {
 
   useEffect(() => {
     fetchTools({});
-    fetchAlerts({ near_days: 30, include_ok: false });
   }, []);
 
   return {
     tools,
-    alerts,
     isLoadingTools,
-    isLoadingAlerts,
+    hasToolsError,
     fetchTools,
-    fetchAlerts,
+    refreshTools,
     fetchToolById,
     createTool,
     updateTool,

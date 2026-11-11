@@ -1,3 +1,4 @@
+import { formatDateOnly } from "@/lib/dates";
 import { FluidMovementType, FluidProduct, FluidType } from "@/types";
 
 /** Constantes y formateadores del módulo de fluidos, compartidos entre la página y sus formularios. */
@@ -49,6 +50,8 @@ export const parseNumber = (value: string): number | undefined => {
 
 export const formatDate = (value?: string) => {
   if (!value) return "-";
+  // Fecha sin hora (servicios, movimientos): solo el dia, leido en hora local.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return formatDateOnly(value);
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString("es-ES", {

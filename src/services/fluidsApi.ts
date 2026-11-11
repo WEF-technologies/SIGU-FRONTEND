@@ -82,6 +82,9 @@ const toStringValue = (value: unknown): string | undefined =>
 
 const toDateString = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;
+  // Una fecha sin hora se deja tal cual: pasarla a ISO la convierte en
+  // medianoche UTC y en Venezuela se mostraria el dia anterior.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return value.trim();
   const parsed = Date.parse(value);
   if (Number.isNaN(parsed)) return value;
   return new Date(parsed).toISOString();
@@ -358,7 +361,8 @@ const normalizeMovement = (payload: unknown): FluidMovement | null => {
 const normalizeAlert = (payload: unknown, forcedKind?: "stock" | "service", index?: number): FluidAlert | null => {
   if (!isRecord(payload)) return null;
 
-  const kindRaw = readString(payload, ["kind", "alert_kind", "type", "source"]);
+  // El backend manda `alert_type` ("stock" | "service").
+  const kindRaw = readString(payload, ["alert_type", "kind", "alert_kind", "type", "source"]);
   const kind: "stock" | "service" =
     forcedKind ?? (kindRaw && kindRaw.toLowerCase().includes("stock") ? "stock" : "service");
 
@@ -380,11 +384,15 @@ const normalizeAlert = (payload: unknown, forcedKind?: "stock" | "service", inde
     id,
     kind,
     severity: parseAlertSeverity(payload.severity ?? payload.level ?? payload.status),
+    status: readString(payload, ["status"]),
     title,
     message,
     fluid_type: payload.fluid_type ? parseFluidType(payload.fluid_type) : undefined,
     vehicle_plate: readString(payload, ["vehicle_plate", "plate_number"]),
+    product_id: readString(payload, ["product_id", "fluid_product_id"]),
     product_code: readString(payload, ["product_code", "code"]),
+    product_name: readString(payload, ["product_name"]),
+    last_serviced_at: toDateString(payload.last_serviced_at),
     current_stock: readNumber(payload, ["current_stock", "stock_quantity", "stock"]),
     min_stock: readNumber(payload, ["min_stock", "min_stock_quantity", "minimum_stock"]),
     due_km: readNumber(payload, ["due_km", "remaining_km", "next_due_km"]),

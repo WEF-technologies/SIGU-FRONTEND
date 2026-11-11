@@ -481,11 +481,16 @@ export interface FluidAlert {
   id: string;
   kind: FluidAlertKind;
   severity: FluidAlertSeverity;
+  /** missing | due | near | ok (servicio) o low_stock | out_of_stock (stock). */
+  status?: string;
   title: string;
   message: string;
   fluid_type?: FluidType;
   vehicle_plate?: string;
+  product_id?: string;
   product_code?: string;
+  product_name?: string;
+  last_serviced_at?: string;
   current_stock?: number;
   min_stock?: number;
   due_km?: number;

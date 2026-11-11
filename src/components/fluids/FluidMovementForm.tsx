@@ -16,6 +16,8 @@ import { createDefaultMovementForm, FluidMovementFormValues } from "./fluidFormV
 
 interface FluidMovementFormProps {
   products: FluidProduct[];
+  /** Producto ya elegido, p. ej. al reponer desde una alerta de stock. */
+  initialProductId?: string;
   isSaving: boolean;
   onSubmit: (values: FluidMovementFormValues) => void;
   onCancel: () => void;
@@ -23,11 +25,15 @@ interface FluidMovementFormProps {
 
 export function FluidMovementForm({
   products,
+  initialProductId,
   isSaving,
   onSubmit,
   onCancel,
 }: FluidMovementFormProps) {
-  const [values, setValues] = useState<FluidMovementFormValues>(createDefaultMovementForm);
+  const [values, setValues] = useState<FluidMovementFormValues>(() => ({
+    ...createDefaultMovementForm(),
+    ...(initialProductId ? { product_id: initialProductId } : {}),
+  }));
 
   return (
     <form
