@@ -85,7 +85,8 @@ export const useFuel = () => {
 
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [isLoadingReadings, setIsLoadingReadings] = useState(false);
-  const [isLoadingAnomalies, setIsLoadingAnomalies] = useState(false);
+  // Empieza en true: las anomalias se piden al montar (ver el useEffect de abajo).
+  const [isLoadingAnomalies, setIsLoadingAnomalies] = useState(true);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
 
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -478,9 +479,11 @@ export const useFuel = () => {
     ]);
   }, [refreshCoreData, fetchAnomalies]);
 
+  // Las anomalias tambien se cargan al abrir: el resumen de alertas que va
+  // arriba del modulo las necesita aunque no se abra la pestaña Alertas.
   useEffect(() => {
-    refreshCoreData();
-  }, [refreshCoreData]);
+    refreshAll();
+  }, [refreshAll]);
 
   const isAnyLoading = useMemo(
     () => isLoadingVehicles || isLoadingLogs || isLoadingReadings || isLoadingAnomalies,

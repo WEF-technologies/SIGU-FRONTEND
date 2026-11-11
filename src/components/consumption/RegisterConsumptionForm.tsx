@@ -30,6 +30,9 @@ interface RegisterConsumptionFormProps {
   /** Último kilometraje conocido por unidad, para precargar el odómetro. */
   lastOdometerByVehicleId?: Map<string, number>;
   defaultKind?: ConsumptionKind;
+  /** Unidad y producto ya elegidos, p. ej. al atender una alerta de servicio. */
+  initialVehicleId?: string;
+  initialProductId?: string;
   isLoadingProducts?: boolean;
   onSubmitFuel: (payload: CreateFuelLogPayload) => Promise<boolean>;
   onSubmitFluid: (payload: CreateFluidServicePayload) => Promise<boolean>;
@@ -79,18 +82,23 @@ export function RegisterConsumptionForm({
   fluidProducts = [],
   lastOdometerByVehicleId,
   defaultKind = "fuel",
+  initialVehicleId,
+  initialProductId,
   isLoadingProducts = false,
   onSubmitFuel,
   onSubmitFluid,
   onCancel,
 }: RegisterConsumptionFormProps) {
   const [kind, setKind] = useState<ConsumptionKind>(defaultKind);
-  const [vehicleId, setVehicleId] = useState("");
+  const [vehicleId, setVehicleId] = useState(initialVehicleId ?? "");
   const [fuelType, setFuelType] = useState<FuelType>("gasoil");
-  const [productId, setProductId] = useState("");
+  const [productId, setProductId] = useState(initialProductId ?? "");
   const [quantity, setQuantity] = useState("");
   const [totalCost, setTotalCost] = useState("");
-  const [odometerKm, setOdometerKm] = useState("");
+  const [odometerKm, setOdometerKm] = useState(() => {
+    const initialKm = initialVehicleId ? lastOdometerByVehicleId?.get(initialVehicleId) ?? 0 : 0;
+    return initialKm > 0 ? String(initialKm) : "";
+  });
   const [occurredAt, setOccurredAt] = useState(() => toLocalDatetimeValue());
   const [station, setStation] = useState("");
   const [notes, setNotes] = useState("");

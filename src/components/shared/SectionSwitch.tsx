@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 export interface SectionSwitchOption<T extends string> {
@@ -53,9 +52,16 @@ export function SectionSwitch<T extends string>({
           >
             {option.label}
             {typeof option.count === "number" ? (
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              // Colores explicitos: con la variante "secondary" el numero no se
+              // leia en la opcion no seleccionada.
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none",
+                  isActive ? "bg-primary text-white" : "bg-secondary-medium text-primary-900"
+                )}
+              >
                 {option.count}
-              </Badge>
+              </span>
             ) : null}
           </button>
         );

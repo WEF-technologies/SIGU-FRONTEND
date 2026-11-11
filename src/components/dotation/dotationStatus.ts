@@ -1,11 +1,12 @@
 import { DOTATION_DELIVERY_STATUS_OPTIONS } from "@/constants/filterOptions";
+import { AlertTone } from "@/lib/alertTone";
+import { ExpiryStatus, describeExpiry, getExpiryStatus, getExpiryTone } from "@/lib/expiry";
 import { getOptionLabel } from "@/lib/filtering";
 import { DotationDelivery, DotationItem, DotationStaffMember } from "@/types";
 
-/** Dias de anticipacion con los que una entrega pasa a "por vencer". */
-export const DEFAULT_NEAR_DAYS = 30;
+export { DEFAULT_NEAR_DAYS } from "@/lib/expiry";
 
-export type DotationExpiryStatus = "vencida" | "por_vencer" | "vigente" | "renovada";
+export type DotationExpiryStatus = ExpiryStatus | "renovada";
 
 export interface DotationDeliveryRow extends DotationDelivery {
   /** Estado calculado en pantalla a partir de `days_to_expiry`. */
@@ -19,13 +20,6 @@ const pairKey = (delivery: DotationDelivery) => `${delivery.staff_member_id}::${
 const isNewerDelivery = (candidate: DotationDelivery, current: DotationDelivery) => {
   if (candidate.delivered_at !== current.delivered_at) return candidate.delivered_at > current.delivered_at;
   return candidate.created_at > current.created_at;
-};
-
-/** Mismo criterio que el backend: vencida antes de hoy, por vencer dentro de `nearDays`. */
-const getExpiryStatus = (daysToExpiry: number, nearDays: number): DotationExpiryStatus => {
-  if (daysToExpiry < 0) return "vencida";
-  if (daysToExpiry <= nearDays) return "por_vencer";
-  return "vigente";
 };
 
 /**
@@ -77,34 +71,14 @@ export const selectCurrentDeliveries = (
   );
 };
 
-export const isAlertStatus = (status: DotationExpiryStatus) => status === "vencida" || status === "por_vencer";
-
 export const getExpiryStatusLabel = (status: DotationExpiryStatus) =>
   getOptionLabel(DOTATION_DELIVERY_STATUS_OPTIONS, status);
 
-const EXPIRY_BADGE_CLASS: Record<DotationExpiryStatus, string> = {
-  vencida: "border-red-200 bg-red-50 text-red-700",
-  por_vencer: "border-amber-200 bg-amber-50 text-amber-800",
-  vigente: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  renovada: "border-slate-200 bg-slate-50 text-slate-500",
-};
-
-export const getExpiryBadgeClass = (status: DotationExpiryStatus) => EXPIRY_BADGE_CLASS[status];
-
-const formatDays = (days: number) => `${days} ${days === 1 ? "día" : "días"}`;
+export const getDeliveryTone = (status: DotationExpiryStatus): AlertTone =>
+  status === "renovada" ? "muted" : getExpiryTone(status);
 
 /** Texto corto del vencimiento: "Vencida hace 3 días", "Vence en 5 días"... */
-export const getExpiryDetail = (row: Pick<DotationDeliveryRow, "expiry_status" | "days_to_expiry">) => {
-  const days = Number(row.days_to_expiry ?? 0);
-
-  switch (row.expiry_status) {
-    case "vencida":
-      return `Vencida hace ${formatDays(Math.abs(days))}`;
-    case "por_vencer":
-      return days === 0 ? "Vence hoy" : `Vence en ${formatDays(days)}`;
-    case "vigente":
-      return "Vigente";
-    case "renovada":
-      return "Renovada";
-  }
-};
+export const getExpiryDetail = (row: Pick<DotationDeliveryRow, "expiry_status" | "days_to_expiry">) =>
+  row.expiry_status === "renovada"
+    ? "Renovada"
+    : describeExpiry(row.expiry_status, Number(row.days_to_expiry ?? 0));

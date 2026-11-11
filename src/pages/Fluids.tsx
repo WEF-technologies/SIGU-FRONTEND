@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable, Column } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
+import { AlertCountBadge } from "@/components/shared/AlertCountBadge";
+import { AlertSummaryBanner } from "@/components/shared/AlertSummaryBanner";
+import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { TwoLineCell } from "@/components/shared/TwoLineCell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SectionSwitch } from "@/components/shared/SectionSwitch";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { fetchAllPages } from "@/lib/apiClient";
@@ -26,7 +26,6 @@ import {
   FluidProduct,
   FluidRule,
   FluidService,
-  FluidType,
   UpdateFluidProductPayload,
   UpdateFluidRulePayload,
   Vehicle,
@@ -34,12 +33,19 @@ import {
 import { FluidsApiError, fluidsApi } from "@/services/fluidsApi";
 import {
   FLUID_TYPE_LABELS,
-  FLUID_TYPE_OPTIONS,
   MOVEMENT_LABELS,
   formatDate,
   formatNumber,
   parseNumber,
 } from "@/components/fluids/fluidConstants";
+import {
+  FluidAlertView,
+  describeFluidAlert,
+  getFluidAlertSubject,
+  isFluidAlertActive,
+} from "@/components/fluids/fluidAlerts";
+import { AlertTone, getAlertToneBadgeClass, pluralize } from "@/lib/alertTone";
+import { FilterOption, countActiveFilters, matchesOption } from "@/lib/filtering";
 import { toDateOnlyLocalValue } from "@/lib/dates";
 import { FluidProductForm } from "@/components/fluids/FluidProductForm";
 import { FluidRuleForm } from "@/components/fluids/FluidRuleForm";
@@ -56,26 +62,48 @@ import {
   mapProductToFormValues,
   mapRuleToFormValues,
 } from "@/components/fluids/fluidFormValues";
-import {
-  Activity,
-  AlertTriangle,
-  Droplets,
-  Package,
-  Plus,
-  RefreshCw,
-  Trash2,
-  Wrench,
-} from "lucide-react";
+import { PackagePlus, RefreshCw, Wrench } from "lucide-react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 // Las pestañas responden a "que quiero hacer"; la vista interna elige el
 // detalle dentro de esa respuesta.
-type TabKey = "inventario" | "unidades" | "pendientes";
+type TabKey = "alertas" | "unidades" | "inventario";
 type InventoryView = "products" | "movements";
 type UnitsView = "services" | "rules";
 
+interface FluidAlertRow extends FluidAlert {
+  view: FluidAlertView;
+  subject: { primary: string; secondary: string };
+}
 
+/** Filtros de la pestaña Alertas (en el cliente); "" = sin filtro. */
+const EMPTY_ALERT_FILTERS = { tone: "", kind: "" };
+
+const ALERT_TONE_OPTIONS: FilterOption[] = [
+  { value: "critical", label: "Críticas" },
+  { value: "warning", label: "Por atender pronto" },
+];
+
+const ALERT_KIND_OPTIONS: FilterOption[] = [
+  { value: "service", label: "Servicio de unidad" },
+  { value: "stock", label: "Inventario" },
+];
+
+const TONE_RANK: Record<AlertTone, number> = { critical: 0, warning: 1, ok: 2, muted: 3 };
+
+/** Movimientos que suman al inventario; el resto descuenta. */
+const INBOUND_MOVEMENTS = new Set<FluidMovementType>(["opening_balance", "purchase", "adjustment_in"]);
+
+const withUnit = (value: number | null | undefined, unit?: string) =>
+  `${formatNumber(value)}${unit ? ` ${unit}` : ""}`;
+
+/** Producto con su estado de stock: "Sin stock" (rojo), "Stock bajo" (ambar) o nada. */
+const getStockTone = (product: FluidProduct): AlertTone | null => {
+  if (product.stock_quantity <= 0) return "critical";
+  if (product.stock_quantity <= product.min_stock_quantity) return "warning";
+  return null;
+};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   if (error instanceof FluidsApiError) return error.message;
@@ -122,7 +150,7 @@ export default function Fluids() {
   const authenticatedFetch = useAuthenticatedFetch();
   const confirm = useConfirm();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("unidades");
+  const [activeTab, setActiveTab] = useState<TabKey>("alertas");
   const [inventoryView, setInventoryView] = useState<InventoryView>("products");
   const [unitsView, setUnitsView] = useState<UnitsView>("services");
 
@@ -131,7 +159,9 @@ export default function Fluids() {
   const [services, setServices] = useState<FluidService[]>([]);
   const [movements, setMovements] = useState<FluidMovement[]>([]);
   const [alerts, setAlerts] = useState<FluidAlert[]>([]);
+  const [hasAlertsError, setHasAlertsError] = useState(false);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [alertFilters, setAlertFilters] = useState(EMPTY_ALERT_FILTERS);
 
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -143,6 +173,10 @@ export default function Fluids() {
 
   const [editingProduct, setEditingProduct] = useState<FluidProduct | null>(null);
   const [editingRule, setEditingRule] = useState<FluidRule | null>(null);
+  /** Unidad y producto precargados al registrar un servicio desde una alerta. */
+  const [serviceTarget, setServiceTarget] = useState<{ vehicleId?: string; productId?: string } | null>(null);
+  /** Producto precargado al reponer stock desde una alerta. */
+  const [movementProductId, setMovementProductId] = useState<string | undefined>(undefined);
 
   const [isSavingProduct, setIsSavingProduct] = useState(false);
   const [isSavingRule, setIsSavingRule] = useState(false);
@@ -192,6 +226,7 @@ export default function Fluids() {
     if (servicesResult.status === "fulfilled") setServices(servicesResult.value);
     if (movementsResult.status === "fulfilled") setMovements(movementsResult.value);
     if (alertsResult.status === "fulfilled") setAlerts(alertsResult.value);
+    setHasAlertsError(alertsResult.status === "rejected");
     if (vehiclesResult.status === "fulfilled") setVehicles(vehiclesResult.value);
 
     if (failures > 0 && !silent) {
@@ -219,20 +254,78 @@ export default function Fluids() {
     void loadData();
   }, [loadData]);
 
-  const lowStockCount = useMemo(
-    () => products.filter((product) => product.stock_quantity <= product.min_stock_quantity).length,
-    [products]
+  const productById = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+  const productByCode = useMemo(() => new Map(products.map((product) => [product.code, product])), [products]);
+
+  const findAlertProduct = useCallback(
+    (alert: FluidAlert) =>
+      (alert.product_id ? productById.get(alert.product_id) : undefined) ??
+      (alert.product_code ? productByCode.get(alert.product_code) : undefined),
+    [productByCode, productById]
   );
 
-  const criticalAlerts = useMemo(
-    () => alerts.filter((alert) => alert.severity === "critical").length,
-    [alerts]
+  /** Solo alertas criticas y de advertencia, ya traducidas a texto legible. */
+  const activeAlertRows = useMemo<FluidAlertRow[]>(
+    () =>
+      alerts.filter(isFluidAlertActive).map((alert) => {
+        const product = findAlertProduct(alert);
+        return {
+          ...alert,
+          view: describeFluidAlert(alert, product),
+          subject: getFluidAlertSubject(alert, product),
+        };
+      }),
+    [alerts, findAlertProduct]
   );
 
-  const serviceAlertsCount = useMemo(
-    () => alerts.filter((alert) => alert.kind === "service").length,
-    [alerts]
+  const criticalAlerts = activeAlertRows.filter((row) => row.view.tone === "critical");
+  const warningCount = activeAlertRows.filter((row) => row.view.tone === "warning").length;
+  const criticalServiceCount = criticalAlerts.filter((row) => row.kind === "service").length;
+  const criticalStockCount = criticalAlerts.filter((row) => row.kind === "stock").length;
+
+  const alertRows = useMemo(
+    () =>
+      activeAlertRows.filter(
+        (row) => matchesOption(alertFilters.tone, row.view.tone) && matchesOption(alertFilters.kind, row.kind)
+      ),
+    [activeAlertRows, alertFilters]
   );
+
+  const criticalDescription = [
+    criticalServiceCount > 0
+      ? `${criticalServiceCount} ${pluralize(criticalServiceCount, "servicio vencido o sin registrar", "servicios vencidos o sin registrar")}`
+      : null,
+    criticalStockCount > 0
+      ? `${criticalStockCount} ${pluralize(criticalStockCount, "producto sin stock", "productos sin stock")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" y ");
+
+  const openServiceModal = (target: { vehicleId?: string; productId?: string } | null = null) => {
+    setServiceTarget(target);
+    setIsServiceModalOpen(true);
+  };
+
+  const openMovementModal = (productId?: string) => {
+    setMovementProductId(productId);
+    setIsMovementModalOpen(true);
+  };
+
+  const resolveAlert = (row: FluidAlertRow) => {
+    if (row.kind === "stock") {
+      openMovementModal(findAlertProduct(row)?.id);
+      return;
+    }
+
+    const vehicle = vehicles.find((entry) => entry.plate_number === row.vehicle_plate);
+    openServiceModal({ vehicleId: vehicle?.id, productId: findAlertProduct(row)?.id });
+  };
+
+  const showAlertsTab = () => {
+    setAlertFilters(EMPTY_ALERT_FILTERS);
+    setActiveTab("alertas");
+  };
 
   const openNewProductModal = () => {
     setEditingProduct(null);
@@ -532,121 +625,132 @@ export default function Fluids() {
     }
   };
 
-  const productColumns: Column<FluidProduct>[] = [
-    { key: "code", header: "Código" },
+  const getProductCode = (productId?: string, fallback?: string) =>
+    fallback || (productId ? productById.get(productId)?.code : undefined) || "-";
+
+  const getPlate = (vehicleId?: string, fallback?: string) =>
+    fallback || vehicleById.get(vehicleId || "")?.plate_number || "-";
+
+  const alertColumns: Column<FluidAlertRow>[] = [
     {
-      key: "fluid_type",
-      header: "Tipo",
-      render: (value: FluidType) => FLUID_TYPE_LABELS[value],
+      key: "vehicle_plate",
+      header: "Unidad / producto",
+      render: (_, row) => <TwoLineCell primary={row.subject.primary} secondary={row.subject.secondary} />,
+      sortValue: (row) => row.subject.primary,
     },
     {
+      key: "severity",
+      header: "Alerta",
+      render: (_, row) => (
+        <div className="space-y-1">
+          <Badge variant="outline" className={getAlertToneBadgeClass(row.view.tone)}>
+            {row.view.label}
+          </Badge>
+          <p className="text-sm text-gray-600">{row.view.detail}</p>
+        </div>
+      ),
+      sortValue: (row) => TONE_RANK[row.view.tone],
+    },
+    {
+      key: "actions",
+      header: "",
+      sortable: false,
+      render: (_, row) => (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => resolveAlert(row)}
+          className="border-primary-200 text-primary hover:bg-primary-50"
+        >
+          {row.kind === "stock" ? (
+            <>
+              <PackagePlus className="mr-1.5 h-4 w-4" />
+              Registrar compra
+            </>
+          ) : (
+            <>
+              <Wrench className="mr-1.5 h-4 w-4" />
+              Registrar servicio
+            </>
+          )}
+        </Button>
+      ),
+    },
+  ];
+
+  const productColumns: Column<FluidProduct>[] = [
+    {
       key: "name",
-      header: "Nombre",
-      render: (value: string | undefined, item) => value || item.description || "-",
+      header: "Producto",
+      render: (_, item) => (
+        <TwoLineCell
+          primary={item.name || item.description || item.code}
+          secondary={`${item.code} · ${FLUID_TYPE_LABELS[item.fluid_type]}`}
+        />
+      ),
+      sortValue: (item) => item.name || item.description || item.code,
     },
     {
       key: "stock_quantity",
       header: "Stock",
-      render: (value: number) => formatNumber(value),
+      render: (_, item) => {
+        const tone = getStockTone(item);
+        return (
+          <div className="space-y-1">
+            <p className="text-gray-900">{withUnit(item.stock_quantity, item.unit)}</p>
+            {tone ? (
+              <Badge variant="outline" className={getAlertToneBadgeClass(tone)}>
+                {tone === "critical" ? "Sin stock" : "Stock bajo"}
+              </Badge>
+            ) : null}
+          </div>
+        );
+      },
       sortValue: (item) => item.stock_quantity,
     },
     {
       key: "min_stock_quantity",
       header: "Mínimo",
-      render: (value: number) => formatNumber(value),
+      render: (_, item) => withUnit(item.min_stock_quantity, item.unit),
       sortValue: (item) => item.min_stock_quantity,
     },
-    {
-      key: "actions",
-      header: "Acciones",
-      sortable: false,
-      render: (_, item) => {
-        const isLowStock = item.stock_quantity <= item.min_stock_quantity;
-        return (
-          <div className="flex items-center gap-2">
-            {isLowStock ? (
-              <Badge className="bg-amber-100 text-amber-800 border-amber-200">Stock bajo</Badge>
-            ) : (
-              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">OK</Badge>
-            )}
-            <Button size="sm" variant="outline" onClick={() => openEditProductModal(item)}>
-              Editar
-            </Button>
-            <Button size="sm" variant="outline" className="text-red-600 border-red-300" onClick={() => handleDeleteProduct(item)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        );
-      },
-    },
+    { key: "actions", header: "Acciones", sortable: false },
   ];
 
   const ruleColumns: Column<FluidRule>[] = [
     {
       key: "vehicle_plate",
       header: "Unidad",
-      render: (_, item) => item.vehicle_plate || vehicleById.get(item.vehicle_id || "")?.plate_number || "-",
-      sortValue: (item) => item.vehicle_plate || vehicleById.get(item.vehicle_id || "")?.plate_number || "",
-    },
-    {
-      key: "fluid_type",
-      header: "Tipo",
-      render: (value: FluidType) => FLUID_TYPE_LABELS[value],
+      render: (_, item) => (
+        <TwoLineCell primary={getPlate(item.vehicle_id, item.vehicle_plate)} secondary={FLUID_TYPE_LABELS[item.fluid_type]} />
+      ),
+      sortValue: (item) => getPlate(item.vehicle_id, item.vehicle_plate),
     },
     {
       key: "product_code",
       header: "Producto",
-      render: (_, item) => {
-        const product = products.find((entry) => entry.id === item.product_id);
-        return item.product_code || product?.code || "Sin producto fijo";
-      },
-    },
-    {
-      key: "capacity_liters",
-      header: "Capacidad (L)",
-      render: (value: number) => formatNumber(value),
-      sortValue: (item) => item.capacity_liters,
+      render: (_, item) => item.product_code || productById.get(item.product_id || "")?.code || "Sin producto fijo",
     },
     {
       key: "interval_km",
-      header: "Intervalos",
+      header: "Cambio cada",
       sortable: false,
-      render: (_, item) => {
-        const km = item.interval_km ? `${formatNumber(item.interval_km)} km` : "-";
-        const days = item.interval_days ? `${formatNumber(item.interval_days)} días` : "-";
-        return `${km} / ${days}`;
-      },
+      render: (_, item) =>
+        [
+          item.interval_km ? `${formatNumber(item.interval_km)} km` : null,
+          item.interval_days ? `${formatNumber(item.interval_days)} días` : null,
+        ]
+          .filter(Boolean)
+          .join(" o ") || "-",
     },
     {
-      key: "next_due_km",
-      header: "Próximo servicio",
-      sortable: false,
-      render: (_, item) => {
-        const dueKm = item.next_due_km ? `${formatNumber(item.next_due_km)} km` : "-";
-        const dueDate = item.next_due_date ? formatDate(item.next_due_date) : "-";
-        return `${dueKm} · ${dueDate}`;
-      },
+      key: "capacity_liters",
+      header: "Capacidad",
+      render: (value: number) => `${formatNumber(value)} L`,
+      sortValue: (item) => item.capacity_liters,
     },
-    {
-      key: "actions",
-      header: "Acciones",
-      sortable: false,
-      render: (_, item) => (
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => openEditRuleModal(item)}>
-            Editar
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-red-600 border-red-300"
-            onClick={() => handleDeleteRule(item)}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      ),
-    },
+    { key: "actions", header: "Acciones", sortable: false },
   ];
 
   const serviceColumns: Column<FluidService>[] = [
@@ -659,25 +763,19 @@ export default function Fluids() {
     {
       key: "vehicle_plate",
       header: "Unidad",
-      render: (_, item) => item.vehicle_plate || vehicleById.get(item.vehicle_id || "")?.plate_number || "-",
+      render: (_, item) => getPlate(item.vehicle_id, item.vehicle_plate),
     },
     {
       key: "product_code",
-      header: "Producto",
-      render: (_, item) => {
-        const product = products.find((entry) => entry.id === item.product_id);
-        return item.product_code || product?.code || "-";
-      },
-    },
-    {
-      key: "fluid_type",
-      header: "Tipo",
-      render: (value: FluidType) => FLUID_TYPE_LABELS[value],
+      header: "Fluido",
+      render: (_, item) => (
+        <TwoLineCell primary={FLUID_TYPE_LABELS[item.fluid_type]} secondary={getProductCode(item.product_id, item.product_code)} />
+      ),
     },
     {
       key: "quantity",
-      header: "Cantidad (L)",
-      render: (value: number) => formatNumber(value),
+      header: "Cantidad",
+      render: (value: number) => `${formatNumber(value)} L`,
       sortValue: (item) => item.quantity,
     },
     {
@@ -699,20 +797,25 @@ export default function Fluids() {
     {
       key: "product_code",
       header: "Producto",
-      render: (_, item) => {
-        const product = products.find((entry) => entry.id === item.product_id);
-        return item.product_code || product?.code || "-";
-      },
+      render: (_, item) => getProductCode(item.product_id, item.product_code),
     },
     {
       key: "movement_type",
-      header: "Tipo",
+      header: "Movimiento",
       render: (value: FluidMovementType) => MOVEMENT_LABELS[value] ?? value,
     },
     {
       key: "quantity",
       header: "Cantidad",
-      render: (value: number) => formatNumber(value),
+      render: (value: number, item) => {
+        const isInbound = INBOUND_MOVEMENTS.has(item.movement_type);
+        return (
+          <span className={isInbound ? "font-medium text-emerald-700" : "font-medium text-gray-700"}>
+            {isInbound ? "+" : "−"}
+            {formatNumber(Math.abs(value))}
+          </span>
+        );
+      },
       sortValue: (item) => item.quantity,
     },
     {
@@ -721,135 +824,94 @@ export default function Fluids() {
       render: (value: number | null | undefined) => formatNumber(value),
       sortValue: (item) => item.stock_after ?? -1,
     },
-    {
-      key: "notes",
-      header: "Notas",
-      render: (value: string | undefined) => value || "-",
-      sortable: false,
-    },
   ];
-
-  const alertColumns: Column<FluidAlert>[] = [
-    {
-      key: "kind",
-      header: "Tipo alerta",
-      render: (value: "stock" | "service") =>
-        value === "stock" ? "Inventario" : "Servicio",
-      sortValue: (item) => item.kind,
-    },
-    {
-      key: "severity",
-      header: "Severidad",
-      render: (value: string) => {
-        if (value === "critical") {
-          return <Badge className="bg-red-100 text-red-700 border-red-200">Crítica</Badge>;
-        }
-        if (value === "warning") {
-          return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Advertencia</Badge>;
-        }
-        return <Badge className="bg-sky-100 text-sky-700 border-sky-200">Info</Badge>;
-      },
-      sortValue: (item) => item.severity,
-    },
-    {
-      key: "fluid_type",
-      header: "Fluido",
-      render: (value: FluidType | undefined) => (value ? FLUID_TYPE_LABELS[value] : "-") ,
-    },
-    {
-      key: "vehicle_plate",
-      header: "Unidad",
-      render: (value: string | undefined) => value || "-",
-    },
-    {
-      key: "product_code",
-      header: "Producto",
-      render: (value: string | undefined) => value || "-",
-    },
-    {
-      key: "message",
-      header: "Detalle",
-      render: (value: string) => value,
-      sortable: false,
-    },
-  ];
-
-  const totalEntities = products.length + rules.length + services.length + movements.length;
 
   return (
-    <div className="space-y-6 animate-fade-in p-6">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-primary-900">Control de Fluidos</h1>
-          <p className="text-gray-600 mt-1">
-            Lo que se le echo a cada unidad, el inventario de productos y lo que queda por atender.
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => void loadData(true)}
-          disabled={isRefreshing || isLoadingData}
-          className="w-full lg:w-auto"
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-          {isRefreshing ? "Actualizando..." : "Actualizar"}
-        </Button>
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Fluidos"
+        description="Servicios de fluidos por unidad, inventario de productos y alertas."
+        actions={
+          <Button variant="outline" onClick={() => void loadData(true)} disabled={isRefreshing || isLoadingData}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            Actualizar
+          </Button>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <Card className="border-primary/20">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500">Registros cargados</p>
-              <p className="text-2xl font-bold text-primary-900">{totalEntities}</p>
-            </div>
-            <Droplets className="w-6 h-6 text-primary" />
-          </CardContent>
-        </Card>
+      <AlertSummaryBanner
+        criticalCount={criticalAlerts.length}
+        warningCount={warningCount}
+        critical={{
+          title: `${criticalAlerts.length} ${pluralize(criticalAlerts.length, "alerta crítica", "alertas críticas")}`,
+          description: `${criticalDescription ? `${criticalDescription}. ` : ""}${
+            warningCount > 0 ? `Además, ${warningCount} por atender pronto.` : ""
+          }`.trim(),
+        }}
+        warning={{
+          title: `${warningCount} ${pluralize(warningCount, "alerta", "alertas")} por atender pronto`,
+          description: "Servicios próximos o productos con stock bajo.",
+        }}
+        ok={{
+          title: "Fluidos al día",
+          description: "No hay servicios vencidos ni productos con stock bajo.",
+        }}
+        isLoading={isLoadingData && alerts.length === 0}
+        loadingText="Revisando servicios e inventario de fluidos..."
+        hasError={hasAlertsError}
+        onShowAlerts={activeTab !== "alertas" ? showAlertsTab : undefined}
+      />
 
-        <Card className="border-amber-200 bg-amber-50/60">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-amber-700">Stock bajo</p>
-              <p className="text-2xl font-bold text-amber-800">{lowStockCount}</p>
-            </div>
-            <Package className="w-6 h-6 text-amber-700" />
-          </CardContent>
-        </Card>
-
-        <Card className="border-red-200 bg-red-50/60">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-red-700">Alertas críticas</p>
-              <p className="text-2xl font-bold text-red-800">{criticalAlerts}</p>
-            </div>
-            <AlertTriangle className="w-6 h-6 text-red-700" />
-          </CardContent>
-        </Card>
-
-        <Card className="border-sky-200 bg-sky-50/60">
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-sky-700">Alertas de servicio</p>
-              <p className="text-2xl font-bold text-sky-800">{serviceAlertsCount}</p>
-            </div>
-            <Wrench className="w-6 h-6 text-sky-700" />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="space-y-4">
-        <TabsList className="grid h-auto grid-cols-3 w-full lg:w-auto">
-          <TabsTrigger value="unidades" className="gap-2">
-            Por unidad <Badge>{services.length + rules.length}</Badge>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3 gap-2">
+          <TabsTrigger value="alertas" className="gap-2">
+            Alertas
+            <AlertCountBadge criticalCount={criticalAlerts.length} warningCount={warningCount} />
           </TabsTrigger>
-          <TabsTrigger value="inventario" className="gap-2">
-            Inventario <Badge>{products.length}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="pendientes" className="gap-2">
-            Pendientes <Badge>{alerts.length}</Badge>
-          </TabsTrigger>
+          <TabsTrigger value="unidades">Por unidad</TabsTrigger>
+          <TabsTrigger value="inventario">Inventario</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="alertas" className="space-y-4">
+          <FilterPanel
+            title="Filtros"
+            activeCount={countActiveFilters(Object.values(alertFilters))}
+            onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
+            advanced={
+              <FilterSelect
+                id="fluid-alert-kind"
+                label="Tipo"
+                value={alertFilters.kind}
+                onChange={(value) => setAlertFilters((prev) => ({ ...prev, kind: value }))}
+                options={ALERT_KIND_OPTIONS}
+              />
+            }
+          >
+            <FilterSelect
+              id="fluid-alert-tone"
+              label="Estado"
+              value={alertFilters.tone}
+              onChange={(value) => setAlertFilters((prev) => ({ ...prev, tone: value }))}
+              options={ALERT_TONE_OPTIONS}
+              allLabel="Todas"
+            />
+          </FilterPanel>
+
+          <DataTable
+            data={alertRows}
+            columns={alertColumns}
+            title="Alertas de servicio y stock"
+            hideAddButton
+            isLoading={isLoadingData}
+            searchFields={["vehicle_plate", "product_code", "product_name"]}
+            searchAccessor={(row) =>
+              `${row.view.label} ${row.view.detail} ${row.fluid_type ? FLUID_TYPE_LABELS[row.fluid_type] : ""}`
+            }
+            searchPlaceholder="Buscar por unidad, producto o fluido..."
+            defaultSort={{ key: "severity", direction: "asc" }}
+            initialPageSize={20}
+          />
+        </TabsContent>
 
         <TabsContent value="unidades" className="space-y-4">
           <SectionSwitch<UnitsView>
@@ -863,59 +925,35 @@ export default function Fluids() {
           />
 
           {unitsView === "services" ? (
-            <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <CardTitle>Servicios realizados</CardTitle>
-                  <Button onClick={() => setIsServiceModalOpen(true)}>
-                    <Activity className="w-4 h-4 mr-2" />
-                    Registrar consumo
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  data={services}
-                  columns={serviceColumns}
-                  title=""
-                  isLoading={isLoadingData}
-                  hideAddButton
-                  searchFields={["vehicle_plate", "product_code", "fluid_type", "notes"]}
-                  searchPlaceholder="Buscar por unidad, producto o tipo..."
-                  defaultSort={{ key: "created_at", direction: "desc" }}
-                  initialPageSize={20}
-                />
-              </CardContent>
-            </Card>
-            </div>
+            <DataTable
+              data={services}
+              columns={serviceColumns}
+              title="Servicios realizados"
+              addButtonText="Registrar consumo"
+              onAdd={() => openServiceModal()}
+              isLoading={isLoadingData}
+              searchFields={["vehicle_plate", "product_code", "fluid_type", "notes"]}
+              searchAccessor={(item) => FLUID_TYPE_LABELS[item.fluid_type]}
+              searchPlaceholder="Buscar por unidad, producto o fluido..."
+              defaultSort={{ key: "serviced_at", direction: "desc" }}
+              initialPageSize={20}
+            />
           ) : (
-            <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <CardTitle>Reglas por vehículo</CardTitle>
-                  <Button onClick={openNewRuleModal}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nueva regla
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  data={rules}
-                  columns={ruleColumns}
-                  title=""
-                  isLoading={isLoadingData}
-                  hideAddButton
-                  searchFields={["vehicle_plate", "fluid_type", "product_code", "notes"]}
-                  searchPlaceholder="Buscar por unidad, tipo o producto..."
-                  defaultSort={{ key: "created_at", direction: "desc" }}
-                  initialPageSize={20}
-                />
-              </CardContent>
-            </Card>
-            </div>
+            <DataTable
+              data={rules}
+              columns={ruleColumns}
+              title="Reglas de cambio"
+              addButtonText="Nueva regla"
+              onAdd={openNewRuleModal}
+              onEdit={openEditRuleModal}
+              onDelete={handleDeleteRule}
+              isLoading={isLoadingData}
+              searchFields={["vehicle_plate", "fluid_type", "product_code", "notes"]}
+              searchAccessor={(item) => FLUID_TYPE_LABELS[item.fluid_type]}
+              searchPlaceholder="Buscar por unidad, fluido o producto..."
+              defaultSort={{ key: "vehicle_plate", direction: "asc" }}
+              initialPageSize={20}
+            />
           )}
         </TabsContent>
 
@@ -931,81 +969,36 @@ export default function Fluids() {
           />
 
           {inventoryView === "products" ? (
-            <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <CardTitle>Catálogo e inventario de fluidos</CardTitle>
-                  <Button onClick={openNewProductModal}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nuevo producto
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  data={products}
-                  columns={productColumns}
-                  title=""
-                  isLoading={isLoadingData}
-                  hideAddButton
-                  searchFields={["code", "name", "description", "fluid_type", "notes"]}
-                  searchPlaceholder="Buscar por código, tipo o descripción..."
-                  defaultSort={{ key: "code", direction: "asc" }}
-                  initialPageSize={20}
-                />
-              </CardContent>
-            </Card>
-            </div>
+            <DataTable
+              data={products}
+              columns={productColumns}
+              title="Productos"
+              addButtonText="Nuevo producto"
+              onAdd={openNewProductModal}
+              onEdit={openEditProductModal}
+              onDelete={handleDeleteProduct}
+              isLoading={isLoadingData}
+              searchFields={["code", "name", "description", "fluid_type", "notes"]}
+              searchAccessor={(item) => FLUID_TYPE_LABELS[item.fluid_type]}
+              searchPlaceholder="Buscar por código, nombre o fluido..."
+              defaultSort={{ key: "name", direction: "asc" }}
+              initialPageSize={20}
+            />
           ) : (
-            <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <CardTitle>Movimientos de inventario</CardTitle>
-                  <Button onClick={() => setIsMovementModalOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nuevo movimiento
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <DataTable
-                  data={movements}
-                  columns={movementColumns}
-                  title=""
-                  isLoading={isLoadingData}
-                  hideAddButton
-                  searchFields={["product_code", "movement_type", "notes", "reference"]}
-                  searchPlaceholder="Buscar por producto, tipo o referencia..."
-                  defaultSort={{ key: "created_at", direction: "desc" }}
-                  initialPageSize={20}
-                />
-              </CardContent>
-            </Card>
-            </div>
+            <DataTable
+              data={movements}
+              columns={movementColumns}
+              title="Movimientos de inventario"
+              addButtonText="Registrar movimiento"
+              onAdd={() => openMovementModal()}
+              isLoading={isLoadingData}
+              searchFields={["product_code", "movement_type", "notes", "reference"]}
+              searchAccessor={(item) => MOVEMENT_LABELS[item.movement_type] ?? ""}
+              searchPlaceholder="Buscar por producto, movimiento o referencia..."
+              defaultSort={{ key: "moved_at", direction: "desc" }}
+              initialPageSize={20}
+            />
           )}
-        </TabsContent>
-
-        <TabsContent value="pendientes" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Alertas de stock y servicio</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DataTable
-                data={alerts}
-                columns={alertColumns}
-                title=""
-                isLoading={isLoadingData}
-                hideAddButton
-                searchFields={["kind", "severity", "fluid_type", "vehicle_plate", "product_code", "message"]}
-                searchPlaceholder="Buscar alertas..."
-                defaultSort={{ key: "severity", direction: "desc" }}
-                initialPageSize={20}
-              />
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 
@@ -1047,6 +1040,8 @@ export default function Fluids() {
         <RegisterConsumptionForm
           vehicles={vehicles}
           fluidProducts={products}
+          initialVehicleId={serviceTarget?.vehicleId}
+          initialProductId={serviceTarget?.productId}
           lastOdometerByVehicleId={lastOdometerByVehicleId}
           defaultKind="fluid"
           onSubmitFuel={handleRegisterFuelLog}
@@ -1062,6 +1057,7 @@ export default function Fluids() {
       >
         <FluidMovementForm
           products={products}
+          initialProductId={movementProductId}
           isSaving={isSavingMovement}
           onSubmit={handleSubmitMovement}
           onCancel={() => setIsMovementModalOpen(false)}
