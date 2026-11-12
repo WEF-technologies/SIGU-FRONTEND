@@ -504,17 +504,14 @@ export default function Dashboard() {
                 <CheckCircle className="w-5 h-5 text-green-500" />
               )}
               Alertas de Mantenimiento
-              {alerts.length > 0 && (
+              {/* Solo vencidos y próximos: `alerts` también trae los que están al día. */}
+              {criticalAlerts.length + nearAlerts.length > 0 && (
                 <Badge
                   className={
-                    criticalAlerts.length > 0
-                      ? "bg-red-600 text-white"
-                      : nearAlerts.length > 0
-                      ? "bg-amber-500 text-white"
-                      : "bg-green-100 text-green-800"
+                    criticalAlerts.length > 0 ? "bg-red-600 text-white" : "bg-amber-500 text-white"
                   }
                 >
-                  {alerts.length}
+                  {criticalAlerts.length + nearAlerts.length}
                 </Badge>
               )}
             </CardTitle>

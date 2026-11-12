@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
 import { fetchAllPages, isRecord, isSessionExpiredError } from "@/lib/apiClient";
 import { toNullableNumber } from "@/lib/kilometers";
+import { MAINTENANCE_NEAR_THRESHOLD_KM, normalizeMaintenanceAlert } from "@/lib/maintenanceAlerts";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 const M3_INTERVAL_KM = 5000;
@@ -258,7 +259,7 @@ export function useMaintenance() {
    * no las devuelva o hayan sido descartadas previamente en localStorage.
    */
   // Umbral "near" alineado con el backend (near_threshold default = 500 km)
-  const M3_NEAR_THRESHOLD = 500;
+  const M3_NEAR_THRESHOLD = MAINTENANCE_NEAR_THRESHOLD_KM;
   const M3_INTERVAL = M3_INTERVAL_KM;
 
   const computeLocalM3Alerts = (enrichedVehicles: Vehicle[]): MaintenanceAlert[] => {
@@ -461,10 +462,13 @@ export function useMaintenance() {
       if (response.ok) {
         const alertsData = await response.json();
         // /alerts devuelve el tipo en minúsculas; se normaliza igual por si acaso,
-        // para que "M3" y "m3" no salgan como dos alertas distintas.
+        // para que "M3" y "m3" no salgan como dos alertas distintas. El estado se
+        // recalcula desde los kilometrajes (ver normalizeMaintenanceAlert).
         backendAlerts = Array.isArray(alertsData)
           ? alertsData
-              .map((a: MaintenanceAlert) => ({ ...a, type: normalizeMaintenanceType(a.type) }))
+              .map((a: MaintenanceAlert) =>
+                normalizeMaintenanceAlert({ ...a, type: normalizeMaintenanceType(a.type) })
+              )
               .filter((a: MaintenanceAlert) => !dismissed.has(getAlertKey(a)))
           : [];
       }
