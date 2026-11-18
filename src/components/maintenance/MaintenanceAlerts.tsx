@@ -90,11 +90,11 @@ function AlertDetail({
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 py-1.5 text-sm">
       <span className="w-10 shrink-0 font-semibold text-slate-800">{typeLabel(alert)}</span>
-      <span className="min-w-0 flex-1 text-slate-600">
+      <span className="order-last basis-full pl-[3.25rem] text-slate-600 sm:order-none sm:basis-0 sm:flex-1 sm:pl-0 min-w-0">
         {history} · {overdue ? "tocaba" : "toca"} a los {dueKm} km
       </span>
       <span
-        className={`shrink-0 font-medium ${
+        className={`flex-1 sm:flex-none shrink-0 font-medium ${
           overdue ? "text-red-700" : alert.severity === 2 ? "text-amber-700" : "text-slate-500"
         }`}
       >
@@ -180,7 +180,7 @@ function VehicleRow({
       </button>
 
       {open && (
-        <div className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60 px-3 py-1 pl-10">
+        <div className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60 px-3 py-1 sm:pl-10">
           {detailAlerts.map((alert) => (
             <AlertDetail key={alert.type} alert={alert} onDismiss={onDismiss} />
           ))}
