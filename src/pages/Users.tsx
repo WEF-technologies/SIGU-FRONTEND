@@ -15,8 +15,8 @@ export default function Users() {
   
   const columns = [
     { key: 'document_type' as keyof User, header: 'Documento' },
-    { key: 'name' as keyof User, header: 'Nombre' },
-    { key: 'lastname' as keyof User, header: 'Apellido' },
+    { key: 'name' as keyof User, header: 'Nombre', hideOnMobile: true },
+    { key: 'lastname' as keyof User, header: 'Apellido', hideOnMobile: true },
     { key: 'telephone' as keyof User, header: 'Teléfono' },
     { key: 'email' as keyof User, header: 'Email' },
     { key: 'status' as keyof User, header: 'Estado' }
@@ -57,6 +57,7 @@ export default function Users() {
         defaultSort={{ key: "name", direction: "asc" }}
         initialPageSize={20}
         hideAddButton={true}
+        mobileTitle={(user) => `${user.name ?? ""} ${user.lastname ?? ""}`.trim() || user.email}
       />
     </div>
   );
