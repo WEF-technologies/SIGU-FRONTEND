@@ -53,7 +53,7 @@ export function SparePartDetailsModal({ sparePart, isOpen, onClose, vehicles = [
         <div className="space-y-4">
           {/* Información básica */}
           <Card className="p-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs text-gray-500">Código</Label>
                 <p className="font-semibold text-base font-mono">{sparePart.code}</p>
@@ -81,7 +81,7 @@ export function SparePartDetailsModal({ sparePart, isOpen, onClose, vehicles = [
               <p className="font-medium mt-0.5">{sparePart.description}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs text-gray-500">Stock Mínimo</Label>
                 <p className="font-medium mt-0.5">{sparePart.min_stock ?? 'No definido'}</p>

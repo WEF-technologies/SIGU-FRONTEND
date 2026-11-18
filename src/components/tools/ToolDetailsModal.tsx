@@ -40,7 +40,7 @@ export function ToolDetailsModal({ tool, isOpen, onClose }: ToolDetailsModalProp
 
         <div className="space-y-4">
           <Card className="p-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm text-gray-600">Código</Label>
                 <p className="font-medium font-mono">{tool.code}</p>
@@ -63,7 +63,7 @@ export function ToolDetailsModal({ tool, isOpen, onClose }: ToolDetailsModalProp
           </Card>
 
           <Card className="p-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm text-gray-600 flex items-center gap-1">
                   <MapPin className="w-4 h-4" />
@@ -82,7 +82,7 @@ export function ToolDetailsModal({ tool, isOpen, onClose }: ToolDetailsModalProp
           </Card>
 
           <Card className="p-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm text-gray-600 flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
@@ -106,7 +106,7 @@ export function ToolDetailsModal({ tool, isOpen, onClose }: ToolDetailsModalProp
           </Card>
 
           <Card className="p-4">
-            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-600">
               <div>
                 <Label className="text-xs text-gray-500">Creada</Label>
                 <p>{formatDate(tool.created_at)}</p>

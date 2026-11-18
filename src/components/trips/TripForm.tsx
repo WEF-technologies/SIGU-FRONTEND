@@ -122,7 +122,7 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
       </div>
 
       {/* Vehículo y Conductor */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="vehicle_id">Vehículo</Label>
           <Select value={formData.vehicle_id} onValueChange={handleVehicleChange}>
@@ -158,7 +158,7 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
       </div>
 
       {/* Fechas */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="start_date">Fecha de Inicio</Label>
           <Input id="start_date" type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} required />
@@ -178,7 +178,7 @@ export function TripForm({ initialData, routes, vehicles, drivers, onSubmit, onC
               <Switch checked={manualKm} onCheckedChange={setManualKm} />
             </div>
             {manualKm ? (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Km Inicial (odómetro)</Label>
                   <Input

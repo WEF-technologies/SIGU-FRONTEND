@@ -676,7 +676,7 @@ export default function Vehicles() {
         {/* PASO 1 — Datos del vehículo */}
         {modalStep === "vehicle" && (
           <form onSubmit={handleSubmitVehicle} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="brand">Marca</Label>
                 <Input id="brand" value={formData.brand} onChange={(e) => setFormData((p) => ({ ...p, brand: e.target.value }))} required />
@@ -687,7 +687,7 @@ export default function Vehicles() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="year">Año de Fabricación</Label>
                 <Input
@@ -706,7 +706,7 @@ export default function Vehicles() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="current_kilometers">Kilometraje Actual</Label>
                 <Input id="current_kilometers" type="number" value={formData.current_kilometers} onChange={(e) => setFormData((p) => ({ ...p, current_kilometers: parseInt(e.target.value) || 0 }))} placeholder="0" />
