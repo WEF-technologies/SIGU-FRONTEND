@@ -36,7 +36,7 @@ interface VehicleFitmentRulesProps {
 const ANY_VALUE = "__ANY__";
 
 const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm";
 
 const createEmptyRule = (): SparePartFitmentPayload => ({
   brand: null,

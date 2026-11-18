@@ -333,7 +333,7 @@ export function DataTable<T extends { id: string }>({
               <select
                 value={pageSize}
                 onChange={(event) => setPageSize(Number(event.target.value))}
-                className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm"
+                className="h-8 rounded-md border border-gray-300 bg-white px-2 text-base md:text-sm"
               >
                 {normalizedPageSizeOptions.map((option) => (
                   <option key={option} value={option}>
