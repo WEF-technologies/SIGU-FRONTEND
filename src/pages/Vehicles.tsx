@@ -525,6 +525,86 @@ export default function Vehicles() {
       ? "Editar Vehículo"
       : "Registrar Nuevo Vehículo";
 
+  const renderNextMaintenance = (vehicle: Vehicle) => {
+    if (vehicle.next_m3_kilometers == null) {
+      return <span className="text-gray-500">Sin M3 registrado</span>;
+    }
+    const remaining = getRemainingKm(vehicle);
+    if (remaining === null) return "No definido";
+    return remaining <= 0 ? (
+      <span className="text-red-600 font-semibold">Vencido</span>
+    ) : (
+      `${formatKmNumber(remaining)} km`
+    );
+  };
+
+  const renderLastM3 = (vehicle: Vehicle) =>
+    vehicle.last_m3_date ? vehicle.last_m3_date : <span className="text-gray-500">Sin M3 registrado</span>;
+
+  /**
+   * Las mismas cuatro acciones en la tabla (solo íconos) y en las tarjetas de
+   * móvil (ícono + texto, con área de toque más grande).
+   */
+  const renderActions = (vehicle: Vehicle, layout: "table" | "card") => {
+    const isCard = layout === "card";
+    const isDownloading = downloadingPlate === vehicle.plate_number;
+    const buttonClass = isCard ? "h-auto min-w-0 flex-col gap-1 px-1 py-2" : "";
+    const actions = [
+      {
+        label: "PDF",
+        title: "Descargar historial PDF",
+        onClick: () => handleDownloadVehicleReport(vehicle),
+        className: "border-indigo-200 text-indigo-600 hover:bg-indigo-50",
+        icon: isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />,
+        disabled: isDownloading,
+      },
+      {
+        label: "Ver",
+        title: "Ver detalles",
+        onClick: () => handleViewDetails(vehicle),
+        className: "border-blue-200 text-blue-600 hover:bg-blue-50",
+        icon: <Eye className="w-4 h-4" />,
+      },
+      {
+        label: "Editar",
+        title: "Editar",
+        onClick: () => handleEdit(vehicle),
+        className: "border-primary-200 text-primary hover:bg-primary-50",
+        icon: <Edit className="w-4 h-4" />,
+      },
+      {
+        label: "Eliminar",
+        title: "Eliminar",
+        onClick: () => handleDelete(vehicle),
+        className: "border-red-200 text-red-600 hover:bg-red-50",
+        icon: <Trash2 className="w-4 h-4" />,
+      },
+    ];
+
+    return (
+      <div className={isCard ? "grid grid-cols-4 gap-2" : "flex gap-1"}>
+        {actions.map((action) => (
+          <Button
+            key={action.label}
+            variant="outline"
+            size="sm"
+            onClick={action.onClick}
+            className={`${action.className} ${buttonClass}`}
+            title={action.title}
+            aria-label={`${action.title} de ${vehicle.plate_number}`}
+            disabled={action.disabled}
+          >
+            {action.icon}
+            {isCard && <span className="text-xs">{action.label}</span>}
+          </Button>
+        ))}
+      </div>
+    );
+  };
+
+  const emptyMessage =
+    vehicles.length === 0 ? "No hay vehículos registrados" : "Ningún vehículo coincide con los filtros";
+
   const showPageLoader = isLoadingData && vehicles.length === 0;
 
   if (showPageLoader) {
@@ -579,7 +659,44 @@ export default function Vehicles() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Móvil: una tarjeta por vehículo */}
+        {filteredVehicles.length === 0 ? (
+          <p className="md:hidden text-center py-8 text-secondary-dark">{emptyMessage}</p>
+        ) : (
+          <ul className="md:hidden divide-y">
+            {filteredVehicles.map((vehicle) => (
+              <li key={vehicle.id} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-lg leading-tight text-primary-900">{vehicle.plate_number}</p>
+                    <p className="text-sm text-secondary-dark truncate">
+                      {vehicle.brand} {vehicle.model} · {vehicle.year}
+                    </p>
+                  </div>
+                  <div className="shrink-0">{getStatusDisplay(vehicle.status)}</div>
+                </div>
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="flex items-center gap-1 text-xs text-gray-500">
+                      <Calendar className="w-3.5 h-3.5" /> Último M3
+                    </dt>
+                    <dd className="mt-0.5 font-medium">{renderLastM3(vehicle)}</dd>
+                  </div>
+                  <div>
+                    <dt className="flex items-center gap-1 text-xs text-gray-500">
+                      <Gauge className="w-3.5 h-3.5" /> Próximo mant.
+                    </dt>
+                    <dd className="mt-0.5 font-medium">{renderNextMaintenance(vehicle)}</dd>
+                  </div>
+                </dl>
+                {renderActions(vehicle, "card")}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Tablet y escritorio: tabla */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-secondary-light">
               <tr>
@@ -597,7 +714,7 @@ export default function Vehicles() {
               {filteredVehicles.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-8 text-secondary-dark">
-                    {vehicles.length === 0 ? "No hay vehículos registrados" : "Ningún vehículo coincide con los filtros"}
+                    {emptyMessage}
                   </td>
                 </tr>
               ) : (
@@ -611,57 +728,16 @@ export default function Vehicles() {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4 text-gray-400" />
-                        {vehicle.last_m3_date ? (
-                          vehicle.last_m3_date
-                        ) : (
-                          <span className="text-gray-500">Sin M3 registrado</span>
-                        )}
+                        {renderLastM3(vehicle)}
                       </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-1">
                         <Gauge className="w-4 h-4 text-gray-400" />
-                        {(() => {
-                          if (vehicle.next_m3_kilometers == null) {
-                            return <span className="text-gray-500">Sin M3 registrado</span>;
-                          }
-                          const remaining = getRemainingKm(vehicle);
-                          if (remaining === null) return "No definido";
-                          return remaining <= 0 ? (
-                            <span className="text-red-600 font-semibold">Vencido</span>
-                          ) : (
-                            `${formatKmNumber(remaining)} km`
-                          );
-                        })()}
+                        {renderNextMaintenance(vehicle)}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-1">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadVehicleReport(vehicle)}
-                          className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                          title="Descargar historial PDF"
-                          disabled={downloadingPlate === vehicle.plate_number}
-                        >
-                          {downloadingPlate === vehicle.plate_number ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleViewDetails(vehicle)} className="border-blue-200 text-blue-600 hover:bg-blue-50" title="Ver detalles">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(vehicle)} className="border-primary-200 text-primary hover:bg-primary-50" title="Editar">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => handleDelete(vehicle)} className="border-red-200 text-red-600 hover:bg-red-50" title="Eliminar">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
+                    <td className="px-4 py-4">{renderActions(vehicle, "table")}</td>
                   </tr>
                 ))
               )}

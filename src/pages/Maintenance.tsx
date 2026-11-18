@@ -89,12 +89,55 @@ interface MaintenanceRowProps {
   onView: (m: MaintenanceType) => void;
 }
 
+function MaintenanceRowActions({
+  m, onEdit, onDelete, onView, layout,
+}: Omit<MaintenanceRowProps, "isLast"> & { layout: "inline" | "stacked" }) {
+  const actions = [
+    { label: "Ver", title: "Ver detalles", onClick: () => onView(m), icon: Eye, hover: "hover:text-blue-600" },
+    { label: "Editar", title: "Editar", onClick: () => onEdit(m), icon: Edit, hover: "hover:text-primary" },
+    { label: "Eliminar", title: "Eliminar", onClick: () => onDelete(m), icon: Trash2, hover: "hover:text-red-600" },
+  ];
+
+  if (layout === "stacked") {
+    return (
+      <div className="flex gap-2 mt-3 sm:hidden">
+        {actions.map(({ label, title, onClick, icon: Icon, hover }) => (
+          <Button
+            key={label}
+            size="sm" variant="outline"
+            className={`h-10 flex-1 gap-1.5 text-gray-600 ${hover}`}
+            onClick={onClick} title={title}
+          >
+            <Icon className="w-4 h-4" />
+            <span className="text-xs">{label}</span>
+          </Button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="hidden sm:flex items-center gap-1 shrink-0">
+      {actions.map(({ label, title, onClick, icon: Icon, hover }) => (
+        <Button
+          key={label}
+          size="sm" variant="ghost"
+          className={`h-7 w-7 p-0 text-gray-400 ${hover}`}
+          onClick={onClick} title={title} aria-label={title}
+        >
+          <Icon className="w-3.5 h-3.5" />
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 function MaintenanceRow({ m, isLast, onEdit, onDelete, onView }: MaintenanceRowProps) {
   const typeConfig = maintenanceTypeConfig[m.type as keyof typeof maintenanceTypeConfig];
   const typeColor = typeConfig?.color ?? "text-gray-500 border-gray-400";
   const typeLabel = typeConfig?.label?.split("(")[0]?.trim() ?? m.type?.toUpperCase() ?? "—";
   return (
-    <div className={`flex gap-4 ${!isLast ? "pb-4 border-b border-gray-100" : ""}`}>
+    <div className={`flex gap-3 sm:gap-4 ${!isLast ? "pb-4 border-b border-gray-100" : ""}`}>
       {/* Timeline indicator */}
       <div className="flex flex-col items-center shrink-0 pt-1">
         <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 text-xs font-bold ${typeColor.replace("text-", "border-").split(" ")[0]} bg-white`}>
@@ -120,30 +163,7 @@ function MaintenanceRow({ m, isLast, onEdit, onDelete, onView }: MaintenanceRowP
               </span>
             )}
           </div>
-          {/* Actions */}
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              size="sm" variant="ghost"
-              className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
-              onClick={() => onView(m)} title="Ver detalles"
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              size="sm" variant="ghost"
-              className="h-7 w-7 p-0 text-gray-400 hover:text-primary"
-              onClick={() => onEdit(m)} title="Editar"
-            >
-              <Edit className="w-3.5 h-3.5" />
-            </Button>
-            <Button
-              size="sm" variant="ghost"
-              className="h-7 w-7 p-0 text-gray-400 hover:text-red-600"
-              onClick={() => onDelete(m)} title="Eliminar"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </Button>
-          </div>
+          <MaintenanceRowActions m={m} onEdit={onEdit} onDelete={onDelete} onView={onView} layout="inline" />
         </div>
 
         {/* Description */}
@@ -169,6 +189,8 @@ function MaintenanceRow({ m, isLast, onEdit, onDelete, onView }: MaintenanceRowP
             </span>
           )}
         </div>
+
+        <MaintenanceRowActions m={m} onEdit={onEdit} onDelete={onDelete} onView={onView} layout="stacked" />
       </div>
     </div>
   );
@@ -206,7 +228,7 @@ function VehicleCard({
         onClick={() => setOpen((o) => !o)}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <div className="hidden sm:flex w-10 h-10 rounded-xl bg-primary/10 items-center justify-center shrink-0">
             <Car className="w-5 h-5 text-primary" />
           </div>
           <div className="min-w-0">
@@ -254,7 +276,7 @@ function VehicleCard({
           <div className="flex justify-end px-4 pt-3 pb-1">
             <Button
               size="sm"
-              className="bg-primary hover:bg-primary/90 text-white text-xs h-7 px-3 gap-1.5"
+              className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white text-sm sm:text-xs h-10 sm:h-7 px-3 gap-1.5"
               onClick={(e) => { e.stopPropagation(); onAdd(plate); }}
             >
               <Plus className="w-3.5 h-3.5" />
@@ -492,7 +514,7 @@ export default function Maintenance() {
             </Select>
           </div>
 
-          <Button onClick={handleAdd} className="bg-primary hover:bg-primary/90 text-white h-9 px-4 shrink-0">
+          <Button onClick={handleAdd} className="w-full sm:w-auto bg-primary hover:bg-primary/90 text-white h-10 sm:h-9 px-4 shrink-0">
             <Plus className="w-4 h-4 mr-1.5" />
             Registrar
           </Button>
