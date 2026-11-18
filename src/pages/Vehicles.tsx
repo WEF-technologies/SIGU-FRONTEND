@@ -659,11 +659,11 @@ export default function Vehicles() {
           </div>
         </div>
 
-        {/* Móvil: una tarjeta por vehículo */}
+        {/* Móvil y tablet: una tarjeta por vehículo */}
         {filteredVehicles.length === 0 ? (
-          <p className="md:hidden text-center py-8 text-secondary-dark">{emptyMessage}</p>
+          <p className="lg:hidden text-center py-8 text-secondary-dark">{emptyMessage}</p>
         ) : (
-          <ul className="md:hidden divide-y">
+          <ul className="lg:hidden divide-y">
             {filteredVehicles.map((vehicle) => (
               <li key={vehicle.id} className="p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -695,49 +695,48 @@ export default function Vehicles() {
           </ul>
         )}
 
-        {/* Tablet y escritorio: tabla */}
-        <div className="hidden md:block overflow-x-auto">
+        {/* Escritorio: tabla */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="w-full">
             <thead className="bg-secondary-light">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Placa</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Marca</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Modelo</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Año</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Estado</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Último M3</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Próximo Mantenimiento</th>
-                <th className="px-4 py-3 text-left font-semibold text-primary-900">Acciones</th>
+                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Vehículo</th>
+                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Estado</th>
+                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Último M3</th>
+                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Próximo Mantenimiento</th>
+                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-secondary-dark">
+                  <td colSpan={5} className="text-center py-8 text-secondary-dark">
                     {emptyMessage}
                   </td>
                 </tr>
               ) : (
                 filteredVehicles.map((vehicle) => (
                   <tr key={vehicle.id} className="border-b hover:bg-secondary-light transition-colors">
-                    <td className="px-4 py-4 font-medium">{vehicle.plate_number}</td>
-                    <td className="px-4 py-4">{vehicle.brand}</td>
-                    <td className="px-4 py-4">{vehicle.model}</td>
-                    <td className="px-4 py-4">{vehicle.year}</td>
-                    <td className="px-4 py-4">{getStatusDisplay(vehicle.status)}</td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 xl:px-4 py-4">
+                      <p className="font-semibold text-primary-900">{vehicle.plate_number}</p>
+                      <p className="text-sm text-secondary-dark">
+                        {vehicle.brand} {vehicle.model} · {vehicle.year}
+                      </p>
+                    </td>
+                    <td className="px-3 xl:px-4 py-4">{getStatusDisplay(vehicle.status)}</td>
+                    <td className="px-3 xl:px-4 py-4">
                       <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <Calendar className="w-4 h-4 shrink-0 text-gray-400" />
                         {renderLastM3(vehicle)}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-3 xl:px-4 py-4">
                       <div className="flex items-center gap-1">
-                        <Gauge className="w-4 h-4 text-gray-400" />
+                        <Gauge className="w-4 h-4 shrink-0 text-gray-400" />
                         {renderNextMaintenance(vehicle)}
                       </div>
                     </td>
-                    <td className="px-4 py-4">{renderActions(vehicle, "table")}</td>
+                    <td className="px-3 xl:px-4 py-4">{renderActions(vehicle, "table")}</td>
                   </tr>
                 ))
               )}
