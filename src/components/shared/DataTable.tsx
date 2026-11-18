@@ -18,6 +18,8 @@ export interface Column<T> {
   render?: (value: any, item: T) => ReactNode;
   sortable?: boolean;
   sortValue?: (item: T) => string | number | Date | null | undefined;
+  /** No mostrar esta columna en la vista de tarjetas (móvil). */
+  hideOnMobile?: boolean;
 }
 
 type SortDirection = "asc" | "desc";
@@ -41,6 +43,11 @@ interface DataTableProps<T extends { id: string }> {
   initialPageSize?: number;
   showPagination?: boolean;
   hideAddButton?: boolean;
+  /**
+   * Título de cada tarjeta en móvil. Por defecto se usa la primera columna
+   * (que entonces no se repite en el cuerpo de la tarjeta).
+   */
+  mobileTitle?: (item: T) => ReactNode;
 }
 
 const toComparableValue = (value: unknown): string | number | null => {
@@ -98,6 +105,7 @@ export function DataTable<T extends { id: string }>({
   initialPageSize = 10,
   showPagination = true,
   hideAddButton = false,
+  mobileTitle,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<keyof T | null>(defaultSort?.key ?? null);
@@ -210,23 +218,127 @@ export function DataTable<T extends { id: string }>({
     );
   };
 
+  const renderCellValue = (column: Column<T>, item: T): ReactNode =>
+    column.render
+      ? column.render(item[column.key as keyof T], item)
+      : String(item[column.key as keyof T] ?? "-");
+
+  const renderDefaultActions = (item: T, large = false) => (
+    <div className="flex gap-2">
+      {onEdit && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onEdit(item)}
+          className={`border-primary-200 text-primary hover:bg-primary-50 ${large ? "h-10 flex-1 gap-1.5" : ""}`}
+          title="Editar"
+          aria-label="Editar"
+        >
+          <Edit className="w-4 h-4" />
+          {large && <span>Editar</span>}
+        </Button>
+      )}
+      {onDelete && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onDelete(item)}
+          className={`border-red-200 text-red-600 hover:bg-red-50 ${large ? "h-10 flex-1 gap-1.5" : ""}`}
+          title="Eliminar"
+          aria-label="Eliminar"
+        >
+          <Trash2 className="w-4 h-4" />
+          {large && <span>Eliminar</span>}
+        </Button>
+      )}
+    </div>
+  );
+
+  // ── Vista de tarjetas (móvil) ─────────────────────────────────────────────
+  const actionsColumn = columns.find((column) => column.key === "actions");
+  const hasActions = Boolean(actionsColumn?.render || onEdit || onDelete);
+  const dataColumns = columns.filter((column) => column.key !== "actions");
+  const titleColumn = mobileTitle ? undefined : dataColumns[0];
+  const cardBodyColumns = dataColumns.filter(
+    (column) => column !== titleColumn && !column.hideOnMobile
+  );
+
+  const sortableColumns = enableColumnSorting
+    ? dataColumns.filter((column) => column.sortable !== false && column.header)
+    : [];
+  const mobileSortValue = sortKey ? `${String(sortKey)}:${sortDirection}` : "";
+  const handleMobileSortChange = (value: string) => {
+    if (!value) {
+      setSortKey(null);
+      return;
+    }
+    const separator = value.lastIndexOf(":");
+    setSortKey(value.slice(0, separator) as keyof T);
+    setSortDirection(value.slice(separator + 1) as SortDirection);
+  };
+
+  const renderCard = (item: T) => (
+    <li key={item.id} className="p-4 space-y-3">
+      <div className="font-semibold text-base text-primary-900 break-words">
+        {mobileTitle ? mobileTitle(item) : titleColumn ? renderCellValue(titleColumn, item) : null}
+      </div>
+      {cardBodyColumns.length > 0 && (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+          {cardBodyColumns.map((column) => (
+            <div key={String(column.key)} className="min-w-0 break-words">
+              {column.header && <dt className="text-xs text-gray-500">{column.header}</dt>}
+              <dd className="mt-0.5 text-gray-900">{renderCellValue(column, item)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {hasActions && (
+        <div className="pt-1 [&_button]:min-h-10 [&_button]:min-w-10">
+          {actionsColumn?.render ? (
+            <div className="flex flex-wrap gap-2">{actionsColumn.render(null, item)}</div>
+          ) : (
+            renderDefaultActions(item, true)
+          )}
+        </div>
+      )}
+    </li>
+  );
+
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
         <h2 className="text-2xl font-bold text-primary-900">{title}</h2>
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:flex-wrap md:items-center">
           {searchableByLocalFields && (
             <SearchFilter
               placeholder={searchPlaceholder}
               value={searchTerm}
               onChange={setSearchTerm}
+              className="w-full md:w-64"
             />
+          )}
+          {sortableColumns.length > 0 && (
+            // En la tabla se ordena tocando la cabecera; en las tarjetas no hay cabecera.
+            <select
+              value={mobileSortValue}
+              onChange={(event) => handleMobileSortChange(event.target.value)}
+              className="md:hidden h-10 w-full rounded-md border border-input bg-background px-3 text-base"
+              aria-label="Ordenar por"
+            >
+              <option value="">Sin ordenar</option>
+              {sortableColumns.map((column) => (
+                <optgroup key={String(column.key)} label={column.header}>
+                  <option value={`${String(column.key)}:asc`}>{column.header} (ascendente)</option>
+                  <option value={`${String(column.key)}:desc`}>{column.header} (descendente)</option>
+                </optgroup>
+              ))}
+            </select>
           )}
           {onAdd && !hideAddButton && (
             <Button
               onClick={onAdd}
-              className="bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
+              className="w-full md:w-auto bg-primary hover:bg-primary-600 text-white font-medium px-4 py-2 rounded-lg shadow-sm flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               {addButtonText}
@@ -235,8 +347,21 @@ export function DataTable<T extends { id: string }>({
         </div>
       </div>
 
+      {/* Tarjetas (móvil) */}
+      <div className="md:hidden bg-white rounded-lg border border-secondary-medium shadow-sm">
+        {isLoading ? (
+          <p className="text-center py-8 text-secondary-dark">Cargando...</p>
+        ) : paginatedData.length === 0 ? (
+          <p className="text-center py-8 text-secondary-dark">
+            {searchTerm ? "No se encontraron resultados" : "No hay datos disponibles"}
+          </p>
+        ) : (
+          <ul className="divide-y divide-secondary-medium">{paginatedData.map(renderCard)}</ul>
+        )}
+      </div>
+
       {/* Tabla */}
-      <div className="bg-white rounded-lg border border-secondary-medium shadow-sm overflow-x-auto">
+      <div className="hidden md:block bg-white rounded-lg border border-secondary-medium shadow-sm overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary-light">
@@ -279,39 +404,12 @@ export function DataTable<T extends { id: string }>({
                 <TableRow key={item.id} className="hover:bg-secondary-light transition-colors">
                   {columns.map((column) => (
                     <TableCell key={String(column.key)} className="py-4">
-                      {column.key === "actions" ? (
-                        // Render personalizado tiene prioridad sobre los botones por defecto
-                        column.render ? (
-                          column.render(null, item)
-                        ) : (
-                          <div className="flex gap-2">
-                            {onEdit && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onEdit(item)}
-                                className="border-primary-200 text-primary hover:bg-primary-50"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            )}
-                            {onDelete && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => onDelete(item)}
-                                className="border-red-200 text-red-600 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            )}
-                          </div>
-                        )
-                      ) : column.render ? (
-                        column.render(item[column.key as keyof T], item)
-                      ) : (
-                        String(item[column.key as keyof T] ?? "-")
-                      )}
+                      {column.key === "actions"
+                        ? // Render personalizado tiene prioridad sobre los botones por defecto
+                          column.render
+                          ? column.render(null, item)
+                          : renderDefaultActions(item)
+                        : renderCellValue(column, item)}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -327,7 +425,7 @@ export function DataTable<T extends { id: string }>({
             Mostrando {fromItem} - {toItem} de {totalItems} elementos
           </p>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2">
               <span>Filas</span>
               <select
