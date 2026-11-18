@@ -24,7 +24,7 @@ import { fetchAllPages } from "@/lib/apiClient";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { MaintenanceAlerts } from "@/components/maintenance/MaintenanceAlerts";
 import { DriverAlerts } from "@/components/drivers/DriverAlerts";
-import { Contract, DriverAlert, Route, ToolAlert } from "@/types";
+import { Contract, DriverAlert, Route, ToolAlert, Vehicle } from "@/types";
 
 /** Desde el 13/10 el backend usa "activo"; "active" queda por si llega un dato viejo. */
 const isActiveContractStatus = (status: string | null | undefined) => {
@@ -101,7 +101,7 @@ export default function Dashboard() {
           fetchAllPages(authenticatedFetch, `${API_URL}/api/v1/maintenances/`),
         ]);
 
-        let vehicles = [];
+        let vehicles: Vehicle[] = [];
         if (vehiclesResult.status === "fulfilled" && vehiclesResult.value.ok) {
           vehicles = await vehiclesResult.value.json();
         }
@@ -126,7 +126,7 @@ export default function Dashboard() {
 
         const totalVehicles = vehicles.length;
         const activeVehicles = vehicles.filter(
-          (v: any) =>
+          (v) =>
             v.status === "available" ||
             VEHICLE_SEDE_STATUS_OPTIONS.some((option) => option.value === v.status)
         ).length;

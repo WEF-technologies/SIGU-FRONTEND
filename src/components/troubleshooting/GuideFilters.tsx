@@ -22,7 +22,7 @@ interface GuideFiltersProps {
 }
 
 const selectClassName =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm";
 
 const workshopViews = [
   { label: "Todas", value: undefined, activeClass: "bg-primary hover:bg-primary-600 text-white" },

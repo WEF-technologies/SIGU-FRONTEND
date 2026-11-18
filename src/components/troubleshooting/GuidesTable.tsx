@@ -181,7 +181,7 @@ export function GuidesTable({
             <select
               value={pageSize}
               onChange={(event) => onPageSizeChange(Number(event.target.value))}
-              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm"
+              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-base md:text-sm"
               aria-label="Resultados por pagina"
             >
               {PAGE_SIZE_OPTIONS.map((option) => (
