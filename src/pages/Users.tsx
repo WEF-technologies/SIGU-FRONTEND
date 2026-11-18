@@ -1,6 +1,7 @@
 
 import { useState } from "react";
-import { DataTable } from "@/components/shared/DataTable";
+import { Column, DataTable } from "@/components/shared/DataTable";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 import { FormModal } from "@/components/shared/FormModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,13 +14,19 @@ export default function Users() {
   const { toast } = useToast();
   const { data: users = [], isLoading, error } = useUsers();
   
-  const columns = [
-    { key: 'document_type' as keyof User, header: 'Documento' },
-    { key: 'name' as keyof User, header: 'Nombre', hideOnMobile: true },
-    { key: 'lastname' as keyof User, header: 'Apellido', hideOnMobile: true },
-    { key: 'telephone' as keyof User, header: 'Teléfono' },
-    { key: 'email' as keyof User, header: 'Email' },
-    { key: 'status' as keyof User, header: 'Estado' }
+  const columns: Column<User>[] = [
+    {
+      key: 'document_type',
+      header: 'Documento',
+      // El backend hoy solo guarda el tipo (V, E...); si llega el número se muestra junto.
+      render: (_, user) =>
+        user.document_number ? `${user.document_type}-${user.document_number}` : user.document_type || '-',
+    },
+    { key: 'name', header: 'Nombre', hideOnMobile: true },
+    { key: 'lastname', header: 'Apellido', hideOnMobile: true },
+    { key: 'telephone', header: 'Teléfono' },
+    { key: 'email', header: 'Email' },
+    { key: 'status', header: 'Estado', render: (_, user) => <StatusBadge status={user.status} /> },
   ];
 
   if (isLoading) {

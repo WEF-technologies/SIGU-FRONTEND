@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Gauge, AlertTriangle } from "lucide-react";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
+import { formatDateOnly } from "@/lib/dates";
+import { TwoLineCell } from "@/components/shared/TwoLineCell";
 
 const API_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 const TRIPS_PAGE_SIZE = 500;
@@ -287,7 +289,11 @@ export default function Trips() {
       },
       render: (_, trip) => {
         const vehicle = vehiclesMap.get(trip.vehicle_id);
-        return vehicle ? `${vehicle.plate_number} (${vehicle.brand} ${vehicle.model})` : "N/A";
+        return vehicle ? (
+          <TwoLineCell primary={vehicle.plate_number} secondary={`${vehicle.brand} ${vehicle.model}`} />
+        ) : (
+          "N/A"
+        );
       },
     },
     {
@@ -304,55 +310,59 @@ export default function Trips() {
     },
     {
       key: "start_date",
-      header: "Fecha Inicio",
-      render: (_, trip) => (trip.start_date ? new Date(trip.start_date).toLocaleDateString() : "-"),
-    },
-    {
-      key: "end_date",
-      header: "Fecha Fin",
-      render: (_, trip) => (trip.end_date ? new Date(trip.end_date).toLocaleDateString() : "En progreso"),
+      header: "Fechas",
+      // Una sola columna para inicio y fin: con las dos la tabla no cabía en escritorio.
+      render: (_, trip) => (
+        <div className="whitespace-nowrap">
+          <p>{formatDateOnly(trip.start_date)}</p>
+          <p className="text-xs text-gray-500">
+            {trip.end_date ? `Fin: ${formatDateOnly(trip.end_date)}` : "En progreso"}
+          </p>
+        </div>
+      ),
     },
     {
       key: "total_kilometers",
       header: "Kilómetros",
       sortValue: (trip) => trip.total_kilometers ?? ((trip.end_kilometers ?? 0) - (trip.start_kilometers ?? 0)),
       render: (_, trip) => {
-        if (trip.total_kilometers) return `${trip.total_kilometers} km`;
-        if (trip.end_kilometers && trip.start_kilometers)
-          return `${(trip.end_kilometers - trip.start_kilometers).toLocaleString()} km`;
-        return "En progreso";
-      },
-    },
-    {
-      key: "applied_kilometers" as keyof Trip,
-      header: "KM Aplicados",
-      sortable: false,
-      render: (_, trip) => {
-        if (trip.status !== "completed") return <span className="text-gray-400 text-xs">—</span>;
-        if (isTripApplied(trip)) {
-          return (
+        const distance = trip.total_kilometers
+          ? `${trip.total_kilometers} km`
+          : trip.end_kilometers && trip.start_kilometers
+          ? `${(trip.end_kilometers - trip.start_kilometers).toLocaleString()} km`
+          : "En progreso";
+
+        // Si el viaje terminó, debajo se indica si los km ya se sumaron al vehículo.
+        let applied = null;
+        if (trip.status === "completed") {
+          applied = isTripApplied(trip) ? (
             <Badge className="bg-green-100 text-green-800 text-xs">
               <Gauge className="w-3 h-3 mr-1" />
               Aplicados
             </Badge>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge className="bg-red-100 text-red-700 text-xs">
+                <AlertTriangle className="w-3 h-3 mr-1" />
+                No aplicados
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-xs border-red-300 text-red-600 hover:bg-red-50 px-2"
+                disabled={applyingKm === trip.id}
+                onClick={() => handleApplyKilometers(trip)}
+              >
+                {applyingKm === trip.id ? "..." : "Aplicar"}
+              </Button>
+            </div>
           );
         }
-        // completed pero no aplicados
+
         return (
-          <div className="flex items-center gap-1.5">
-            <Badge className="bg-red-100 text-red-700 text-xs">
-              <AlertTriangle className="w-3 h-3 mr-1" />
-              No aplicados
-            </Badge>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-xs border-red-300 text-red-600 hover:bg-red-50 px-2"
-              disabled={applyingKm === trip.id}
-              onClick={() => handleApplyKilometers(trip)}
-            >
-              {applyingKm === trip.id ? "..." : "Aplicar"}
-            </Button>
+          <div className="space-y-1">
+            <p className="whitespace-nowrap">{distance}</p>
+            {applied}
           </div>
         );
       },
