@@ -175,7 +175,7 @@ export function GuidesTable({
             : `Mostrando ${firstItem} - ${lastItem} · ordenadas por actualizacion mas reciente`}
         </p>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             <span>Filas</span>
             <select

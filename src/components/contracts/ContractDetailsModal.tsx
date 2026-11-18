@@ -127,7 +127,7 @@ export function ContractDetailsModal({ isOpen, onClose, contract }: ContractDeta
                   <span className="font-medium text-gray-700">Estado:</span>
                   <StatusBadge status={contract.status} />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DetailItem label="Fecha Inicio" value={new Date(contract.start_date).toLocaleDateString()} />
                   <DetailItem label="Fecha Fin" value={new Date(contract.end_date).toLocaleDateString()} />
                 </div>

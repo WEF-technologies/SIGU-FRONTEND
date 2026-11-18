@@ -544,7 +544,7 @@ export default function Dashboard() {
       {/* ─── ALERTAS DE HERRAMIENTAS ─────────────────────────────────── */}
       <Card className={`border-secondary-medium ${criticalToolAlerts.length > 0 ? "border-red-300 shadow-red-100 shadow-md" : ""}`}>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-lg text-primary-900 flex items-center gap-2">
               {criticalToolAlerts.length > 0 ? (
                 <Siren className="w-5 h-5 text-red-600 animate-pulse" />

@@ -38,7 +38,7 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="name">Nombre</Label>
           <Input
@@ -61,7 +61,7 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="document_number">Número de Cédula</Label>
           <Input
@@ -96,7 +96,7 @@ export function DriverForm({ driver, contracts, onSubmit, onCancel }: DriverForm
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="license_expiry_date">Vencimiento Licencia</Label>
           <Input

@@ -116,7 +116,7 @@ export function ToolForm({ editingTool, onSubmit, onCancel }: ToolFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="code"
@@ -146,7 +146,7 @@ export function ToolForm({ editingTool, onSubmit, onCancel }: ToolFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="category"
@@ -176,7 +176,7 @@ export function ToolForm({ editingTool, onSubmit, onCancel }: ToolFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="status"
@@ -217,7 +217,7 @@ export function ToolForm({ editingTool, onSubmit, onCancel }: ToolFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <FormField
             control={form.control}
             name="purchase_date"

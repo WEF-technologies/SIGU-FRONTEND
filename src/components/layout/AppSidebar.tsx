@@ -52,7 +52,7 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
@@ -112,6 +112,10 @@ export function AppSidebar() {
                       end={item.url === "/"}
                       className={getNavClasses(isActive(item.url))}
                       title={collapsed ? item.title : undefined}
+                      // En móvil el menú es un panel superpuesto: cerrarlo al elegir un módulo.
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                      }}
                     >
                       <item.icon className={`w-5 h-5 ${collapsed ? "mx-auto" : ""}`} />
                       {!collapsed && <span className="font-medium">{item.title}</span>}
