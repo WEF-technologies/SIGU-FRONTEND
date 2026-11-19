@@ -58,6 +58,11 @@ const FIELD_LABELS: Record<string, string> = {
   year: "Ano",
   status: "Estado",
   supplier_id: "Proveedor",
+  purchase_date: "Fecha de compra",
+  invoice_number: "Numero de factura",
+  amount: "Monto",
+  date_from: "Fecha desde",
+  date_to: "Fecha hasta",
   address: "Direccion",
   contact_person: "Contacto",
   contact_name: "Contacto",
@@ -205,6 +210,50 @@ const translateVehicleModuleMessage = (raw: string): string | null => {
   return translateContractMessage(raw);
 };
 
+/** Mensajes del modulo de proveedores y de su historial de compras. */
+const translateSupplierMessage = (raw: string): string | null => {
+  if (/cannot delete supplier with purchase history/i.test(raw)) {
+    return "No se puede eliminar un proveedor con compras registradas. Marcalo como inactivo.";
+  }
+  if (/cannot register purchases for inactive suppliers/i.test(raw)) {
+    return "No se pueden registrar compras a un proveedor inactivo.";
+  }
+  if (/invoice number already exists for this supplier/i.test(raw)) {
+    return "Ya existe una compra con ese numero de factura para este proveedor.";
+  }
+  if (/^supplier purchase not found$|^purchase with id \S+ not found$/i.test(raw)) {
+    return "La compra no existe o fue eliminada.";
+  }
+  if (/^supplier not found$|^supplier with id \S+ not found$/i.test(raw)) {
+    return "El proveedor no existe o fue eliminado.";
+  }
+  if (/^amount must be greater than zero$/i.test(raw)) {
+    return "El monto debe ser mayor a 0.";
+  }
+  if (/^amount cannot exceed/i.test(raw)) {
+    return "El monto es demasiado grande.";
+  }
+  if (/^amount must be (a valid decimal|finite)$/i.test(raw)) {
+    return "El monto no es valido.";
+  }
+  if (/^description must be a non-empty string$/i.test(raw)) {
+    return "La descripcion no puede estar vacia.";
+  }
+  if (/^description cannot exceed (\d+) characters$/i.test(raw)) {
+    return "La descripcion es demasiado larga.";
+  }
+  if (/^invoice number cannot exceed (\d+) characters$/i.test(raw)) {
+    return "El numero de factura es demasiado largo.";
+  }
+  if (/^purchase date must be a valid date$/i.test(raw)) {
+    return "La fecha de compra no es valida.";
+  }
+  if (/date_from must be before or equal to date_to/i.test(raw)) {
+    return "La fecha desde debe ser anterior o igual a la fecha hasta.";
+  }
+  return null;
+};
+
 /** Mensajes del modulo de contratos (validaciones de valuacion y estados). */
 const translateContractMessage = (raw: string): string | null => {
   if (/contract number already exists/i.test(raw)) {
@@ -236,6 +285,9 @@ const translateContractMessage = (raw: string): string | null => {
 
 const translateKnownEnglish = (message: string): string | null => {
   const raw = cleanText(message);
+
+  const supplierMessage = translateSupplierMessage(raw);
+  if (supplierMessage) return supplierMessage;
 
   const vehicleModuleMessage = translateVehicleModuleMessage(raw);
   if (vehicleModuleMessage) return vehicleModuleMessage;

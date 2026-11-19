@@ -866,6 +866,46 @@ export interface SupplierFilters {
 }
 
 /**
+ * Historial de compras por proveedor (/api/v1/suppliers/{id}/purchases).
+ *
+ * El backend guarda la factura sin espacios y en mayusculas (o null si queda
+ * vacia), devuelve el monto como texto con 2 decimales ("150000.00") y la
+ * fecha sin hora (YYYY-MM-DD).
+ */
+export const SUPPLIER_PURCHASE_LIMITS = {
+  description: 255,
+  invoiceNumber: 60,
+  /** Digitos enteros del monto: Numeric(18, 2) => maximo 9999999999999999.99. */
+  amountIntegerDigits: 16,
+} as const;
+
+export interface SupplierPurchase {
+  id: string;
+  supplier_id: string;
+  purchase_date: string;
+  invoice_number: string | null;
+  description: string;
+  /** Decimal en texto ("150000.00"); no convertir a number para sumar. */
+  amount: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupplierPurchasePayload {
+  purchase_date: string;
+  description: string;
+  /** Decimal en texto con punto como separador ("1500.50"). */
+  amount: string;
+  invoice_number: string | null;
+}
+
+export interface SupplierPurchaseFilters {
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+}
+
+/**
  * Manual de fallas (troubleshooting).
  * Refleja el contrato de /api/v1/troubleshooting: el backend normaliza el
  * código a mayúsculas y categoría/severidad/estado a minúsculas, así que la UI

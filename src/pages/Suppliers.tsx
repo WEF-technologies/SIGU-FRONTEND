@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { SupplierForm } from "@/components/suppliers/SupplierForm";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
@@ -22,6 +23,7 @@ import {
   Edit,
   MapPin,
   MessageCircle,
+  Receipt,
   RefreshCw,
   Star,
   Tags,
@@ -84,6 +86,26 @@ const getSupplierSearchText = (supplier: Supplier) =>
     .filter(Boolean)
     .join(" ");
 
+const isInactiveStatus = (status?: string | null) => {
+  const normalizedStatus = normalizeStatus(status);
+  return normalizedStatus === "inactive" || normalizedStatus === "inactivo";
+};
+
+const toSupplierPayload = (supplier: Supplier, overrides: Partial<SupplierPayload> = {}): SupplierPayload => ({
+  name: supplier.name,
+  address: supplier.address,
+  location: supplier.location,
+  contact_phone: supplier.contact_phone,
+  email: supplier.email ?? null,
+  status: supplier.status,
+  categories: supplier.categories,
+  destacado: supplier.destacado,
+  description: supplier.description ?? null,
+  delivery_time_notes: supplier.delivery_time_notes ?? null,
+  notes: supplier.notes ?? null,
+  ...overrides,
+});
+
 const formatContactLine = (supplier: Supplier) => {
   const contactParts = [supplier.contact_phone, supplier.email].filter(
     (value): value is string => typeof value === "string" && value.trim().length > 0
@@ -110,6 +132,7 @@ export default function Suppliers() {
     deleteSupplier,
   } = useSuppliers();
   const confirm = useConfirm();
+  const navigate = useNavigate();
 
   const [filters, setFilters] = useState<SupplierFilterState>(EMPTY_SUPPLIER_FILTERS);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -165,6 +188,36 @@ export default function Suppliers() {
       { title: "Categorias", value: uniqueCategories.size, icon: Tags },
     ];
   }, [featuredSuppliers.length, suppliers]);
+
+  /**
+   * El backend no deja eliminar un proveedor con compras (409) para no perder
+   * el historial, y sugiere desactivarlo. Se ofrece eso mismo en un paso.
+   */
+  const handleSupplierWithPurchases = useCallback(
+    async (supplier: Supplier) => {
+      if (isInactiveStatus(supplier.status)) {
+        const viewHistory = await confirm({
+          title: "No se puede eliminar el proveedor",
+          description: `${supplier.name} tiene compras registradas y ya está inactivo. Su historial de compras se conserva.`,
+          confirmLabel: "Ver historial de compras",
+          confirmVariant: "default",
+        });
+        if (viewHistory) navigate(`/proveedores/${encodeURIComponent(supplier.id)}/compras`);
+        return;
+      }
+
+      const deactivate = await confirm({
+        title: "No se puede eliminar el proveedor",
+        description: `${supplier.name} tiene compras registradas y su historial debe conservarse. ¿Quieres marcarlo como inactivo? Así no se le podrán registrar compras nuevas.`,
+        confirmLabel: "Marcar como inactivo",
+        confirmVariant: "default",
+      });
+      if (!deactivate) return;
+
+      await updateSupplier(supplier.id, toSupplierPayload(supplier, { status: "inactive" }));
+    },
+    [confirm, navigate, updateSupplier]
+  );
 
   const columns = useMemo<Column<Supplier>[]>(
     () => [
@@ -263,6 +316,16 @@ export default function Suppliers() {
                 </a>
               </Button>
             ) : null}
+            <Button asChild variant="outline" size="sm" className="border-primary-200 text-primary hover:bg-primary-50">
+              <Link
+                to={`/proveedores/${encodeURIComponent(supplier.id)}/compras`}
+                aria-label={`Ver el historial de compras de ${supplier.name}`}
+                title="Historial de compras"
+              >
+                <Receipt className="w-4 h-4" />
+                Compras
+              </Link>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -283,7 +346,8 @@ export default function Suppliers() {
                   title: "Eliminar proveedor",
                   description: `Se eliminará el proveedor ${supplier.name}. Esta acción no se puede deshacer.`,
                 }))) return;
-                await deleteSupplier(supplier);
+                const result = await deleteSupplier(supplier);
+                if (result === "has-purchases") await handleSupplierWithPurchases(supplier);
               }}
             >
               <Trash2 className="w-4 h-4" />
@@ -292,7 +356,7 @@ export default function Suppliers() {
         ),
       },
     ],
-    [confirm, deleteSupplier]
+    [confirm, deleteSupplier, handleSupplierWithPurchases]
   );
 
   const closeModal = () => {

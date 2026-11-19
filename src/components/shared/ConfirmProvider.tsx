@@ -55,7 +55,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 text-white hover:bg-red-700"
+              className={
+                options?.confirmVariant === "default"
+                  ? "bg-primary text-white hover:bg-primary-600"
+                  : "bg-red-600 text-white hover:bg-red-700"
+              }
               onClick={() => settle(true)}
             >
               {options?.confirmLabel ?? "Eliminar"}

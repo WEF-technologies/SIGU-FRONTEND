@@ -64,7 +64,7 @@ export const useApiErrorToast = (error: unknown, fallbackMessage: string) => {
 
     if (isSessionExpiredError(error)) return;
 
-    console.error("Troubleshooting request failed:", error);
+    console.error("Request failed:", error);
     toast({
       title: "Error",
       description: getErrorMessage(error, fallbackMessage),

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { suppliersApi, SuppliersApiError } from "@/services/suppliersApi";
@@ -11,12 +12,15 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+export type DeleteSupplierResult = "deleted" | "has-purchases" | "error";
+
 const isMissingEndpointError = (error: unknown) =>
   error instanceof SuppliersApiError && error.status === 404;
 
 export const useSuppliers = () => {
   const authenticatedFetch = useAuthenticatedFetch();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
@@ -69,6 +73,8 @@ export const useSuppliers = () => {
   const updateSupplier = async (supplierId: string, payload: SupplierPayload) => {
     try {
       await suppliersApi.update(authenticatedFetch, supplierId, payload);
+      // El historial de compras lee el proveedor con React Query (nombre y estado).
+      void queryClient.invalidateQueries({ queryKey: ["suppliers", "detail", supplierId] });
       toast({ title: "Proveedor actualizado", description: `${payload.name} fue actualizado correctamente.` });
       await fetchSuppliers(lastFiltersRef.current);
       return true;
@@ -83,20 +89,30 @@ export const useSuppliers = () => {
     }
   };
 
-  const deleteSupplier = async (supplier: Supplier) => {
+  /**
+   * "has-purchases": el backend responde 409 si el proveedor tiene compras
+   * registradas (el historial no se borra). No se avisa aqui: la pantalla
+   * ofrece marcarlo como inactivo, que es lo que el backend sugiere.
+   */
+  const deleteSupplier = async (supplier: Supplier): Promise<DeleteSupplierResult> => {
     try {
       await suppliersApi.remove(authenticatedFetch, supplier.id);
       toast({ title: "Proveedor eliminado", description: `${supplier.name} fue eliminado correctamente.` });
       await fetchSuppliers(lastFiltersRef.current);
-      return true;
+      return "deleted";
     } catch (error) {
+      if (error instanceof SuppliersApiError && error.status === 409) {
+        return "has-purchases";
+      }
+      if (isSessionExpiredError(error)) return "error";
+
       console.error("Error deleting supplier:", error);
       toast({
         title: "Error",
         description: getErrorMessage(error, "No se pudo eliminar el proveedor."),
         variant: "destructive",
       });
-      return false;
+      return "error";
     }
   };
 

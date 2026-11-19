@@ -5,6 +5,8 @@ export interface ConfirmOptions {
   description?: ReactNode;
   /** Texto del boton que confirma. Por defecto "Eliminar". */
   confirmLabel?: string;
+  /** "destructive" (rojo, por defecto) o "default" para acciones que no borran. */
+  confirmVariant?: "destructive" | "default";
 }
 
 export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;

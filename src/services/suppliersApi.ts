@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/apiClient";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
 import { getSafeExternalUrl } from "@/lib/utils";
 import { Supplier, SupplierFilters, SupplierPayload } from "@/types";
@@ -15,17 +16,14 @@ interface BackendErrorPayload {
   details?: unknown;
 }
 
-export class SuppliersApiError extends Error {
-  status: number;
-  code?: string;
-  details?: unknown;
-
+/**
+ * Extiende el `ApiError` compartido para que React Query no reintente los 4xx
+ * (`shouldRetryRequest`) y los modulos puedan leer `status` sin distinguir.
+ */
+export class SuppliersApiError extends ApiError {
   constructor(status: number, message: string, code?: string, details?: unknown) {
-    super(message);
+    super(status, message, code, details);
     this.name = "SuppliersApiError";
-    this.status = status;
-    this.code = code;
-    this.details = details;
   }
 }
 
