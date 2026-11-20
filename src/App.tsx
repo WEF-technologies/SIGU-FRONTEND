@@ -25,6 +25,7 @@ const Trips = lazy(() => import("./pages/Trips"));
 const Tools = lazy(() => import("./pages/Tools"));
 const Dotation = lazy(() => import("./pages/Dotation"));
 const Suppliers = lazy(() => import("./pages/Suppliers"));
+const SupplierPurchases = lazy(() => import("./pages/SupplierPurchases"));
 const Troubleshooting = lazy(() => import("./pages/Troubleshooting"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -80,6 +81,7 @@ const App = () => (
                         <Route path="/herramientas" element={<Tools />} />
                         <Route path="/dotacion" element={<Dotation />} />
                         <Route path="/proveedores" element={<Suppliers />} />
+                        <Route path="/proveedores/:supplierId/compras" element={<SupplierPurchases />} />
                         <Route path="/viajes" element={<Trips />} />
                         <Route path="/manual-fallas" element={<Troubleshooting />} />
                         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
