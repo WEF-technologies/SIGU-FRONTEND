@@ -109,7 +109,11 @@ export default function SupplierPurchases() {
 
   const supplier = supplierQuery.data;
   const purchases = useMemo(() => purchasesQuery.data ?? [], [purchasesQuery.data]);
-  const isSupplierMissing = isNotFoundError(supplierQuery.error) || isNotFoundError(purchasesQuery.error);
+  // Solo el GET del proveedor decide si el proveedor no existe. Un 404 del
+  // historial con el proveedor cargado significa que el backend desplegado aun
+  // no tiene el endpoint de compras (FastAPI responde "Not Found" a la ruta).
+  const isSupplierMissing = isNotFoundError(supplierQuery.error);
+  const isHistoryUnavailable = Boolean(supplier) && isNotFoundError(purchasesQuery.error);
   const isSupplierInactive = isInactiveStatus(supplier?.status);
   const activePreset = getActivePreset(dateFrom, dateTo);
   const hasFilters = Boolean(dateFrom || dateTo || searchTerm.trim());
@@ -340,7 +344,7 @@ export default function SupplierPurchases() {
           <Button
             onClick={openCreate}
             // Sin proveedor cargado no se sabe si esta activo; el backend rechaza los inactivos.
-            disabled={!supplier || isSupplierInactive}
+            disabled={!supplier || isSupplierInactive || isHistoryUnavailable}
             className="bg-primary text-white hover:bg-primary-600"
           >
             <Plus className="h-4 w-4" />
@@ -348,6 +352,17 @@ export default function SupplierPurchases() {
           </Button>
         </div>
       </div>
+
+      {isHistoryUnavailable ? (
+        <Alert variant="destructive">
+          <Ban className="h-4 w-4" />
+          <AlertTitle>El historial de compras no esta disponible</AlertTitle>
+          <AlertDescription>
+            El servidor no reconoce esta funcion todavia. Es probable que la version del backend con el historial de
+            compras aun no este desplegada. Intenta de nuevo mas tarde o avisa al administrador del sistema.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {isSupplierInactive ? (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
@@ -360,119 +375,124 @@ export default function SupplierPurchases() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {summaryCards.map((card) => (
-          <Card key={card.title}>
-            <CardContent className="flex items-center justify-between gap-3 p-6">
-              <div className="min-w-0">
-                <p className="text-sm text-secondary-dark">{card.title}</p>
-                {/* Montos grandes parten linea en lugar de cortarse con "...". */}
-                <p className="mt-2 text-2xl font-bold tabular-nums text-primary-900 [overflow-wrap:anywhere]">
+      {/* Sin el endpoint no hay datos que resumir ni filtrar: solo se muestra el aviso. */}
+      {!isHistoryUnavailable ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {summaryCards.map((card) => (
+              <Card key={card.title}>
+                <CardContent className="flex items-center justify-between gap-3 p-6">
+                  <div className="min-w-0">
+                    <p className="text-sm text-secondary-dark">{card.title}</p>
+                    {/* Montos grandes parten linea en lugar de cortarse con "...". */}
+                    <p className="mt-2 text-2xl font-bold tabular-nums text-primary-900 [overflow-wrap:anywhere]">
 
-                  {purchasesQuery.isLoading ? "..." : card.value}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">{card.hint}</p>
-              </div>
-              {/* Con 4 columnas (xl) el icono le quita espacio a los montos grandes. */}
-              <div className="shrink-0 rounded-full bg-primary-50 p-3 text-primary xl:hidden 2xl:block">
-                <card.icon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                      {purchasesQuery.isLoading ? "..." : card.value}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">{card.hint}</p>
+                  </div>
+                  {/* Con 4 columnas (xl) el icono le quita espacio a los montos grandes. */}
+                  <div className="shrink-0 rounded-full bg-primary-50 p-3 text-primary xl:hidden 2xl:block">
+                    <card.icon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
 
-      <FilterPanel
-        title="Filtros"
-        activeCount={[dateFrom || dateTo, searchTerm.trim()].filter(Boolean).length}
-        onClear={clearFilters}
-        gridClassName="xl:grid-cols-3"
-        headerExtra={
-          purchasesQuery.isFetching && !purchasesQuery.isLoading ? (
-            <span className="text-xs text-secondary-dark">Actualizando...</span>
-          ) : null
-        }
-        footer={
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-primary-900">Periodo:</span>
-              {RANGE_PRESETS.map((preset) => (
-                <Button
-                  key={preset.value}
-                  type="button"
-                  size="sm"
-                  variant={activePreset === preset.value ? "default" : "outline"}
-                  className={
-                    activePreset === preset.value
-                      ? "bg-primary text-white hover:bg-primary-600"
-                      : "border-primary-200 text-primary hover:bg-primary-50"
-                  }
-                  onClick={() => applyPreset(preset.value)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
+          <FilterPanel
+            title="Filtros"
+            activeCount={[dateFrom || dateTo, searchTerm.trim()].filter(Boolean).length}
+            onClear={clearFilters}
+            gridClassName="xl:grid-cols-3"
+            headerExtra={
+              purchasesQuery.isFetching && !purchasesQuery.isLoading ? (
+                <span className="text-xs text-secondary-dark">Actualizando...</span>
+              ) : null
+            }
+            footer={
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-primary-900">Periodo:</span>
+                  {RANGE_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.value}
+                      type="button"
+                      size="sm"
+                      variant={activePreset === preset.value ? "default" : "outline"}
+                      className={
+                        activePreset === preset.value
+                          ? "bg-primary text-white hover:bg-primary-600"
+                          : "border-primary-200 text-primary hover:bg-primary-50"
+                      }
+                      onClick={() => applyPreset(preset.value)}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+                {isRangeInvalid ? (
+                  <p className="text-sm text-red-600">La fecha "Desde" debe ser anterior o igual a la fecha "Hasta".</p>
+                ) : null}
+              </div>
+            }
+          >
+            <FilterField label="Buscar" htmlFor="purchase-search">
+              <SearchFilter
+                id="purchase-search"
+                className="w-full"
+                placeholder="Descripcion o numero de factura..."
+                value={searchTerm}
+                onChange={setSearchTerm}
+              />
+            </FilterField>
+            <FilterField label="Desde" htmlFor="purchase-date-from">
+              <Input
+                id="purchase-date-from"
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(event) => setDateFrom(event.target.value)}
+                aria-invalid={isRangeInvalid}
+              />
+            </FilterField>
+            <FilterField label="Hasta" htmlFor="purchase-date-to">
+              <Input
+                id="purchase-date-to"
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(event) => setDateTo(event.target.value)}
+                aria-invalid={isRangeInvalid}
+              />
+            </FilterField>
+          </FilterPanel>
+
+          <DataTable
+            title="Compras registradas"
+            data={isRangeInvalid ? [] : purchases}
+            columns={columns}
+            isLoading={purchasesQuery.isLoading || supplierQuery.isLoading}
+            defaultSort={{ key: "purchase_date", direction: "desc" }}
+            initialPageSize={20}
+            hideAddButton
+            mobileTitle={(purchase) => (
+              <div className="flex items-baseline justify-between gap-3">
+                <span>{formatDateOnly(purchase.purchase_date)}</span>
+                <span className="tabular-nums text-primary-900">{formatAmount(purchase.amount)}</span>
+              </div>
+            )}
+          />
+
+          {!purchasesQuery.isLoading && purchases.length > 0 && !isRangeInvalid ? (
+            <div className="flex justify-end">
+              <p className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-2 text-sm text-primary-900">
+                Total {periodLabel}:{" "}
+                <span className="font-semibold tabular-nums">{formatAmount(summary.totalCents)}</span>
+              </p>
             </div>
-            {isRangeInvalid ? (
-              <p className="text-sm text-red-600">La fecha "Desde" debe ser anterior o igual a la fecha "Hasta".</p>
-            ) : null}
-          </div>
-        }
-      >
-        <FilterField label="Buscar" htmlFor="purchase-search">
-          <SearchFilter
-            id="purchase-search"
-            className="w-full"
-            placeholder="Descripcion o numero de factura..."
-            value={searchTerm}
-            onChange={setSearchTerm}
-          />
-        </FilterField>
-        <FilterField label="Desde" htmlFor="purchase-date-from">
-          <Input
-            id="purchase-date-from"
-            type="date"
-            value={dateFrom}
-            max={dateTo || undefined}
-            onChange={(event) => setDateFrom(event.target.value)}
-            aria-invalid={isRangeInvalid}
-          />
-        </FilterField>
-        <FilterField label="Hasta" htmlFor="purchase-date-to">
-          <Input
-            id="purchase-date-to"
-            type="date"
-            value={dateTo}
-            min={dateFrom || undefined}
-            onChange={(event) => setDateTo(event.target.value)}
-            aria-invalid={isRangeInvalid}
-          />
-        </FilterField>
-      </FilterPanel>
-
-      <DataTable
-        title="Compras registradas"
-        data={isRangeInvalid ? [] : purchases}
-        columns={columns}
-        isLoading={purchasesQuery.isLoading || supplierQuery.isLoading}
-        defaultSort={{ key: "purchase_date", direction: "desc" }}
-        initialPageSize={20}
-        hideAddButton
-        mobileTitle={(purchase) => (
-          <div className="flex items-baseline justify-between gap-3">
-            <span>{formatDateOnly(purchase.purchase_date)}</span>
-            <span className="tabular-nums text-primary-900">{formatAmount(purchase.amount)}</span>
-          </div>
-        )}
-      />
-
-      {!purchasesQuery.isLoading && purchases.length > 0 && !isRangeInvalid ? (
-        <div className="flex justify-end">
-          <p className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-2 text-sm text-primary-900">
-            Total {periodLabel}:{" "}
-            <span className="font-semibold tabular-nums">{formatAmount(summary.totalCents)}</span>
-          </p>
-        </div>
+          ) : null}
+        </>
       ) : null}
 
       <FormModal
