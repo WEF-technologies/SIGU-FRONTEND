@@ -60,19 +60,26 @@ export function AlertSummaryBanner({
 
   if (criticalCount > 0) {
     return (
+      // Fondo suave en lugar de rojo solido y sin animacion: se nota sin dominar
+      // la pantalla, y el rojo queda para lo que de verdad esta vencido.
       <div
         role="alert"
-        className="flex flex-col gap-3 rounded-lg bg-red-600 p-4 text-white shadow-md sm:flex-row sm:items-center sm:justify-between"
+        className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-900 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="flex items-start gap-3">
-          <Siren className="mt-0.5 h-6 w-6 shrink-0 animate-pulse" />
+          <Siren className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
           <div>
-            <p className="text-lg font-bold leading-tight">{critical.title}</p>
-            {critical.description ? <p className="mt-0.5 text-sm text-red-100">{critical.description}</p> : null}
+            <p className="font-semibold">{critical.title}</p>
+            {critical.description ? <p className="text-sm text-red-800">{critical.description}</p> : null}
           </div>
         </div>
         {onShowAlerts && (
-          <Button type="button" onClick={onShowAlerts} className="shrink-0 bg-white text-red-700 hover:bg-red-50">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onShowAlerts}
+            className="shrink-0 border-red-300 bg-white text-red-700 hover:bg-red-100"
+          >
             {showAlertsLabel}
           </Button>
         )}
@@ -108,12 +115,11 @@ export function AlertSummaryBanner({
   }
 
   return (
-    <div role="status" className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
-      <CheckCircle className="h-5 w-5 shrink-0 text-green-600" />
-      <div>
-        <p className="font-semibold">{ok.title}</p>
-        {ok.description ? <p className="text-sm text-green-700">{ok.description}</p> : null}
-      </div>
-    </div>
+    // Sin pendientes basta una linea: un recuadro verde grande no aporta nada.
+    <p role="status" className="flex items-center gap-2 text-sm text-green-800">
+      <CheckCircle className="h-4 w-4 shrink-0 text-green-600" />
+      <span className="font-medium">{ok.title}</span>
+      {ok.description ? <span className="hidden text-green-700 sm:inline">{ok.description}</span> : null}
+    </p>
   );
 }

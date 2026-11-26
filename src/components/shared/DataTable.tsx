@@ -48,6 +48,11 @@ interface DataTableProps<T extends { id: string }> {
    * (que entonces no se repite en el cuerpo de la tarjeta).
    */
   mobileTitle?: (item: T) => ReactNode;
+  /**
+   * Controles a la izquierda de la cabecera (filtros en linea). Permite tener
+   * filtros, busqueda y accion en una sola fila en lugar de una tarjeta aparte.
+   */
+  toolbar?: ReactNode;
 }
 
 const toComparableValue = (value: unknown): string | number | null => {
@@ -106,6 +111,7 @@ export function DataTable<T extends { id: string }>({
   showPagination = true,
   hideAddButton = false,
   mobileTitle,
+  toolbar,
 }: DataTableProps<T>) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState<keyof T | null>(defaultSort?.key ?? null);
@@ -224,13 +230,19 @@ export function DataTable<T extends { id: string }>({
       : String(item[column.key as keyof T] ?? "-");
 
   const renderDefaultActions = (item: T, large = false) => (
-    <div className="flex gap-2">
+    // En la tabla, iconos discretos (como RowActions); en las tarjetas de movil,
+    // botones con texto, mas faciles de tocar.
+    <div className={large ? "flex gap-2" : "flex justify-end gap-1"}>
       {onEdit && (
         <Button
-          variant="outline"
+          variant={large ? "outline" : "ghost"}
           size="sm"
           onClick={() => onEdit(item)}
-          className={`border-primary-200 text-primary hover:bg-primary-50 ${large ? "h-10 flex-1 gap-1.5" : ""}`}
+          className={
+            large
+              ? "h-10 flex-1 gap-1.5 border-primary-200 text-primary hover:bg-primary-50"
+              : "h-8 w-8 p-0 text-gray-500 hover:bg-primary-50 hover:text-primary"
+          }
           title="Editar"
           aria-label="Editar"
         >
@@ -240,10 +252,14 @@ export function DataTable<T extends { id: string }>({
       )}
       {onDelete && (
         <Button
-          variant="outline"
+          variant={large ? "outline" : "ghost"}
           size="sm"
           onClick={() => onDelete(item)}
-          className={`border-red-200 text-red-600 hover:bg-red-50 ${large ? "h-10 flex-1 gap-1.5" : ""}`}
+          className={
+            large
+              ? "h-10 flex-1 gap-1.5 border-red-200 text-red-600 hover:bg-red-50"
+              : "h-8 w-8 p-0 text-gray-500 hover:bg-red-50 hover:text-red-600"
+          }
           title="Eliminar"
           aria-label="Eliminar"
         >
@@ -308,7 +324,14 @@ export function DataTable<T extends { id: string }>({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-        <h2 className="text-2xl font-bold text-primary-900">{title}</h2>
+        {title || toolbar ? (
+          <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center">
+            {title ? <h2 className="text-2xl font-bold text-primary-900">{title}</h2> : null}
+            {toolbar}
+          </div>
+        ) : (
+          <span aria-hidden="true" />
+        )}
         <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:flex-wrap md:items-center">
           {searchableByLocalFields && (
             <SearchFilter

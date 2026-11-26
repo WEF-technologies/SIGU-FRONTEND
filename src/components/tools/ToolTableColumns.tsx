@@ -1,19 +1,19 @@
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Column } from "@/components/shared/DataTable";
 import { ExpiryCell } from "@/components/shared/ExpiryCell";
+import { RowActions } from "@/components/shared/RowActions";
+import { StatusDot, type StatusDotTone } from "@/components/shared/StatusDot";
 import { TwoLineCell } from "@/components/shared/TwoLineCell";
 import { formatDateOnly } from "@/lib/dates";
 import { describeExpiry, getExpiryTone } from "@/lib/expiry";
 import { CalendarClock } from "lucide-react";
-import { ToolActions } from "./ToolActions";
 import { ToolRow } from "./toolExpiry";
 
-const statusConfig: Record<ToolRow["status"], { label: string; className: string }> = {
-  disponible: { label: "Disponible", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  en_uso: { label: "En uso", className: "border-blue-200 bg-blue-50 text-blue-700" },
-  en_mantenimiento: { label: "En mantenimiento", className: "border-violet-200 bg-violet-50 text-violet-700" },
-  retirada: { label: "Retirada", className: "border-slate-200 bg-slate-100 text-slate-600" },
+const statusConfig: Record<ToolRow["status"], { label: string; tone: StatusDotTone }> = {
+  disponible: { label: "Disponible", tone: "green" },
+  en_uso: { label: "En uso", tone: "blue" },
+  en_mantenimiento: { label: "En mantenimiento", tone: "violet" },
+  retirada: { label: "Retirada", tone: "gray" },
 };
 
 const toolCell = (tool: ToolRow) => <TwoLineCell primary={tool.name} secondary={tool.code} />;
@@ -45,7 +45,7 @@ interface ToolTableColumnsProps {
 
 export const getToolTableColumns = ({ onViewDetails, onEdit, onDelete }: ToolTableColumnsProps): Column<ToolRow>[] => [
   { key: "name", header: "Herramienta", render: (_, tool) => toolCell(tool) },
-  { key: "category", header: "Categoría" },
+  // La categoria queda como filtro y en el detalle: en la tabla no ayudaba a decidir.
   { key: "location", header: "Ubicación", render: (_, tool) => locationCell(tool) },
   { key: "expiry_date", header: "Vencimiento", render: (_, tool) => expiryCell(tool), sortValue: expirySortValue },
   {
@@ -53,19 +53,20 @@ export const getToolTableColumns = ({ onViewDetails, onEdit, onDelete }: ToolTab
     header: "Estado",
     render: (value) => {
       const cfg = statusConfig[value as ToolRow["status"]] ?? statusConfig.disponible;
-      return (
-        <Badge variant="outline" className={cfg.className}>
-          {cfg.label}
-        </Badge>
-      );
+      return <StatusDot label={cfg.label} tone={cfg.tone} />;
     },
   },
   {
     key: "actions",
-    header: "Acciones",
+    header: "",
     sortable: false,
     render: (_, tool) => (
-      <ToolActions tool={tool} onViewDetails={onViewDetails} onEdit={onEdit} onDelete={onDelete} />
+      <RowActions
+        label={tool.name}
+        onView={() => onViewDetails(tool)}
+        onEdit={() => onEdit(tool)}
+        onDelete={() => onDelete(tool)}
+      />
     ),
   },
 ];
@@ -83,9 +84,9 @@ export const getToolAlertColumns = ({ onEdit }: Pick<ToolTableColumnsProps, "onE
       <Button
         type="button"
         size="sm"
-        variant="outline"
+        variant="ghost"
         onClick={() => onEdit(tool)}
-        className="border-primary-200 text-primary hover:bg-primary-50"
+        className="text-primary hover:bg-primary-50 hover:text-primary"
       >
         <CalendarClock className="mr-1.5 h-4 w-4" />
         Actualizar vencimiento

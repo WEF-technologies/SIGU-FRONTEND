@@ -31,7 +31,7 @@ export function SectionSwitch<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="inline-flex flex-wrap gap-1 rounded-lg border border-secondary-medium bg-secondary-light/60 p-1"
+      className="inline-flex w-fit flex-wrap gap-1 rounded-lg border border-secondary-medium bg-white p-1"
     >
       {options.map((option) => {
         const isActive = option.value === value;
@@ -44,10 +44,8 @@ export function SectionSwitch<T extends string>({
             aria-selected={isActive}
             onClick={() => onChange(option.value)}
             className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              isActive
-                ? "bg-white text-primary-900 shadow-sm"
-                : "text-secondary-dark hover:text-primary-900"
+              "flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              isActive ? "bg-primary text-white" : "text-gray-600 hover:bg-primary-50 hover:text-primary"
             )}
           >
             {option.label}
@@ -57,7 +55,7 @@ export function SectionSwitch<T extends string>({
               <span
                 className={cn(
                   "rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none",
-                  isActive ? "bg-primary text-white" : "bg-secondary-medium text-primary-900"
+                  isActive ? "bg-white/20 text-white" : "bg-secondary-light text-gray-700"
                 )}
               >
                 {option.count}

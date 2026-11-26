@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { createContext, ReactNode, useContext, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ALL_FILTER_VALUE, FilterOption } from "@/lib/filtering";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronUp, Filter, X } from "lucide-react";
+
+/** Dentro de una barra los rotulos se integran en el control para ocupar una sola linea. */
+const CompactFiltersContext = createContext(false);
 
 interface FilterPanelProps {
   title?: string;
@@ -21,6 +24,12 @@ interface FilterPanelProps {
   footer?: ReactNode;
   className?: string;
   gridClassName?: string;
+  /**
+   * "card" (por defecto): tarjeta con titulo y grilla.
+   * "toolbar": filtros en linea, sin tarjeta, pensados para ir en la cabecera
+   * de la tabla (prop `toolbar` de DataTable).
+   */
+  variant?: "card" | "toolbar";
 }
 
 /**
@@ -37,8 +46,43 @@ export function FilterPanel({
   footer,
   className,
   gridClassName,
+  variant = "card",
 }: FilterPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  if (variant === "toolbar") {
+    return (
+      <CompactFiltersContext.Provider value={true}>
+        <div className={cn("space-y-2", className)}>
+          <div role="group" aria-label={title} className="flex flex-wrap items-center gap-2">
+            {children}
+            {advanced && showAdvanced ? advanced : null}
+            {advanced ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAdvanced((prev) => !prev)}
+                aria-expanded={showAdvanced}
+                className="text-gray-600"
+              >
+                {showAdvanced ? <ChevronUp className="mr-1 h-4 w-4" /> : <ChevronDown className="mr-1 h-4 w-4" />}
+                {showAdvanced ? "Menos filtros" : "Más filtros"}
+              </Button>
+            ) : null}
+            {activeCount > 0 ? (
+              <Button type="button" variant="ghost" size="sm" onClick={onClear} className="text-gray-600">
+                <X className="mr-1 h-4 w-4" />
+                Limpiar
+              </Button>
+            ) : null}
+            {headerExtra}
+          </div>
+          {footer}
+        </div>
+      </CompactFiltersContext.Provider>
+    );
+  }
 
   return (
     <Card className={cn("space-y-4 p-4", className)}>
@@ -93,6 +137,19 @@ interface FilterFieldProps {
 }
 
 export function FilterField({ label, htmlFor, children, className }: FilterFieldProps) {
+  const compact = useContext(CompactFiltersContext);
+
+  if (compact) {
+    return (
+      <div className={cn("flex items-center gap-2", className)}>
+        <Label htmlFor={htmlFor} className="whitespace-nowrap text-sm font-normal text-gray-600">
+          {label}
+        </Label>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
@@ -132,6 +189,39 @@ export function FilterSelect({
   const validOptions = options.filter((option) => option.value && option.value !== ALL_FILTER_VALUE);
   // Un valor aplicado que ya no esta en la lista se sigue mostrando para poder quitarlo.
   const isMissing = selected !== ALL_FILTER_VALUE && !validOptions.some((option) => option.value === selected);
+  const compact = useContext(CompactFiltersContext);
+
+  if (compact) {
+    // En la barra el rotulo va dentro del desplegable: "Estado: Todas".
+    return (
+      <div className={className}>
+        <Label htmlFor={id} className="sr-only">
+          {label}
+        </Label>
+        <Select
+          value={selected}
+          onValueChange={(next) => onChange(next === ALL_FILTER_VALUE ? "" : next)}
+          disabled={disabled}
+        >
+          <SelectTrigger id={id} className="h-9 w-auto min-w-[9rem] gap-1.5 bg-white">
+            <span className="text-gray-500" aria-hidden="true">
+              {label}:
+            </span>
+            <SelectValue placeholder={allLabel} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_FILTER_VALUE}>{allLabel}</SelectItem>
+            {isMissing && <SelectItem value={selected}>{selected}</SelectItem>}
+            {validOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
 
   return (
     <FilterField label={label} htmlFor={id} className={className}>
