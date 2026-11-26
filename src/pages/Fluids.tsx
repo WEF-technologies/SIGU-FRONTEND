@@ -659,9 +659,9 @@ export default function Fluids() {
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => resolveAlert(row)}
-          className="border-primary-200 text-primary hover:bg-primary-50"
+          className="text-primary hover:bg-primary-50 hover:text-primary"
         >
           {row.kind === "stock" ? (
             <>
@@ -715,7 +715,7 @@ export default function Fluids() {
       render: (_, item) => withUnit(item.min_stock_quantity, item.unit),
       sortValue: (item) => item.min_stock_quantity,
     },
-    { key: "actions", header: "Acciones", sortable: false },
+    { key: "actions", header: "", sortable: false },
   ];
 
   const ruleColumns: Column<FluidRule>[] = [
@@ -750,7 +750,7 @@ export default function Fluids() {
       render: (value: number) => `${formatNumber(value)} L`,
       sortValue: (item) => item.capacity_liters,
     },
-    { key: "actions", header: "Acciones", sortable: false },
+    { key: "actions", header: "", sortable: false },
   ];
 
   const serviceColumns: Column<FluidService>[] = [
@@ -827,14 +827,21 @@ export default function Fluids() {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <PageHeader
         title="Fluidos"
         description="Servicios de fluidos por unidad, inventario de productos y alertas."
         actions={
-          <Button variant="outline" onClick={() => void loadData(true)} disabled={isRefreshing || isLoadingData}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Actualizar
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void loadData(true)}
+            disabled={isRefreshing || isLoadingData}
+            className="border-primary-200 text-primary hover:bg-primary-50"
+            aria-label="Actualizar"
+            title="Actualizar"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
         }
       />
@@ -863,7 +870,7 @@ export default function Fluids() {
       />
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 gap-2">
+        <TabsList className="h-auto w-full justify-start sm:w-auto">
           <TabsTrigger value="alertas" className="gap-2">
             Alertas
             <AlertCountBadge criticalCount={criticalAlerts.length} warningCount={warningCount} />
@@ -873,68 +880,69 @@ export default function Fluids() {
         </TabsList>
 
         <TabsContent value="alertas" className="space-y-4">
-          <FilterPanel
-            title="Filtros"
-            activeCount={countActiveFilters(Object.values(alertFilters))}
-            onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
-            advanced={
-              <FilterSelect
-                id="fluid-alert-kind"
-                label="Tipo"
-                value={alertFilters.kind}
-                onChange={(value) => setAlertFilters((prev) => ({ ...prev, kind: value }))}
-                options={ALERT_KIND_OPTIONS}
-              />
-            }
-          >
-            <FilterSelect
-              id="fluid-alert-tone"
-              label="Estado"
-              value={alertFilters.tone}
-              onChange={(value) => setAlertFilters((prev) => ({ ...prev, tone: value }))}
-              options={ALERT_TONE_OPTIONS}
-              allLabel="Todas"
-            />
-          </FilterPanel>
-
           <DataTable
             data={alertRows}
             columns={alertColumns}
-            title="Alertas de servicio y stock"
+            toolbar={
+              // Dos filtros cortos: en la barra, sin "Mas filtros".
+              <FilterPanel
+                variant="toolbar"
+                title="Filtros"
+                activeCount={countActiveFilters(Object.values(alertFilters))}
+                onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
+              >
+                <FilterSelect
+                  id="fluid-alert-tone"
+                  label="Estado"
+                  value={alertFilters.tone}
+                  onChange={(value) => setAlertFilters((prev) => ({ ...prev, tone: value }))}
+                  options={ALERT_TONE_OPTIONS}
+                  allLabel="Todas"
+                />
+                <FilterSelect
+                  id="fluid-alert-kind"
+                  label="Tipo"
+                  value={alertFilters.kind}
+                  onChange={(value) => setAlertFilters((prev) => ({ ...prev, kind: value }))}
+                  options={ALERT_KIND_OPTIONS}
+                />
+              </FilterPanel>
+            }
             hideAddButton
             isLoading={isLoadingData}
             searchFields={["vehicle_plate", "product_code", "product_name"]}
             searchAccessor={(row) =>
               `${row.view.label} ${row.view.detail} ${row.fluid_type ? FLUID_TYPE_LABELS[row.fluid_type] : ""}`
             }
-            searchPlaceholder="Buscar por unidad, producto o fluido..."
+            searchPlaceholder="Buscar unidad o producto"
             defaultSort={{ key: "severity", direction: "asc" }}
             initialPageSize={20}
           />
         </TabsContent>
 
         <TabsContent value="unidades" className="space-y-4">
-          <SectionSwitch<UnitsView>
-            aria-label="Vista por unidad"
-            value={unitsView}
-            onChange={setUnitsView}
-            options={[
-              { value: "services", label: "Servicios", count: services.length },
-              { value: "rules", label: "Reglas de cambio", count: rules.length },
-            ]}
-          />
-
+          {/* El selector de vista va en la barra de la tabla: ya dice que se esta viendo. */}
           {unitsView === "services" ? (
             <DataTable
               data={services}
               columns={serviceColumns}
-              title="Servicios realizados"
+              toolbar={
+                <SectionSwitch<UnitsView>
+                  aria-label="Vista por unidad"
+                  value={unitsView}
+                  onChange={setUnitsView}
+                  options={[
+                    { value: "services", label: "Servicios", count: services.length },
+                    { value: "rules", label: "Reglas de cambio", count: rules.length },
+                  ]}
+                />
+              }
               addButtonText="Registrar consumo"
               onAdd={() => openServiceModal()}
               isLoading={isLoadingData}
               searchFields={["vehicle_plate", "product_code", "fluid_type", "notes"]}
               searchAccessor={(item) => FLUID_TYPE_LABELS[item.fluid_type]}
-              searchPlaceholder="Buscar por unidad, producto o fluido..."
+              searchPlaceholder="Buscar unidad o producto"
               defaultSort={{ key: "serviced_at", direction: "desc" }}
               initialPageSize={20}
             />
@@ -942,7 +950,17 @@ export default function Fluids() {
             <DataTable
               data={rules}
               columns={ruleColumns}
-              title="Reglas de cambio"
+              toolbar={
+                <SectionSwitch<UnitsView>
+                  aria-label="Vista por unidad"
+                  value={unitsView}
+                  onChange={setUnitsView}
+                  options={[
+                    { value: "services", label: "Servicios", count: services.length },
+                    { value: "rules", label: "Reglas de cambio", count: rules.length },
+                  ]}
+                />
+              }
               addButtonText="Nueva regla"
               onAdd={openNewRuleModal}
               onEdit={openEditRuleModal}
@@ -950,7 +968,7 @@ export default function Fluids() {
               isLoading={isLoadingData}
               searchFields={["vehicle_plate", "fluid_type", "product_code", "notes"]}
               searchAccessor={(item) => FLUID_TYPE_LABELS[item.fluid_type]}
-              searchPlaceholder="Buscar por unidad, fluido o producto..."
+              searchPlaceholder="Buscar unidad o producto"
               defaultSort={{ key: "vehicle_plate", direction: "asc" }}
               initialPageSize={20}
             />
@@ -958,21 +976,22 @@ export default function Fluids() {
         </TabsContent>
 
         <TabsContent value="inventario" className="space-y-4">
-          <SectionSwitch<InventoryView>
-            aria-label="Vista de inventario"
-            value={inventoryView}
-            onChange={setInventoryView}
-            options={[
-              { value: "products", label: "Productos", count: products.length },
-              { value: "movements", label: "Movimientos", count: movements.length },
-            ]}
-          />
-
+          {/* El selector de vista va en la barra de la tabla: ya dice que se esta viendo. */}
           {inventoryView === "products" ? (
             <DataTable
               data={products}
               columns={productColumns}
-              title="Productos"
+              toolbar={
+                <SectionSwitch<InventoryView>
+                  aria-label="Vista de inventario"
+                  value={inventoryView}
+                  onChange={setInventoryView}
+                  options={[
+                    { value: "products", label: "Productos", count: products.length },
+                    { value: "movements", label: "Movimientos", count: movements.length },
+                  ]}
+                />
+              }
               addButtonText="Nuevo producto"
               onAdd={openNewProductModal}
               onEdit={openEditProductModal}
@@ -980,7 +999,7 @@ export default function Fluids() {
               isLoading={isLoadingData}
               searchFields={["code", "name", "description", "fluid_type", "notes"]}
               searchAccessor={(item) => FLUID_TYPE_LABELS[item.fluid_type]}
-              searchPlaceholder="Buscar por código, nombre o fluido..."
+              searchPlaceholder="Buscar producto"
               defaultSort={{ key: "name", direction: "asc" }}
               initialPageSize={20}
             />
@@ -988,13 +1007,23 @@ export default function Fluids() {
             <DataTable
               data={movements}
               columns={movementColumns}
-              title="Movimientos de inventario"
+              toolbar={
+                <SectionSwitch<InventoryView>
+                  aria-label="Vista de inventario"
+                  value={inventoryView}
+                  onChange={setInventoryView}
+                  options={[
+                    { value: "products", label: "Productos", count: products.length },
+                    { value: "movements", label: "Movimientos", count: movements.length },
+                  ]}
+                />
+              }
               addButtonText="Registrar movimiento"
               onAdd={() => openMovementModal()}
               isLoading={isLoadingData}
               searchFields={["product_code", "movement_type", "notes", "reference"]}
               searchAccessor={(item) => MOVEMENT_LABELS[item.movement_type] ?? ""}
-              searchPlaceholder="Buscar por producto, movimiento o referencia..."
+              searchPlaceholder="Buscar movimiento"
               defaultSort={{ key: "moved_at", direction: "desc" }}
               initialPageSize={20}
             />

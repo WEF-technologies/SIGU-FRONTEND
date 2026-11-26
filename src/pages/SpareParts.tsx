@@ -12,13 +12,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { fetchAllPages } from "@/lib/apiClient";
 import { useConfirm } from "@/hooks/useConfirm";
+import { DataTable, type Column } from "@/components/shared/DataTable";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { RowActions } from "@/components/shared/RowActions";
+import { SearchFilter } from "@/components/shared/SearchFilter";
+import { TwoLineCell } from "@/components/shared/TwoLineCell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Plus, ShoppingCart, Search, Package, Car, MapPin,
-  Eye, Pencil, Trash2, AlertTriangle, Layers, ChevronDown, ChevronRight,
-} from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Plus, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { matchesSearch } from "@/lib/filtering";
 import { localizeApiErrorPayload } from "@/lib/errorI18n";
@@ -58,114 +60,54 @@ const getFitmentSearchText = (part: SparePart) =>
     .filter((value): value is string => Boolean(value && value.trim()))
     .join(" ");
 
-// ─── Tarjeta de repuesto en vista "Por Repuesto" ──────────────────────────────
-function SparePartCard({
-  part,
-  vehicleMap,
-  onView,
-  onEdit,
-  onDelete,
-}: {
-  part: SparePart;
-  vehicleMap: Map<string, Vehicle>;
-  onView: (p: SparePart) => void;
-  onEdit: (p: SparePart) => void;
-  onDelete: (p: SparePart) => void;
-}) {
-  const isLowStock = part.min_stock != null && part.quantity <= part.min_stock;
-  const fitmentCount = part.fitments?.length ?? 0;
-  const vehicles = (part.compatible_vehicles ?? [])
-    .map(plate => vehicleMap.get(plate))
-    .filter(Boolean) as Vehicle[];
+type StockTone = "out" | "low" | "ok";
 
+const getStockTone = (part: SparePart): StockTone => {
+  if (part.quantity <= 0) return "out";
+  if (part.min_stock != null && part.quantity <= part.min_stock) return "low";
+  return "ok";
+};
+
+/** Existencias: el numero manda; solo se marca lo agotado o bajo el minimo. */
+function StockCell({ part }: { part: SparePart }) {
+  const tone = getStockTone(part);
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-4 flex flex-col gap-3">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <span className="text-xs font-mono text-primary font-semibold bg-primary/8 px-2 py-0.5 rounded">
-            {part.code}
-          </span>
-          <p className="mt-1.5 font-semibold text-gray-800 text-sm leading-snug">{part.description}</p>
-        </div>
-        <div className="flex flex-col items-end shrink-0 gap-1">
-          <span className={cn(
-            "text-sm font-bold",
-            part.quantity === 0 ? "text-gray-400" : isLowStock ? "text-amber-600" : "text-green-600"
-          )}>
-            {part.quantity} uds
-          </span>
-          {isLowStock && (
-            <span className="flex items-center gap-0.5 text-xs text-amber-600">
-              <AlertTriangle className="h-3 w-3" /> Stock bajo
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Metadata */}
-      <div className="flex items-center gap-3 text-xs text-gray-500">
-        {part.company_location && (
-          <span className="flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {part.company_location}
-          </span>
-        )}
-        {fitmentCount > 0 && (
-          <Badge variant="outline" className="border-slate-200 text-slate-600">
-            {fitmentCount} regla{fitmentCount !== 1 ? "s" : ""}
-          </Badge>
-        )}
-        {part.unit_price != null ? (
-          <span className="ml-auto font-semibold text-gray-700">${part.unit_price.toLocaleString()}</span>
-        ) : (
-          <span className="ml-auto text-gray-300">Sin precio</span>
-        )}
-      </div>
-
-      {/* Vehículos */}
-      {vehicles.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {vehicles.map(v => (
-            <span
-              key={v.plate_number}
-              className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-md px-2 py-0.5"
-            >
-              <Car className="h-3 w-3 shrink-0" />
-              <span className="font-medium">{v.plate_number}</span>
-              <span className="text-blue-400">·</span>
-              <span className="text-blue-500">{v.brand} {v.model}</span>
-            </span>
-          ))}
-          {(part.compatible_vehicles ?? []).filter(p => !vehicleMap.has(p)).map(p => (
-            <span key={p} className="text-xs bg-gray-50 text-gray-500 border border-gray-200 rounded-md px-2 py-0.5">{p}</span>
-          ))}
-        </div>
-      ) : fitmentCount > 0 ? (
-        <p className="text-xs text-slate-500 italic">
-          Compatibilidad definida por ficha técnica ({fitmentCount} regla{fitmentCount !== 1 ? "s" : ""}).
-        </p>
-      ) : (
-        <p className="text-xs text-gray-400 italic">Sin vehículos asignados</p>
-      )}
-
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-1 pt-1 border-t border-gray-100">
-        <button onClick={() => onView(part)} className="p-1.5 rounded hover:bg-blue-50 text-blue-500" title="Ver detalles">
-          <Eye className="h-4 w-4" />
-        </button>
-        <button onClick={() => onEdit(part)} className="p-1.5 rounded hover:bg-amber-50 text-amber-500" title="Editar">
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button onClick={() => onDelete(part)} className="p-1.5 rounded hover:bg-red-50 text-red-500" title="Eliminar">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
+    <div className="whitespace-nowrap">
+      <p className={cn("font-semibold tabular-nums", tone === "out" ? "text-gray-400" : "text-gray-900")}>
+        {part.quantity} uds
+      </p>
+      {tone === "out" ? <p className="text-xs text-red-700">Agotado</p> : null}
+      {tone === "low" ? <p className="text-xs text-amber-700">Stock bajo</p> : null}
     </div>
   );
 }
 
-// ─── Tarjeta de vehículo en vista "Por Vehículo" ─────────────────────────────
-function VehiclePartsCard({
+/** Vehiculos compatibles en texto: placas separadas por coma, sin pastillas. */
+function CompatibleVehiclesCell({ part }: { part: SparePart }) {
+  const plates = part.compatible_vehicles ?? [];
+  const fitmentCount = part.fitments?.length ?? 0;
+
+  if (plates.length > 0) {
+    const shown = plates.slice(0, 3).join(", ");
+    return (
+      <p className="text-sm text-gray-700">
+        {shown}
+        {plates.length > 3 ? <span className="text-gray-500"> y {plates.length - 3} más</span> : null}
+      </p>
+    );
+  }
+  if (fitmentCount > 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        Por ficha técnica ({fitmentCount} {fitmentCount === 1 ? "regla" : "reglas"})
+      </p>
+    );
+  }
+  return <p className="text-sm text-gray-400">Sin vehículos</p>;
+}
+
+// ─── Vista "Por vehículo": un bloque por unidad con sus repuestos ──────────────
+function VehiclePartsGroup({
   vehicle,
   parts,
   onView,
@@ -176,74 +118,44 @@ function VehiclePartsCard({
   onView: (p: SparePart) => void;
   onEdit: (p: SparePart) => void;
 }) {
-  const [open, setOpen] = useState(true);
-  const lowStock = parts.filter(p => p.min_stock != null && p.quantity <= p.min_stock).length;
-
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <button
-        className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-        onClick={() => setOpen(o => !o)}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          {open ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
-          <Car className="h-5 w-5 text-primary shrink-0" />
-          <div className="min-w-0">
-            <span className="font-bold text-gray-800">{vehicle.plate_number}</span>
-            <span className="ml-2 text-sm text-gray-500">{vehicle.brand} {vehicle.model} · {vehicle.year}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {lowStock > 0 && (
-            <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-              <AlertTriangle className="h-3 w-3" /> {lowStock} bajo stock
-            </span>
-          )}
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-            {parts.length} repuesto{parts.length !== 1 ? "s" : ""}
+    <section className="overflow-hidden rounded-lg border border-secondary-medium bg-white" aria-label={vehicle.plate_number}>
+      <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-secondary-medium bg-secondary-light px-4 py-3">
+        <p className="font-semibold text-primary-900">
+          {vehicle.plate_number}
+          <span className="ml-2 text-sm font-normal text-gray-500">
+            {vehicle.brand} {vehicle.model} {vehicle.year}
           </span>
-        </div>
-      </button>
+        </p>
+        <p className="text-sm text-gray-500">
+          {parts.length} {parts.length === 1 ? "repuesto" : "repuestos"}
+        </p>
+      </header>
+      <ul className="divide-y divide-secondary-medium">
+        {parts.map((part) => (
+          <li key={part.id} className="flex items-center gap-4 px-4 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm text-gray-900">{part.description}</p>
+              <p className="text-xs text-gray-500">
+                {part.code}
+                {part.company_location ? `, ${part.company_location}` : ""}
+              </p>
+            </div>
+            <StockCell part={part} />
+            {/* Siempre visibles: en pantallas tactiles no existe "pasar el puntero". */}
+            <RowActions label={part.description} onView={() => onView(part)} onEdit={() => onEdit(part)} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
-      {open && (
-        <div className="border-t border-gray-100 divide-y divide-gray-50">
-          {parts.map(part => {
-            const isLowStock = part.min_stock != null && part.quantity <= part.min_stock;
-            return (
-              <div key={part.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 group">
-                <Package className="h-4 w-4 text-gray-300 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-xs font-mono text-primary font-semibold shrink-0">{part.code}</span>
-                    <span className="text-sm text-gray-700 truncate">{part.description}</span>
-                  </div>
-                  {part.company_location && (
-                    <span className="text-xs text-gray-400 flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />{part.company_location}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={cn(
-                    "text-sm font-semibold",
-                    part.quantity === 0 ? "text-gray-400" : isLowStock ? "text-amber-600" : "text-green-600"
-                  )}>
-                    {part.quantity} uds
-                  </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => onView(part)} className="p-1 rounded hover:bg-blue-50 text-blue-500">
-                      <Eye className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => onEdit(part)} className="p-1 rounded hover:bg-amber-50 text-amber-500">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+function EmptyMessage({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-secondary-medium bg-white px-6 py-12 text-center">
+      <p className="font-medium text-primary-900">{title}</p>
+      <p className="mt-1 text-sm text-secondary-dark">{description}</p>
     </div>
   );
 }
@@ -438,119 +350,160 @@ export default function SpareParts() {
     }
   };
 
-  const lowStockCount = spareParts.filter(p => p.min_stock != null && p.quantity <= p.min_stock).length;
+  const lowStockCount = spareParts.filter(p => getStockTone(p) !== "ok").length;
+
+  const columns: Column<SparePart>[] = [
+    {
+      key: "description",
+      header: "Repuesto",
+      render: (_, part) => <TwoLineCell primary={part.description} secondary={part.code} />,
+    },
+    {
+      key: "company_location",
+      header: "Ubicación",
+      render: (_, part) => <span className="text-sm text-gray-700">{part.company_location || "-"}</span>,
+    },
+    {
+      key: "compatible_vehicles",
+      header: "Vehículos",
+      sortable: false,
+      render: (_, part) => <CompatibleVehiclesCell part={part} />,
+    },
+    {
+      key: "quantity",
+      header: "Existencias",
+      sortValue: (part) => part.quantity,
+      render: (_, part) => <StockCell part={part} />,
+    },
+    {
+      key: "unit_price",
+      header: "Precio",
+      sortValue: (part) => part.unit_price ?? null,
+      render: (_, part) =>
+        part.unit_price != null ? (
+          <span className="whitespace-nowrap text-sm tabular-nums text-gray-900">${part.unit_price.toLocaleString("es-VE")}</span>
+        ) : (
+          <span className="text-sm text-gray-400">Sin precio</span>
+        ),
+    },
+    {
+      key: "actions",
+      header: "",
+      sortable: false,
+      render: (_, part) => (
+        <RowActions
+          label={part.description}
+          onView={() => handleViewDetails(part)}
+          onEdit={() => handleEdit(part)}
+          onDelete={() => void handleDelete(part)}
+        />
+      ),
+    },
+  ];
 
   return (
-    <div className="p-6 space-y-5 animate-fade-in">
-      {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-primary-900">Gestión de Repuestos</h1>
-          <p className="text-gray-500 mt-0.5 text-sm">
-            {spareParts.length} repuesto{spareParts.length !== 1 ? "s" : ""} registrados
-            {lowStockCount > 0 && (
-              <span className="ml-2 text-amber-600 font-medium">
-                · {lowStockCount} con stock bajo
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setIsRequestModalOpen(true)} variant="outline"
-            className="border-blue-200 text-blue-700 hover:bg-blue-50 gap-2">
-            <ShoppingCart className="h-4 w-4" /> Solicitar
-          </Button>
-          <Button onClick={handleAdd} className="bg-primary hover:bg-primary/90 text-white gap-2">
-            <Plus className="h-4 w-4" /> Agregar Repuesto
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6 p-6">
+      <PageHeader
+        title="Repuestos"
+        description={`${spareParts.length} ${spareParts.length === 1 ? "repuesto" : "repuestos"}${
+          lowStockCount > 0
+            ? `, ${lowStockCount} ${lowStockCount === 1 ? "agotado" : "agotados"} o con stock bajo`
+            : ""
+        }`}
+        actions={
+          <>
+            <Button
+              onClick={() => setIsRequestModalOpen(true)}
+              variant="outline"
+              className="border-primary-200 text-primary hover:bg-primary-50"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Solicitar
+            </Button>
+            <Button onClick={handleAdd} className="bg-primary text-white hover:bg-primary-600">
+              <Plus className="h-4 w-4" />
+              Agregar repuesto
+            </Button>
+          </>
+        }
+      />
 
-      {/* ── Controles: búsqueda + toggle de vista ── */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por código, descripción o vehículo..."
-            className="pl-9"
+      <section className="space-y-3" aria-label="Repuestos">
+        {/* Vista y busqueda en una sola linea, igual que en los demas modulos. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <ToggleGroup
+            type="single"
+            value={view}
+            onValueChange={(next) => next && setView(next as "parts" | "vehicles")}
+            aria-label="Agrupar"
+            className="w-fit justify-start rounded-lg border border-secondary-medium bg-white p-1"
+          >
+            {[
+              { value: "parts", label: "Por repuesto" },
+              { value: "vehicles", label: "Por vehículo" },
+            ].map((option) => (
+              <ToggleGroupItem
+                key={option.value}
+                value={option.value}
+                className="h-8 whitespace-nowrap px-3 text-gray-600 hover:bg-primary-50 hover:text-primary data-[state=on]:bg-primary data-[state=on]:text-white"
+              >
+                {option.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <div>
+            <Label htmlFor="spare-part-search" className="sr-only">
+              Buscar repuestos
+            </Label>
+            <SearchFilter
+              id="spare-part-search"
+              className="w-full sm:w-72"
+              placeholder="Código, descripción o placa"
+              value={search}
+              onChange={setSearch}
+            />
+          </div>
+        </div>
+
+        {view === "parts" ? (
+          filteredParts.length === 0 ? (
+            <EmptyMessage
+              title={search.trim() ? "Ningún repuesto coincide con la búsqueda" : "Aún no hay repuestos"}
+              description={search.trim() ? "Prueba con otro código, descripción o placa." : "Agrega el primero para empezar el inventario."}
+            />
+          ) : (
+            <DataTable
+              data={filteredParts}
+              columns={columns}
+              defaultSort={{ key: "description", direction: "asc" }}
+              initialPageSize={20}
+              hideAddButton
+              mobileTitle={(part) => <TwoLineCell primary={part.description} secondary={part.code} />}
+            />
+          )
+        ) : vehicleGroups.length === 0 ? (
+          <EmptyMessage
+            title={search.trim() ? "Ningún vehículo coincide con la búsqueda" : "Ningún vehículo tiene repuestos asignados"}
+            description="Asigna vehículos compatibles al editar cada repuesto."
           />
-        </div>
-        <div className="flex rounded-lg border border-gray-200 overflow-hidden shrink-0">
-          <button
-            onClick={() => setView('parts')}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors",
-              view === 'parts' ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-50"
-            )}
-          >
-            <Package className="h-4 w-4" /> Por Repuesto
-          </button>
-          <button
-            onClick={() => setView('vehicles')}
-            className={cn(
-              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-l border-gray-200",
-              view === 'vehicles' ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-50"
-            )}
-          >
-            <Car className="h-4 w-4" /> Por Vehículo
-          </button>
-        </div>
-      </div>
-
-      {/* ── Vista por Repuesto ── */}
-      {view === 'parts' && (
-        <>
-          {filteredParts.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <Layers className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">No se encontraron repuestos</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredParts.map(part => (
-                <SparePartCard
-                  key={part.id}
-                  part={part}
-                  vehicleMap={vehicleMap}
-                  onView={handleViewDetails}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── Vista por Vehículo ── */}
-      {view === 'vehicles' && (
-        <>
-          {vehicleGroups.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <Car className="h-10 w-10 mx-auto mb-3 opacity-30" />
-              <p className="font-medium">Ningún vehículo tiene repuestos asignados</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {vehicleGroups.map(({ vehicle, parts }) => (
-                <VehiclePartsCard
-                  key={vehicle.id}
-                  vehicle={vehicle}
-                  parts={parts}
-                  onView={handleViewDetails}
-                  onEdit={handleEdit}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+        ) : (
+          <div className="space-y-3">
+            {vehicleGroups.map(({ vehicle, parts }) => (
+              <VehiclePartsGroup
+                key={vehicle.id}
+                vehicle={vehicle}
+                parts={parts}
+                onView={handleViewDetails}
+                onEdit={handleEdit}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* ── Modals ── */}
       <FormModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}
-        title={editingSparePart ? "Editar Repuesto" : "Agregar Repuesto"}>
+        title={editingSparePart ? "Editar repuesto" : "Agregar repuesto"}>
         <SparePartForm
           sparePart={editingSparePart}
           vehicles={vehicles}
@@ -559,7 +512,7 @@ export default function SpareParts() {
         />
       </FormModal>
 
-      <FormModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} title="Solicitar Repuesto">
+      <FormModal isOpen={isRequestModalOpen} onClose={() => setIsRequestModalOpen(false)} title="Solicitar repuesto">
         <SparePartRequestForm
           onSubmit={handleSparePartRequest}
           onCancel={() => setIsRequestModalOpen(false)}

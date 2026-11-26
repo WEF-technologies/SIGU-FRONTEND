@@ -579,12 +579,15 @@ interface LoadErrorStateProps {
  * compras", que harian creer que el proveedor no tiene historial.
  */
 function LoadErrorState({ message, isRetrying, onRetry, hasFilters, onClearFilters }: LoadErrorStateProps) {
+  // Si el servidor no explica el error, el mensaje de respaldo repite el titulo.
+  const detail = message && !/^no se pudo cargar el historial/i.test(message) ? message : "";
+
   return (
     <div role="alert" className="rounded-lg border border-red-200 bg-white px-6 py-12 text-center">
       <AlertTriangle className="mx-auto h-6 w-6 text-red-600" aria-hidden="true" />
       <p className="mt-3 font-medium text-primary-900">No se pudo cargar el historial de compras</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-secondary-dark">
-        {message || "El servidor respondió con un error."} Si el problema continúa, avisa al administrador del
+        {detail || "El servidor respondió con un error."} Si el problema continúa, avisa al administrador del
         sistema.
       </p>
       <div className="mt-4 flex flex-wrap justify-center gap-2">

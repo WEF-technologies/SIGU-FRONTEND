@@ -6,6 +6,7 @@ import { AlertSummaryBanner } from "@/components/shared/AlertSummaryBanner";
 import { DataTable, type Column } from "@/components/shared/DataTable";
 import { FilterField, FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { SearchFilter } from "@/components/shared/SearchFilter";
 import { TwoLineCell } from "@/components/shared/TwoLineCell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -258,37 +260,13 @@ const DeferredSectionLoader = memo(({ message }: { message: string }) => {
 });
 
 const InitialDataLoader = memo(() => {
-  const dots = ["0ms", "120ms", "240ms"];
-
+  // Sin rebotes ni pulsos: un aviso y el esqueleto de la tabla bastan.
   return (
-    <Card className="p-6 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-emerald-50/60">
-      <div className="flex flex-col items-center justify-center gap-4">
-        <div className="relative">
-          <div className="h-14 w-14 rounded-full border-4 border-primary/25 animate-pulse" />
-          <Droplets className="w-7 h-7 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-bounce" />
-        </div>
-
-        <div className="text-center">
-          <p className="text-sm font-semibold text-primary-900">Cargando datos de combustible...</p>
-          <p className="text-xs text-gray-500">Estamos obteniendo unidades, cargas y lecturas.</p>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {dots.map((delay) => (
-            <span
-              key={delay}
-              className="h-2 w-2 rounded-full bg-primary animate-bounce"
-              style={{ animationDelay: delay }}
-            />
-          ))}
-        </div>
-
-        <div className="w-full max-w-3xl space-y-2 pt-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-8 w-full" />
-        </div>
-      </div>
+    <Card className="space-y-3 p-6">
+      <p className="text-sm text-gray-600">Cargando unidades, cargas y lecturas...</p>
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-8 w-full" />
     </Card>
   );
 });
@@ -474,20 +452,19 @@ const LogsByVehicle = memo(({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <p className="text-sm font-semibold text-primary-900">Cargas por unidad</p>
-            <p className="text-xs text-gray-500">Vista compacta por placa, con detalle al expandir.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={expandAll}>
+            <Button type="button" size="sm" variant="ghost" className="text-gray-600" onClick={expandAll}>
               Expandir todo
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={collapseAll}>
+            <Button type="button" size="sm" variant="ghost" className="text-gray-600" onClick={collapseAll}>
               Colapsar todo
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="hidden md:grid md:grid-cols-[minmax(220px,1.6fr)_120px_minmax(180px,1fr)_130px_130px_36px] gap-2 px-3 py-2 text-[11px] uppercase tracking-wide text-gray-500 border-b bg-gray-50">
+      <div className="hidden md:grid md:grid-cols-[minmax(220px,1.6fr)_120px_minmax(180px,1fr)_130px_130px_36px] gap-2 px-3 py-2 text-xs font-medium text-gray-600 border-b bg-gray-50">
         <span>Unidad</span>
         <span>Última</span>
         <span>Litros</span>
@@ -559,7 +536,7 @@ const LogsByVehicle = memo(({
                 <div className="mt-2 rounded-md border border-gray-100 bg-gray-50 overflow-x-auto">
                   <table className="w-full min-w-[640px]">
                     <thead>
-                      <tr className="text-[11px] uppercase tracking-wide text-gray-500 border-b">
+                      <tr className="text-xs font-medium text-gray-600 border-b">
                         <th className="text-left px-2 py-1.5 font-medium">Fecha</th>
                         <th className="text-left px-2 py-1.5 font-medium">Combustible</th>
                         <th className="text-left px-2 py-1.5 font-medium">Litros</th>
@@ -691,20 +668,19 @@ const ReadingsByVehicle = memo(({
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
             <p className="text-sm font-semibold text-primary-900">Lecturas por unidad</p>
-            <p className="text-xs text-gray-500">Vista compacta por placa, con detalle al expandir.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={expandAll}>
+            <Button type="button" size="sm" variant="ghost" className="text-gray-600" onClick={expandAll}>
               Expandir todo
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={collapseAll}>
+            <Button type="button" size="sm" variant="ghost" className="text-gray-600" onClick={collapseAll}>
               Colapsar todo
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="hidden md:grid md:grid-cols-[minmax(220px,1.5fr)_120px_minmax(180px,1fr)_130px_130px_36px] gap-2 px-3 py-2 text-[11px] uppercase tracking-wide text-gray-500 border-b bg-gray-50">
+      <div className="hidden md:grid md:grid-cols-[minmax(220px,1.5fr)_120px_minmax(180px,1fr)_130px_130px_36px] gap-2 px-3 py-2 text-xs font-medium text-gray-600 border-b bg-gray-50">
         <span>Unidad</span>
         <span>Actualizado</span>
         <span>Nivel</span>
@@ -775,7 +751,7 @@ const ReadingsByVehicle = memo(({
                 <div className="mt-2 rounded-md border border-gray-100 bg-gray-50 overflow-x-auto">
                   <table className="w-full min-w-[640px]">
                     <thead>
-                      <tr className="text-[11px] uppercase tracking-wide text-gray-500 border-b">
+                      <tr className="text-xs font-medium text-gray-600 border-b">
                         <th className="text-left px-2 py-1.5 font-medium">Fecha</th>
                         <th className="text-left px-2 py-1.5 font-medium">Combustible</th>
                         <th className="text-left px-2 py-1.5 font-medium">Lectura</th>
@@ -830,7 +806,8 @@ function HistoryToolbar<TSort extends string>({
   onViewModeChange,
 }: HistoryToolbarProps<TSort>) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-secondary-medium bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+    // Sin recuadro: es una linea de contexto sobre la tabla, no un bloque mas.
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600">{summary}</div>
       <div className="flex flex-wrap items-center gap-2">
         <Select value={sortValue} onValueChange={(value) => onSortChange(value as TSort)}>
@@ -1412,15 +1389,22 @@ export default function FuelPage() {
   const summarySeparator = <span className="text-gray-300">·</span>;
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Combustible"
         description="Cargas, lecturas y consumo de cada unidad."
         actions={
           <>
-            <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              Actualizar
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="border-primary-200 text-primary hover:bg-primary-50"
+              aria-label="Actualizar"
+              title="Actualizar"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1473,7 +1457,7 @@ export default function FuelPage() {
       {showInitialLoader ? <InitialDataLoader /> : null}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FuelTab)} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 gap-2">
+        <TabsList className="h-auto w-full justify-start sm:w-auto">
           <TabsTrigger value="alertas" className="gap-2">
             Alertas
             <AlertCountBadge criticalCount={criticalAnomalies.length} warningCount={warningAnomalyCount} />
@@ -1483,109 +1467,114 @@ export default function FuelPage() {
         </TabsList>
 
         <TabsContent value="alertas" className="space-y-4">
-          <FilterPanel
-            title="Filtros"
-            activeCount={countActiveFilters([...Object.values(anomalyView), !isDefaultDetection])}
-            onClear={clearAnomalyFilters}
-            advanced={
-              <>
-                <FilterSelect
-                  id="fuel-anomaly-vehicle"
-                  label="Unidad"
-                  value={anomalyView.vehicle_id}
-                  onChange={(value) => setAnomalyView((prev) => ({ ...prev, vehicle_id: value }))}
-                  options={vehicleOptions}
-                  allLabel="Todas"
-                  disabled={isLoadingVehicles}
-                />
-                <FilterSelect
-                  id="fuel-anomaly-type"
-                  label="Combustible"
-                  value={anomalyView.fuel_type}
-                  onChange={(value) => setAnomalyView((prev) => ({ ...prev, fuel_type: value }))}
-                  options={FUEL_TYPE_OPTIONS}
-                />
-                <FilterField label="Diferencia mínima (%)" htmlFor="fuel-anomaly-threshold">
-                  <Input
-                    id="fuel-anomaly-threshold"
-                    type="number"
-                    min={1}
-                    value={anomalyFilters.threshold_percent ?? defaultAnomalyFilters.threshold_percent}
-                    onChange={(event) =>
-                      setAnomalyFilters((prev) => ({
-                        ...prev,
-                        threshold_percent: Number(event.target.value) || defaultAnomalyFilters.threshold_percent,
-                      }))
-                    }
-                  />
-                </FilterField>
-                <FilterField label="Cargas para el promedio" htmlFor="fuel-anomaly-lookback">
-                  <Input
-                    id="fuel-anomaly-lookback"
-                    type="number"
-                    min={3}
-                    max={30}
-                    value={anomalyFilters.lookback ?? defaultAnomalyFilters.lookback}
-                    onChange={(event) =>
-                      setAnomalyFilters((prev) => ({
-                        ...prev,
-                        lookback: Number(event.target.value) || defaultAnomalyFilters.lookback,
-                      }))
-                    }
-                  />
-                </FilterField>
-                <FilterField label="Historial mínimo (cargas)" htmlFor="fuel-anomaly-history">
-                  <Input
-                    id="fuel-anomaly-history"
-                    type="number"
-                    min={2}
-                    value={anomalyFilters.min_history ?? defaultAnomalyFilters.min_history}
-                    onChange={(event) =>
-                      setAnomalyFilters((prev) => ({
-                        ...prev,
-                        min_history: Number(event.target.value) || defaultAnomalyFilters.min_history,
-                      }))
-                    }
-                  />
-                </FilterField>
-                <FilterField label="Recorrido mínimo (km)" htmlFor="fuel-anomaly-distance">
-                  <Input
-                    id="fuel-anomaly-distance"
-                    type="number"
-                    min={1}
-                    value={anomalyFilters.min_distance_km ?? defaultAnomalyFilters.min_distance_km}
-                    onChange={(event) =>
-                      setAnomalyFilters((prev) => ({
-                        ...prev,
-                        min_distance_km: Number(event.target.value) || defaultAnomalyFilters.min_distance_km,
-                      }))
-                    }
-                  />
-                </FilterField>
-              </>
-            }
-          >
-            <FilterSelect
-              id="fuel-anomaly-severity"
-              label="Estado"
-              value={anomalyView.severity}
-              onChange={(value) => setAnomalyView((prev) => ({ ...prev, severity: value }))}
-              options={ANOMALY_SEVERITY_OPTIONS}
-              allLabel="Todas"
-            />
-          </FilterPanel>
-
           {anomaliesError ? <ErrorState message={anomaliesError} onRetry={applyAnomalyFilters} /> : null}
 
           <DataTable
             data={visibleAnomalyRows}
             columns={anomalyColumns}
-            title="Consumo fuera de lo normal"
+            toolbar={
+              <FilterPanel
+                variant="toolbar"
+                title="Filtros"
+                activeCount={countActiveFilters([...Object.values(anomalyView), !isDefaultDetection])}
+                onClear={clearAnomalyFilters}
+                advanced={
+                  <>
+                    <FilterSelect
+                      id="fuel-anomaly-vehicle"
+                      label="Unidad"
+                      value={anomalyView.vehicle_id}
+                      onChange={(value) => setAnomalyView((prev) => ({ ...prev, vehicle_id: value }))}
+                      options={vehicleOptions}
+                      allLabel="Todas"
+                      disabled={isLoadingVehicles}
+                    />
+                    <FilterSelect
+                      id="fuel-anomaly-type"
+                      label="Combustible"
+                      value={anomalyView.fuel_type}
+                      onChange={(value) => setAnomalyView((prev) => ({ ...prev, fuel_type: value }))}
+                      options={FUEL_TYPE_OPTIONS}
+                    />
+                    <FilterField label="Diferencia mínima (%)" htmlFor="fuel-anomaly-threshold">
+                      <Input
+                        id="fuel-anomaly-threshold"
+                        className="h-9 w-20"
+                        type="number"
+                        min={1}
+                        value={anomalyFilters.threshold_percent ?? defaultAnomalyFilters.threshold_percent}
+                        onChange={(event) =>
+                          setAnomalyFilters((prev) => ({
+                            ...prev,
+                            threshold_percent: Number(event.target.value) || defaultAnomalyFilters.threshold_percent,
+                          }))
+                        }
+                      />
+                    </FilterField>
+                    <FilterField label="Cargas para el promedio" htmlFor="fuel-anomaly-lookback">
+                      <Input
+                        id="fuel-anomaly-lookback"
+                        className="h-9 w-20"
+                        type="number"
+                        min={3}
+                        max={30}
+                        value={anomalyFilters.lookback ?? defaultAnomalyFilters.lookback}
+                        onChange={(event) =>
+                          setAnomalyFilters((prev) => ({
+                            ...prev,
+                            lookback: Number(event.target.value) || defaultAnomalyFilters.lookback,
+                          }))
+                        }
+                      />
+                    </FilterField>
+                    <FilterField label="Historial mínimo (cargas)" htmlFor="fuel-anomaly-history">
+                      <Input
+                        id="fuel-anomaly-history"
+                        className="h-9 w-20"
+                        type="number"
+                        min={2}
+                        value={anomalyFilters.min_history ?? defaultAnomalyFilters.min_history}
+                        onChange={(event) =>
+                          setAnomalyFilters((prev) => ({
+                            ...prev,
+                            min_history: Number(event.target.value) || defaultAnomalyFilters.min_history,
+                          }))
+                        }
+                      />
+                    </FilterField>
+                    <FilterField label="Recorrido mínimo (km)" htmlFor="fuel-anomaly-distance">
+                      <Input
+                        id="fuel-anomaly-distance"
+                        className="h-9 w-20"
+                        type="number"
+                        min={1}
+                        value={anomalyFilters.min_distance_km ?? defaultAnomalyFilters.min_distance_km}
+                        onChange={(event) =>
+                          setAnomalyFilters((prev) => ({
+                            ...prev,
+                            min_distance_km: Number(event.target.value) || defaultAnomalyFilters.min_distance_km,
+                          }))
+                        }
+                      />
+                    </FilterField>
+                  </>
+                }
+              >
+                <FilterSelect
+                  id="fuel-anomaly-severity"
+                  label="Estado"
+                  value={anomalyView.severity}
+                  onChange={(value) => setAnomalyView((prev) => ({ ...prev, severity: value }))}
+                  options={ANOMALY_SEVERITY_OPTIONS}
+                  allLabel="Todas"
+                />
+              </FilterPanel>
+            }
             hideAddButton
             isLoading={isLoadingAnomalies}
             searchFields={["vehicle_plate", "vehicle_label"]}
             searchAccessor={(row) => getFuelTypeLabel(row.fuel_type)}
-            searchPlaceholder="Buscar por unidad..."
+            searchPlaceholder="Buscar unidad"
             initialPageSize={20}
           />
           <p className="text-xs text-gray-500">
@@ -1594,82 +1583,87 @@ export default function FuelPage() {
         </TabsContent>
 
         <TabsContent value="historial" className="space-y-4">
-          <FilterPanel
-            title="Filtros"
-            activeCount={countActiveFilters([
-              historyFilters.query,
-              historyFilters.vehicle_id,
-              historyFilters.fuel_type,
-              historyFilters.date_from,
-              historyFilters.date_to,
-            ])}
-            onClear={() => setHistoryFilters({ query: "" })}
-            advanced={
-              <>
-                <FilterSelect
-                  id="fuel-history-type"
-                  label="Combustible"
-                  value={historyFilters.fuel_type}
-                  onChange={(value) =>
-                    setHistoryFilters((prev) => ({ ...prev, fuel_type: (value || undefined) as FuelType | undefined }))
-                  }
-                  options={FUEL_TYPE_OPTIONS}
-                />
-                <FilterField label="Desde" htmlFor="fuel-history-from">
-                  <Input
-                    id="fuel-history-from"
-                    type="date"
-                    value={historyFilters.date_from || ""}
-                    onChange={(event) =>
-                      setHistoryFilters((prev) => ({ ...prev, date_from: event.target.value || undefined }))
+          {/* Vista, busqueda y filtros en una sola linea: antes eran tres bloques. */}
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-start">
+            <SectionSwitch<"logs" | "readings">
+              aria-label="Vista del historial"
+              value={historyView}
+              onChange={setHistoryView}
+              options={[
+                { value: "logs", label: "Cargas", count: logs.length },
+                { value: "readings", label: "Lecturas", count: readings.length },
+              ]}
+            />
+            <FilterPanel
+              variant="toolbar"
+              title="Filtros"
+              activeCount={countActiveFilters([
+                historyFilters.query,
+                historyFilters.vehicle_id,
+                historyFilters.fuel_type,
+                historyFilters.date_from,
+                historyFilters.date_to,
+              ])}
+              onClear={() => setHistoryFilters({ query: "" })}
+              advanced={
+                <>
+                  <FilterSelect
+                    id="fuel-history-type"
+                    label="Combustible"
+                    value={historyFilters.fuel_type}
+                    onChange={(value) =>
+                      setHistoryFilters((prev) => ({ ...prev, fuel_type: (value || undefined) as FuelType | undefined }))
                     }
+                    options={FUEL_TYPE_OPTIONS}
                   />
-                </FilterField>
-                <FilterField label="Hasta" htmlFor="fuel-history-to">
-                  <Input
-                    id="fuel-history-to"
-                    type="date"
-                    value={historyFilters.date_to || ""}
-                    onChange={(event) =>
-                      setHistoryFilters((prev) => ({ ...prev, date_to: event.target.value || undefined }))
-                    }
-                  />
-                </FilterField>
-              </>
-            }
-          >
-            <FilterField label="Buscar" htmlFor="fuel-history-search">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <Input
+                  <FilterField label="Desde" htmlFor="fuel-history-from">
+                    <Input
+                      id="fuel-history-from"
+                      className="h-9 w-40"
+                      type="date"
+                      value={historyFilters.date_from || ""}
+                      onChange={(event) =>
+                        setHistoryFilters((prev) => ({ ...prev, date_from: event.target.value || undefined }))
+                      }
+                    />
+                  </FilterField>
+                  <FilterField label="Hasta" htmlFor="fuel-history-to">
+                    <Input
+                      id="fuel-history-to"
+                      className="h-9 w-40"
+                      type="date"
+                      value={historyFilters.date_to || ""}
+                      onChange={(event) =>
+                        setHistoryFilters((prev) => ({ ...prev, date_to: event.target.value || undefined }))
+                      }
+                    />
+                  </FilterField>
+                </>
+              }
+            >
+              <div>
+                <Label htmlFor="fuel-history-search" className="sr-only">
+                  Buscar en el historial
+                </Label>
+                <SearchFilter
                   id="fuel-history-search"
-                  className="pl-9"
-                  placeholder="Placa, unidad, notas o estación..."
+                  className="w-full sm:w-56"
+                  placeholder="Placa, estación o nota"
                   value={historyFilters.query}
-                  onChange={(event) => setHistoryFilters((prev) => ({ ...prev, query: event.target.value }))}
+                  onChange={(value) => setHistoryFilters((prev) => ({ ...prev, query: value }))}
                 />
               </div>
-            </FilterField>
-            <FilterSelect
-              id="fuel-history-vehicle"
-              label="Unidad"
-              value={historyFilters.vehicle_id}
-              onChange={(value) => setHistoryFilters((prev) => ({ ...prev, vehicle_id: value || undefined }))}
-              options={vehicleOptions}
-              allLabel="Todas"
-              disabled={isLoadingVehicles}
-            />
-          </FilterPanel>
-
-          <SectionSwitch<"logs" | "readings">
-            aria-label="Vista del historial"
-            value={historyView}
-            onChange={setHistoryView}
-            options={[
-              { value: "logs", label: "Cargas", count: logs.length },
-              { value: "readings", label: "Lecturas", count: readings.length },
-            ]}
-          />
+              <FilterSelect
+                id="fuel-history-vehicle"
+                label="Unidad"
+                value={historyFilters.vehicle_id}
+                onChange={(value) => setHistoryFilters((prev) => ({ ...prev, vehicle_id: value || undefined }))}
+                options={vehicleOptions}
+                allLabel="Todas"
+                disabled={isLoadingVehicles}
+              />
+            </FilterPanel>
+          </div>
 
           {historyView === "logs" ? (
             <div className="space-y-4">
@@ -1806,19 +1800,19 @@ export default function FuelPage() {
         </TabsContent>
 
         <TabsContent value="unidad" className="space-y-4">
-          <SectionSwitch<"status" | "report">
-            aria-label="Vista por unidad"
-            value={unitView}
-            onChange={setUnitView}
-            options={[
-              { value: "status", label: "Estado actual" },
-              { value: "report", label: "Reporte de consumo" },
-            ]}
-          />
-
-          {unitView === "status" ? (
-            <div className="space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <SectionSwitch<"status" | "report">
+              aria-label="Vista por unidad"
+              value={unitView}
+              onChange={setUnitView}
+              options={[
+                { value: "status", label: "Estado actual" },
+                { value: "report", label: "Reporte de consumo" },
+              ]}
+            />
+            {unitView === "status" ? (
               <FilterPanel
+                variant="toolbar"
                 title="Unidad"
                 activeCount={countActiveFilters([statusFilters.vehicle_id, statusFilters.fuel_type])}
                 onClear={clearStatusFilter}
@@ -1842,7 +1836,11 @@ export default function FuelPage() {
                   options={FUEL_TYPE_OPTIONS}
                 />
               </FilterPanel>
+            ) : null}
+          </div>
 
+          {unitView === "status" ? (
+            <div className="space-y-4">
               {!statusFilters.vehicle_id ? (
                 <EmptyState
                   title="Selecciona una unidad"

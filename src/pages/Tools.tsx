@@ -24,7 +24,7 @@ import {
   matchesOption,
 } from "@/lib/filtering";
 import { Tool, ToolPayload } from "@/types";
-import { RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 
 type ToolsTab = "alerts" | "tools";
 
@@ -169,15 +169,34 @@ export default function Tools() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       <PageHeader
         title="Herramientas"
         description="Herramientas de taller, dónde están y cuándo vencen."
         actions={
-          <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            Actualizar
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="border-primary-200 text-primary hover:bg-primary-50"
+              aria-label="Actualizar"
+              title="Actualizar"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </Button>
+            <Button
+              onClick={() => {
+                setEditingTool(null);
+                setIsModalOpen(true);
+              }}
+              className="bg-primary text-white hover:bg-primary-600"
+            >
+              <Plus className="h-4 w-4" />
+              Registrar herramienta
+            </Button>
+          </>
         }
       />
 
@@ -206,7 +225,7 @@ export default function Tools() {
       />
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ToolsTab)} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 gap-2">
+        <TabsList className="h-auto w-full justify-start sm:w-auto">
           <TabsTrigger value="alerts" className="gap-2">
             Alertas
             <AlertCountBadge criticalCount={expiredCount} warningCount={nearCount} />
@@ -215,23 +234,28 @@ export default function Tools() {
         </TabsList>
 
         <TabsContent value="alerts" className="space-y-4">
-          <FilterPanel
-            title="Filtros"
-            activeCount={countActiveFilters([alertFilters.status, alertFilters.near_days !== DEFAULT_NEAR_DAYS])}
-            onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
-            advanced={
-              <FilterField label="Avisar con (días de anticipación)" htmlFor="tools-alert-near">
-                <Input
-                  id="tools-alert-near"
-                  type="number"
-                  min="0"
-                  max="365"
-                  value={alertFilters.near_days}
-                  onChange={(event) =>
-                    setAlertFilters((prev) => ({ ...prev, near_days: Math.max(0, Number(event.target.value) || 0) }))
-                  }
-                />
-              </FilterField>
+          <DataTable
+            data={alertRows}
+            columns={alertColumns}
+            toolbar={
+              <FilterPanel
+                variant="toolbar"
+                title="Filtros"
+                activeCount={countActiveFilters([alertFilters.status, alertFilters.near_days !== DEFAULT_NEAR_DAYS])}
+                onClear={() => setAlertFilters(EMPTY_ALERT_FILTERS)}
+                advanced={
+                  <FilterField label="Avisar con (días de anticipación)" htmlFor="tools-alert-near">
+                    <Input
+                      id="tools-alert-near"
+                      type="number"
+                      min="0"
+                      max="365"
+                      value={alertFilters.near_days}
+                      onChange={(event) =>
+                        setAlertFilters((prev) => ({ ...prev, near_days: Math.max(0, Number(event.target.value) || 0) }))
+                      }
+                    />
+                  </FilterField>
             }
           >
             <FilterSelect
@@ -243,11 +267,7 @@ export default function Tools() {
               allLabel="Vencidas y por vencer"
             />
           </FilterPanel>
-
-          <DataTable
-            data={alertRows}
-            columns={alertColumns}
-            title="Alertas de vencimiento"
+            }
             hideAddButton
             isLoading={isLoadingTools}
             searchFields={TOOL_SEARCH_FIELDS}
@@ -256,44 +276,49 @@ export default function Tools() {
                 ? describeExpiry(tool.expiry_status, tool.days_to_expiry)
                 : ""
             }
-            searchPlaceholder="Buscar por código, nombre, ubicación o responsable..."
+            searchPlaceholder="Buscar herramienta"
             defaultSort={{ key: "expiry_date", direction: "asc" }}
             initialPageSize={20}
           />
         </TabsContent>
 
         <TabsContent value="tools" className="space-y-4">
-          <FilterPanel
-            title="Filtros"
-            activeCount={countActiveFilters(Object.values(filters))}
-            onClear={() => setFilters(EMPTY_TOOL_FILTERS)}
-            advanced={
-              <>
-                <FilterSelect
-                  id="tool-category-filter"
-                  label="Categoría"
-                  value={filters.category}
-                  onChange={(value) => updateFilter("category", value)}
-                  options={filterOptions.category}
-                  allLabel="Todas"
-                />
-                <FilterSelect
-                  id="tool-location-filter"
-                  label="Ubicación"
-                  value={filters.location}
-                  onChange={(value) => updateFilter("location", value)}
-                  options={filterOptions.location}
-                  allLabel="Todas"
-                />
-                <FilterSelect
-                  id="tool-assigned-filter"
-                  label="Asignada a"
-                  value={filters.assigned_to}
-                  onChange={(value) => updateFilter("assigned_to", value)}
-                  options={filterOptions.assignedTo}
-                  allLabel="Cualquiera"
-                />
-              </>
+          <DataTable
+            data={filteredTools}
+            columns={columns}
+            toolbar={
+              <FilterPanel
+                variant="toolbar"
+                title="Filtros"
+                activeCount={countActiveFilters(Object.values(filters))}
+                onClear={() => setFilters(EMPTY_TOOL_FILTERS)}
+                advanced={
+                  <>
+                    <FilterSelect
+                      id="tool-category-filter"
+                      label="Categoría"
+                      value={filters.category}
+                      onChange={(value) => updateFilter("category", value)}
+                      options={filterOptions.category}
+                      allLabel="Todas"
+                    />
+                    <FilterSelect
+                      id="tool-location-filter"
+                      label="Ubicación"
+                      value={filters.location}
+                      onChange={(value) => updateFilter("location", value)}
+                      options={filterOptions.location}
+                      allLabel="Todas"
+                    />
+                    <FilterSelect
+                      id="tool-assigned-filter"
+                      label="Asignada a"
+                      value={filters.assigned_to}
+                      onChange={(value) => updateFilter("assigned_to", value)}
+                      options={filterOptions.assignedTo}
+                      allLabel="Cualquiera"
+                    />
+                  </>
             }
           >
             <FilterSelect
@@ -304,20 +329,12 @@ export default function Tools() {
               options={TOOL_STATUS_OPTIONS}
             />
           </FilterPanel>
-
-          <DataTable
-            data={filteredTools}
-            columns={columns}
-            onAdd={() => {
-              setEditingTool(null);
-              setIsModalOpen(true);
-            }}
-            title="Herramientas"
-            addButtonText="Registrar herramienta"
+            }
+            hideAddButton
             isLoading={isLoadingTools}
             searchFields={TOOL_SEARCH_FIELDS}
             searchAccessor={(tool) => getOptionLabel(TOOL_STATUS_OPTIONS, tool.status)}
-            searchPlaceholder="Buscar por código, nombre, ubicación o responsable..."
+            searchPlaceholder="Buscar herramienta"
             defaultSort={{ key: "name", direction: "asc" }}
             initialPageSize={20}
           />

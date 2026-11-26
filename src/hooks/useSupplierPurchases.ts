@@ -38,6 +38,9 @@ export const useSupplierDetail = (supplierId: string | undefined) => {
     queryFn: () => suppliersApi.getById(authenticatedFetch, supplierId as string),
     enabled: Boolean(supplierId),
     staleTime: 60_000,
+    // Sin recarga al volver a la pestaña: el nombre y el estado casi no cambian
+    // y la pantalla ya tiene el boton "Actualizar".
+    refetchOnWindowFocus: false,
   });
 
   // Un 404 se muestra en la pagina como "proveedor no encontrado", no como aviso.
@@ -65,6 +68,11 @@ export const useSupplierPurchases = ({ supplierId, filters, enabled = true }: Us
     // Mantiene la lista anterior en pantalla mientras llega la filtrada.
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    // React Query vuelve a pedir los datos cada vez que la pestaña recupera el
+    // foco. Con el servidor fallando eran 3 peticiones (con reintentos) por
+    // cada vuelta a la pestaña, y la pantalla parecia recargarse sola. Se
+    // actualiza con "Actualizar", "Reintentar" o tras registrar/editar/eliminar.
+    refetchOnWindowFocus: false,
   });
 
   // Sin aviso emergente: la pantalla muestra el error en su lugar, con "Reintentar".

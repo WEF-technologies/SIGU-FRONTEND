@@ -221,7 +221,7 @@ const LatestStatusCard = ({
       {!status ? (
         <SectionEmpty
           title="Sin observaciones en el rango"
-          description="El backend no reporto una ultima observacion para los filtros aplicados."
+          description="No hay una carga o lectura reciente para los filtros elegidos."
         />
       ) : (
         <div className="space-y-3">
@@ -300,12 +300,12 @@ export function FuelVehicleReportSection({
 
   return (
     <div className="space-y-4">
-      <Card className="p-4 border-primary/20 bg-gradient-to-r from-primary/5 via-white to-amber-50/40">
+      <Card className="p-4">
         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-primary-900">Reporte por unidad</p>
             <p className="text-xs text-gray-500 mt-1">
-              El resumen, las anomalias y el consumo promedio se consumen directamente del backend, sin recalculo en cliente.
+              Resumen, consumo promedio y consumos fuera de lo normal de una unidad en un período.
             </p>
           </div>
 
@@ -446,7 +446,7 @@ export function FuelVehicleReportSection({
       {!filters.vehicle_id ? (
         <SectionEmpty
           title="Selecciona una unidad"
-          description="Consulta el reporte agregado por backend y descarga el PDF con los mismos filtros principales."
+          description="Elige la unidad y el período, consulta el reporte y descárgalo en PDF si lo necesitas."
         />
       ) : isLoadingReport ? (
         <div className="space-y-4">
@@ -518,7 +518,7 @@ export function FuelVehicleReportSection({
             <MetricCard
               title="Consumo promedio"
               value={formatNumber(report.summary.average_consumption_l_per_100km, " L/100km")}
-              caption="Calculado por backend"
+              caption="Según las cargas registradas"
               icon={AlertTriangle}
             />
           </div>
@@ -590,7 +590,7 @@ export function FuelVehicleReportSection({
             {timelineData.length === 0 ? (
               <SectionEmpty
                 title="Sin puntos en la linea de tiempo"
-                description="El backend no devolvio periodos agregados para el rango solicitado."
+                description="No hay datos en el período elegido."
               />
             ) : (
               <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
@@ -625,7 +625,7 @@ export function FuelVehicleReportSection({
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-primary-900">Anomalias destacadas</p>
-                <p className="text-xs text-gray-500">Priorizadas por backend para la unidad seleccionada.</p>
+                <p className="text-xs text-gray-500">Las más relevantes primero.</p>
               </div>
               <Badge variant="outline">{reportAnomalies.length}</Badge>
             </div>
@@ -683,7 +683,7 @@ export function FuelVehicleReportSection({
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-primary-900">Movimientos detallados</p>
-                <p className="text-xs text-gray-500">Incluye cargas y lecturas devueltas por el backend para el rango actual.</p>
+                <p className="text-xs text-gray-500">Cargas y lecturas del período elegido.</p>
               </div>
               <Badge variant="outline">{reportMovements.length}</Badge>
             </div>
