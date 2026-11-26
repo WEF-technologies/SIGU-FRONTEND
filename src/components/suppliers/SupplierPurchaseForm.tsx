@@ -51,9 +51,9 @@ const validate = (state: PurchaseFormState) => {
 
   const description = state.description.trim();
   if (!description) {
-    errors.description = "Describe lo que se compro.";
+    errors.description = "Describe lo que se compró.";
   } else if (description.length > SUPPLIER_PURCHASE_LIMITS.description) {
-    errors.description = `Usa como maximo ${SUPPLIER_PURCHASE_LIMITS.description} caracteres.`;
+    errors.description = `Usa como máximo ${SUPPLIER_PURCHASE_LIMITS.description} caracteres.`;
   }
 
   const amount = parseAmountInput(state.amount, {
@@ -62,7 +62,7 @@ const validate = (state: PurchaseFormState) => {
   if (!amount.ok) errors.amount = amount.error;
 
   if (state.invoice_number.trim().length > SUPPLIER_PURCHASE_LIMITS.invoiceNumber) {
-    errors.invoice_number = `Usa como maximo ${SUPPLIER_PURCHASE_LIMITS.invoiceNumber} caracteres.`;
+    errors.invoice_number = `Usa como máximo ${SUPPLIER_PURCHASE_LIMITS.invoiceNumber} caracteres.`;
   }
 
   return { errors, amount };
@@ -133,7 +133,7 @@ export function SupplierPurchaseForm({ editingPurchase, onSubmit, onCancel }: Su
             value={formData.purchase_date}
             onChange={(event) => updateField("purchase_date", event.target.value)}
             aria-invalid={Boolean(errors.purchase_date)}
-            aria-describedby="purchase-date-help"
+            aria-describedby={errors.purchase_date || isFutureDate ? "purchase-date-help" : undefined}
             required
           />
           {errors.purchase_date ? (
@@ -156,22 +156,24 @@ export function SupplierPurchaseForm({ editingPurchase, onSubmit, onCancel }: Su
             value={formData.amount}
             onChange={(event) => updateField("amount", event.target.value)}
             aria-invalid={Boolean(errors.amount)}
-            aria-describedby="purchase-amount-help"
+            aria-describedby={errors.amount || amountPreview ? "purchase-amount-help" : undefined}
             required
           />
-          <p
-            id="purchase-amount-help"
-            className={`text-sm ${errors.amount ? "text-red-600" : "text-secondary-dark"}`}
-          >
-            {errors.amount ??
-              (amountPreview ? `Se registrara: ${amountPreview}` : "Sin separadores de miles, maximo 2 decimales.")}
-          </p>
+          {/* Solo aparece cuando aporta: el error, o como quedara el monto escrito. */}
+          {errors.amount || amountPreview ? (
+            <p
+              id="purchase-amount-help"
+              className={`text-sm ${errors.amount ? "text-red-600" : "text-secondary-dark"}`}
+            >
+              {errors.amount ?? `Se registrará como ${amountPreview}`}
+            </p>
+          ) : null}
         </div>
       </div>
 
       <div className="space-y-1.5">
         <Label htmlFor="purchase-invoice">
-          Numero de factura <span className="font-normal text-secondary-dark">(opcional)</span>
+          Número de factura <span className="font-normal text-secondary-dark">(opcional)</span>
         </Label>
         <Input
           id="purchase-invoice"
@@ -181,26 +183,28 @@ export function SupplierPurchaseForm({ editingPurchase, onSubmit, onCancel }: Su
           autoComplete="off"
           placeholder="Ej. FE-00123"
           aria-invalid={Boolean(errors.invoice_number)}
-          aria-describedby="purchase-invoice-help"
+          aria-describedby={errors.invoice_number ? "purchase-invoice-help" : undefined}
         />
-        <p
-          id="purchase-invoice-help"
-          className={`text-sm ${errors.invoice_number ? "text-red-600" : "text-secondary-dark"}`}
-        >
-          {errors.invoice_number ?? "No se puede repetir para el mismo proveedor."}
-        </p>
+        {errors.invoice_number ? (
+          <p id="purchase-invoice-help" className="text-sm text-red-600">
+            {errors.invoice_number}
+          </p>
+        ) : null}
       </div>
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="purchase-description">Descripcion</Label>
-          <span
-            className={`text-xs ${
-              descriptionLength > SUPPLIER_PURCHASE_LIMITS.description ? "text-red-600" : "text-secondary-dark"
-            }`}
-          >
-            {descriptionLength}/{SUPPLIER_PURCHASE_LIMITS.description}
-          </span>
+          <Label htmlFor="purchase-description">Descripción</Label>
+          {/* El contador solo se muestra cerca del limite. */}
+          {descriptionLength > SUPPLIER_PURCHASE_LIMITS.description - 40 ? (
+            <span
+              className={`text-xs ${
+                descriptionLength > SUPPLIER_PURCHASE_LIMITS.description ? "text-red-600" : "text-secondary-dark"
+              }`}
+            >
+              {descriptionLength}/{SUPPLIER_PURCHASE_LIMITS.description}
+            </span>
+          ) : null}
         </div>
         <Textarea
           id="purchase-description"
