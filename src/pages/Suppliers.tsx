@@ -2,52 +2,23 @@ import { useCallback, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { SupplierForm } from "@/components/suppliers/SupplierForm";
 import { DataTable, type Column } from "@/components/shared/DataTable";
-import { FilterPanel, FilterSelect } from "@/components/shared/FilterPanel";
 import { FormModal } from "@/components/shared/FormModal";
-import { Badge } from "@/components/ui/badge";
+import { SearchFilter } from "@/components/shared/SearchFilter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { useConfirm } from "@/hooks/useConfirm";
-import { ACTIVE_STATUS_OPTIONS } from "@/constants/filterOptions";
-import {
-  buildOptionsFromValues,
-  countActiveFilters,
-  getOptionLabel,
-  matchesOption,
-  mergeKnownOptions,
-} from "@/lib/filtering";
+import { ALL_FILTER_VALUE, buildOptionsFromValues, matchesOption, matchesSearch, mergeKnownOptions } from "@/lib/filtering";
 import { Supplier, SupplierPayload, SUPPLIER_CATEGORY_OPTIONS } from "@/types";
-import {
-  Building2,
-  Edit,
-  MapPin,
-  MessageCircle,
-  Receipt,
-  RefreshCw,
-  Star,
-  Tags,
-  Trash2,
-} from "lucide-react";
+import { Edit, MessageCircle, Plus, Receipt, RefreshCw, Star, Trash2 } from "lucide-react";
 
 const normalizeStatus = (value?: string | null) => (value ?? "").trim().toLowerCase();
 
-const getStatusBadgeClass = (status?: string | null) => {
+const isInactiveStatus = (status?: string | null) => {
   const normalizedStatus = normalizeStatus(status);
-
-  if (normalizedStatus.includes("inactive") || normalizedStatus.includes("inactivo")) {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  if (normalizedStatus.includes("pending") || normalizedStatus.includes("pendiente")) {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (normalizedStatus.includes("active") || normalizedStatus.includes("activo")) {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-700";
+  return normalizedStatus === "inactive" || normalizedStatus === "inactivo";
 };
 
 const categoryLabelMap = new Map<string, string>(
@@ -56,40 +27,46 @@ const categoryLabelMap = new Map<string, string>(
 
 const formatCategoryLabel = (category: string) => categoryLabelMap.get(category) ?? category;
 
-const getStatusLabel = (status?: string | null) => getOptionLabel(ACTIVE_STATUS_OPTIONS, status ?? "active");
+/**
+ * Una sola vista en lugar de los filtros de estado y "Solo destacados" por
+ * separado: son las preguntas que se hacen al abrir el listado.
+ */
+type SupplierView = "all" | "active" | "inactive" | "featured";
 
-/** Filtros aplicados en el cliente sobre el listado completo; "" = sin filtro. */
-interface SupplierFilterState {
-  status: string;
-  location: string;
-  category: string;
-  destacado?: boolean;
-}
+const VIEW_OPTIONS: { value: SupplierView; label: string }[] = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "inactive", label: "Inactivos" },
+  { value: "featured", label: "Destacados" },
+];
 
-const EMPTY_SUPPLIER_FILTERS: SupplierFilterState = {
-  status: "",
-  location: "",
-  category: "",
-  destacado: undefined,
+const matchesView = (view: SupplierView, supplier: Supplier) => {
+  switch (view) {
+    case "active":
+      return !isInactiveStatus(supplier.status);
+    case "inactive":
+      return isInactiveStatus(supplier.status);
+    case "featured":
+      return supplier.destacado;
+    default:
+      return true;
+  }
 };
 
-const getSupplierSearchText = (supplier: Supplier) =>
-  [
-    supplier.address,
-    supplier.contact_phone,
-    supplier.email,
-    supplier.description,
-    supplier.notes,
-    getStatusLabel(supplier.status),
-    ...supplier.categories.map(formatCategoryLabel),
-  ]
-    .filter(Boolean)
-    .join(" ");
+const getSupplierSearchFields = (supplier: Supplier) => [
+  supplier.name,
+  supplier.location,
+  supplier.address,
+  supplier.contact_phone,
+  supplier.email,
+  supplier.description,
+  supplier.notes,
+  ...supplier.categories.map(formatCategoryLabel),
+];
 
-const isInactiveStatus = (status?: string | null) => {
-  const normalizedStatus = normalizeStatus(status);
-  return normalizedStatus === "inactive" || normalizedStatus === "inactivo";
-};
+/** Los destacados primero (antes tenian un bloque propio arriba) y luego por nombre. */
+const compareSuppliers = (a: Supplier, b: Supplier) =>
+  Number(b.destacado) - Number(a.destacado) || a.name.localeCompare(b.name, "es", { sensitivity: "base" });
 
 const toSupplierPayload = (supplier: Supplier, overrides: Partial<SupplierPayload> = {}): SupplierPayload => ({
   name: supplier.name,
@@ -106,88 +83,64 @@ const toSupplierPayload = (supplier: Supplier, overrides: Partial<SupplierPayloa
   ...overrides,
 });
 
-const formatContactLine = (supplier: Supplier) => {
-  const contactParts = [supplier.contact_phone, supplier.email].filter(
-    (value): value is string => typeof value === "string" && value.trim().length > 0
-  );
-
-  return contactParts.length > 0 ? contactParts.join(" · ") : "Sin contacto registrado";
-};
-
-const formatAddressLine = (supplier: Supplier) => {
-  const parts = [supplier.address, supplier.location].filter(
-    (value): value is string => typeof value === "string" && value.trim().length > 0
-  );
-
-  return parts.length > 0 ? parts.join(" · ") : "Sin direccion registrada";
-};
+const purchasesPath = (supplier: Supplier) => `/proveedores/${encodeURIComponent(supplier.id)}/compras`;
 
 export default function Suppliers() {
-  const {
-    suppliers,
-    isLoadingSuppliers,
-    fetchSuppliers,
-    createSupplier,
-    updateSupplier,
-    deleteSupplier,
-  } = useSuppliers();
+  const { suppliers, isLoadingSuppliers, fetchSuppliers, createSupplier, updateSupplier, deleteSupplier } =
+    useSuppliers();
   const confirm = useConfirm();
   const navigate = useNavigate();
 
-  const [filters, setFilters] = useState<SupplierFilterState>(EMPTY_SUPPLIER_FILTERS);
+  const [view, setView] = useState<SupplierView>("all");
+  const [category, setCategory] = useState("");
+  const [location, setLocation] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
-  const featuredSuppliers = useMemo(
-    () => suppliers.filter((supplier) => supplier.destacado),
-    [suppliers]
-  );
-
-  const filterOptions = useMemo(
-    () => ({
-      category: mergeKnownOptions(
+  const categoryOptions = useMemo(
+    () =>
+      mergeKnownOptions(
         SUPPLIER_CATEGORY_OPTIONS,
         suppliers.flatMap((supplier) => supplier.categories),
         formatCategoryLabel
       ),
-      location: buildOptionsFromValues(suppliers.map((supplier) => supplier.location)),
-      status: mergeKnownOptions(ACTIVE_STATUS_OPTIONS, suppliers.map((supplier) => supplier.status)),
-    }),
+    [suppliers]
+  );
+  const locationOptions = useMemo(
+    () => buildOptionsFromValues(suppliers.map((supplier) => supplier.location)),
     [suppliers]
   );
 
-  const filteredSuppliers = useMemo(
+  const visibleSuppliers = useMemo(
     () =>
-      suppliers.filter(
-        (supplier) =>
-          (filters.destacado === undefined || supplier.destacado === filters.destacado) &&
-          matchesOption(filters.status, supplier.status) &&
-          matchesOption(filters.location, supplier.location) &&
-          (!filters.category ||
-            supplier.categories.some((category) => matchesOption(filters.category, category)))
-      ),
-    [filters, suppliers]
+      suppliers
+        .filter(
+          (supplier) =>
+            matchesView(view, supplier) &&
+            matchesOption(location, supplier.location) &&
+            (!category || supplier.categories.some((value) => matchesOption(category, value))) &&
+            matchesSearch(searchTerm, getSupplierSearchFields(supplier))
+        )
+        .sort(compareSuppliers),
+    [category, location, searchTerm, suppliers, view]
   );
 
-  const summaryCards = useMemo(() => {
-    const uniqueLocations = new Set(
-      suppliers
-        .map((supplier) => supplier.location?.trim())
-        .filter((value): value is string => Boolean(value))
-    );
+  const featuredCount = useMemo(() => suppliers.filter((supplier) => supplier.destacado).length, [suppliers]);
+  const hasFilters = view !== "all" || Boolean(category || location || searchTerm.trim());
 
-    const uniqueCategories = new Set(
-      suppliers.flatMap((supplier) => supplier.categories.map((category) => category.trim()).filter(Boolean))
-    );
+  const clearFilters = () => {
+    setView("all");
+    setCategory("");
+    setLocation("");
+    setSearchTerm("");
+  };
 
-    return [
-      { title: "Total de proveedores", value: suppliers.length, icon: Building2 },
-      { title: "Destacados", value: featuredSuppliers.length, icon: Star },
-      { title: "Ubicaciones", value: uniqueLocations.size, icon: MapPin },
-      { title: "Categorias", value: uniqueCategories.size, icon: Tags },
-    ];
-  }, [featuredSuppliers.length, suppliers]);
+  const openCreate = () => {
+    setEditingSupplier(null);
+    setIsModalOpen(true);
+  };
 
   /**
    * El backend no deja eliminar un proveedor con compras (409) para no perder
@@ -202,7 +155,7 @@ export default function Suppliers() {
           confirmLabel: "Ver historial de compras",
           confirmVariant: "default",
         });
-        if (viewHistory) navigate(`/proveedores/${encodeURIComponent(supplier.id)}/compras`);
+        if (viewHistory) navigate(purchasesPath(supplier));
         return;
       }
 
@@ -224,133 +177,88 @@ export default function Suppliers() {
       {
         key: "name",
         header: "Proveedor",
-        render: (_, supplier) => (
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-900">{supplier.name}</p>
-              {supplier.destacado ? (
-                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-                  <Star className="mr-1 h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                  Destacado
-                </Badge>
-              ) : null}
-            </div>
-            <p className="text-xs text-gray-500">{formatContactLine(supplier)}</p>
-            <p className="text-xs text-gray-500">{formatAddressLine(supplier)}</p>
-          </div>
-        ),
-      },
-      {
-        key: "categories",
-        header: "Categorias",
-        sortable: false,
-        render: (value) => {
-          const categories = Array.isArray(value) ? value : [];
-
-          if (categories.length === 0) {
-            return <span className="text-sm text-gray-500">Sin categorias</span>;
-          }
-
-          return (
-            <div className="flex flex-wrap gap-1.5">
-              {categories.slice(0, 3).map((category) => (
-                <Badge key={category} variant="outline" className="border-primary-200 text-primary-800">
-                  {formatCategoryLabel(String(category))}
-                </Badge>
-              ))}
-              {categories.length > 3 && (
-                <Badge variant="outline" className="border-slate-200 text-slate-600">
-                  +{categories.length - 3}
-                </Badge>
-              )}
-            </div>
-          );
-        },
+        // En movil el nombre ya es el titulo de la tarjeta.
+        hideOnMobile: true,
+        sortValue: (supplier) => supplier.name,
+        render: (_, supplier) => <SupplierNameCell supplier={supplier} />,
       },
       {
         key: "location",
-        header: "Ubicacion",
+        header: "Ubicación",
         render: (_, supplier) => (
-          <div>
+          <div className="min-w-0">
             <p className="text-sm text-gray-900">{supplier.location || "-"}</p>
-            <p className="text-xs text-gray-500">{supplier.address || "Sin direccion"}</p>
+            {supplier.address ? <p className="text-xs text-gray-500">{supplier.address}</p> : null}
           </div>
         ),
+      },
+      {
+        key: "contact_phone",
+        header: "Contacto",
+        sortable: false,
+        render: (_, supplier) => <ContactCell supplier={supplier} />,
       },
       {
         key: "status",
         header: "Estado",
-        render: (value) => (
-          <Badge variant="outline" className={getStatusBadgeClass(String(value ?? "active"))}>
-            {getStatusLabel(String(value ?? "active"))}
-          </Badge>
-        ),
-      },
-      {
-        key: "destacado",
-        header: "Prioridad",
-        render: (value) => {
-          const highlighted = Boolean(value);
-          return highlighted ? (
-            <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
-              Destacado
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="border-slate-200 bg-slate-50 text-slate-600">
-              Normal
-            </Badge>
+        sortValue: (supplier) => (isInactiveStatus(supplier.status) ? 1 : 0),
+        render: (_, supplier) => {
+          const inactive = isInactiveStatus(supplier.status);
+          return (
+            <span className="inline-flex items-center gap-2 whitespace-nowrap text-sm text-gray-700">
+              <span
+                aria-hidden="true"
+                className={`h-2 w-2 rounded-full ${inactive ? "bg-gray-400" : "bg-emerald-500"}`}
+              />
+              {inactive ? "Inactivo" : "Activo"}
+            </span>
           );
         },
       },
       {
         key: "actions",
-        header: "Acciones",
+        header: "",
         sortable: false,
         render: (_, supplier) => (
-          <div className="flex flex-wrap gap-2">
-            {supplier.chat_url ? (
-              <Button asChild variant="outline" size="sm" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
-                <a href={supplier.chat_url} target="_blank" rel="noreferrer">
-                  <MessageCircle className="w-4 h-4" />
-                  Chatear
-                </a>
-              </Button>
-            ) : null}
-            <Button asChild variant="outline" size="sm" className="border-primary-200 text-primary hover:bg-primary-50">
-              <Link
-                to={`/proveedores/${encodeURIComponent(supplier.id)}/compras`}
-                aria-label={`Ver el historial de compras de ${supplier.name}`}
-                title="Historial de compras"
-              >
-                <Receipt className="w-4 h-4" />
+          <div className="flex flex-nowrap items-center justify-end gap-1">
+            <Button asChild variant="ghost" size="sm" className="text-primary hover:bg-primary-50 hover:text-primary">
+              <Link to={purchasesPath(supplier)} aria-label={`Ver el historial de compras de ${supplier.name}`}>
+                <Receipt className="h-4 w-4" />
                 Compras
               </Link>
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="border-primary-200 text-primary hover:bg-primary-50"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-gray-500 hover:bg-primary-50 hover:text-primary"
               onClick={() => {
                 setEditingSupplier(supplier);
                 setIsModalOpen(true);
               }}
+              aria-label={`Editar ${supplier.name}`}
+              title="Editar"
             >
-              <Edit className="w-4 h-4" />
+              <Edit className="h-4 w-4" />
             </Button>
             <Button
-              variant="outline"
-              size="sm"
-              className="border-red-200 text-red-600 hover:bg-red-50"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-gray-500 hover:bg-red-50 hover:text-red-600"
               onClick={async () => {
-                if (!(await confirm({
-                  title: "Eliminar proveedor",
-                  description: `Se eliminará el proveedor ${supplier.name}. Esta acción no se puede deshacer.`,
-                }))) return;
+                if (
+                  !(await confirm({
+                    title: "Eliminar proveedor",
+                    description: `Se eliminará el proveedor ${supplier.name}. Esta acción no se puede deshacer.`,
+                  }))
+                )
+                  return;
                 const result = await deleteSupplier(supplier);
                 if (result === "has-purchases") await handleSupplierWithPurchases(supplier);
               }}
+              aria-label={`Eliminar ${supplier.name}`}
+              title="Eliminar"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         ),
@@ -374,9 +282,7 @@ export default function Suppliers() {
   };
 
   const handleSubmitSupplier = async (payload: SupplierPayload) => {
-    const ok = editingSupplier
-      ? await updateSupplier(editingSupplier.id, payload)
-      : await createSupplier(payload);
+    const ok = editingSupplier ? await updateSupplier(editingSupplier.id, payload) : await createSupplier(payload);
 
     if (ok) {
       closeModal();
@@ -385,183 +291,234 @@ export default function Suppliers() {
     return ok;
   };
 
+  const countLabel = isLoadingSuppliers
+    ? "Cargando..."
+    : `${suppliers.length} ${suppliers.length === 1 ? "proveedor" : "proveedores"}${
+        featuredCount > 0 ? `, ${featuredCount} ${featuredCount === 1 ? "destacado" : "destacados"}` : ""
+      }`;
+
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
           <h1 className="text-3xl font-bold text-primary-900">Proveedores</h1>
+          <p className="text-sm text-secondary-dark">{countLabel}</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="border-primary-200 text-primary hover:bg-primary-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          Actualizar
-        </Button>
-      </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="border-primary-200 text-primary hover:bg-primary-50"
+            aria-label="Actualizar"
+            title="Actualizar"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+          <Button onClick={openCreate} className="bg-primary text-white hover:bg-primary-600">
+            <Plus className="h-4 w-4" />
+            Agregar proveedor
+          </Button>
+        </div>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {summaryCards.map((card) => (
-          <Card key={card.title}>
-            <CardContent className="flex items-center justify-between p-6">
-              <div>
-                <p className="text-sm text-secondary-dark">{card.title}</p>
-                <p className="mt-2 text-3xl font-bold text-primary-900">{card.value}</p>
-              </div>
-              <div className="rounded-full bg-primary-50 p-3 text-primary">
-                <card.icon className="h-6 w-6" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {featuredSuppliers.length > 0 ? (
-        <Card>
-          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-xl text-primary-900">Proveedores priorizados</CardTitle>
-              <p className="text-sm text-secondary-dark">Accesos rápidos a los proveedores marcados como destacados.</p>
-            </div>
-            <Badge variant="outline" className="w-fit border-amber-200 bg-amber-50 text-amber-700">
-              {featuredSuppliers.length} destacados
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {featuredSuppliers.map((supplier) => (
-                <div key={supplier.id} className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-primary-900">{supplier.name}</p>
-                      <p className="mt-1 text-sm text-secondary-dark">{formatContactLine(supplier)}</p>
-                      <p className="mt-1 text-sm text-secondary-dark">{formatAddressLine(supplier)}</p>
-                    </div>
-                    <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {supplier.categories.length > 0 ? (
-                      supplier.categories.map((category) => (
-                        <Badge key={`${supplier.id}-${category}`} variant="outline" className="border-primary-200 text-primary-800">
-                          {formatCategoryLabel(category)}
-                        </Badge>
-                      ))
-                    ) : (
-                      <Badge variant="outline" className="border-slate-200 text-slate-600">
-                        Sin categorias
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{supplier.location || "Sin ubicacion"}</p>
-                      <p className="mt-1 text-xs text-gray-500">{supplier.description || "Sin descripcion"}</p>
-                      <Badge variant="outline" className={`mt-2 ${getStatusBadgeClass(supplier.status)}`}>
-                        {getStatusLabel(supplier.status)}
-                      </Badge>
-                    </div>
-                    {supplier.chat_url ? (
-                      <Button asChild className="bg-primary hover:bg-primary-600 text-white">
-                        <a href={supplier.chat_url} target="_blank" rel="noreferrer">
-                          <MessageCircle className="h-4 w-4" />
-                          Chatear
-                        </a>
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
+      <section className="space-y-3" aria-label="Listado de proveedores">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <Label htmlFor="supplier-view" className="sr-only">
+              Mostrar
+            </Label>
+            {/* En movil los cuatro botones no caben bien: se usa un desplegable. */}
+            <select
+              id="supplier-view"
+              value={view}
+              onChange={(event) => setView(event.target.value as SupplierView)}
+              className="h-10 w-full rounded-md border border-input bg-white px-3 text-base sm:hidden"
+            >
+              {VIEW_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <FilterPanel
-        title="Filtros"
-        activeCount={countActiveFilters(Object.values(filters))}
-        onClear={() => setFilters(EMPTY_SUPPLIER_FILTERS)}
-        gridClassName="xl:grid-cols-3"
-        footer={
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
-            <span className="text-sm font-medium text-amber-900">Vista rápida:</span>
-            <Button
-              type="button"
-              variant={filters.destacado === undefined ? "default" : "outline"}
-              className={filters.destacado === undefined ? "bg-primary hover:bg-primary-600 text-white" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"}
-              onClick={() => setFilters((prev) => ({ ...prev, destacado: undefined }))}
+            </select>
+            <ToggleGroup
+              type="single"
+              value={view}
+              // Radix devuelve "" al volver a pulsar la opcion activa: se mantiene la actual.
+              onValueChange={(next) => next && setView(next as SupplierView)}
+              aria-label="Mostrar"
+              className="hidden w-fit justify-start rounded-lg border border-secondary-medium bg-white p-1 sm:flex"
             >
-              Todos
-            </Button>
-            <Button
-              type="button"
-              variant={filters.destacado === true ? "default" : "outline"}
-              className={filters.destacado === true ? "bg-amber-500 hover:bg-amber-600 text-white" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"}
-              onClick={() => setFilters((prev) => ({ ...prev, destacado: true }))}
-            >
-              <Star className="h-4 w-4" />
-              Solo destacados
-            </Button>
+              {VIEW_OPTIONS.map((option) => (
+                <ToggleGroupItem
+                  key={option.value}
+                  value={option.value}
+                  className="h-8 shrink-0 whitespace-nowrap px-3 text-gray-600 hover:bg-primary-50 hover:text-primary data-[state=on]:bg-primary data-[state=on]:text-white"
+                >
+                  {option.label}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
-        }
-      >
-        <FilterSelect
-          id="supplier-category-filter"
-          label="Categoria"
-          value={filters.category}
-          onChange={(value) => setFilters((prev) => ({ ...prev, category: value }))}
-          options={filterOptions.category}
-          allLabel="Todas"
-        />
-        <FilterSelect
-          id="supplier-location-filter"
-          label="Ubicacion"
-          value={filters.location}
-          onChange={(value) => setFilters((prev) => ({ ...prev, location: value }))}
-          options={filterOptions.location}
-          allLabel="Todas"
-        />
-        <FilterSelect
-          id="supplier-status-filter"
-          label="Estado"
-          value={filters.status}
-          onChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
-          options={filterOptions.status}
-        />
-      </FilterPanel>
 
-      <DataTable
-        title="Listado general"
-        data={filteredSuppliers}
-        columns={columns}
-        onAdd={() => {
-          setEditingSupplier(null);
-          setIsModalOpen(true);
-        }}
-        addButtonText="Agregar proveedor"
-        isLoading={isLoadingSuppliers}
-        searchFields={["name", "location"]}
-        searchAccessor={getSupplierSearchText}
-        searchPlaceholder="Buscar por nombre, dirección, teléfono o categoría..."
-        defaultSort={{ key: "name", direction: "asc" }}
-        initialPageSize={20}
-        hideAddButton={false}
-      />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <CompactSelect
+              id="supplier-category"
+              label="Categoría"
+              allLabel="Todas las categorías"
+              value={category}
+              onChange={setCategory}
+              options={categoryOptions}
+            />
+            {/* Con una sola ubicacion el filtro no aporta nada. */}
+            {locationOptions.length > 1 ? (
+              <CompactSelect
+                id="supplier-location"
+                label="Ubicación"
+                allLabel="Todas las ubicaciones"
+                value={location}
+                onChange={setLocation}
+                options={locationOptions}
+              />
+            ) : null}
+            <Label htmlFor="supplier-search" className="sr-only">
+              Buscar proveedores
+            </Label>
+            <SearchFilter
+              id="supplier-search"
+              className="w-full sm:w-64"
+              placeholder="Buscar proveedor"
+              value={searchTerm}
+              onChange={setSearchTerm}
+            />
+            {hasFilters ? (
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="shrink-0 self-start text-gray-600 sm:self-auto">
+                Limpiar
+              </Button>
+            ) : null}
+          </div>
+        </div>
 
-      <FormModal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title={editingSupplier ? "Editar proveedor" : "Nuevo proveedor"}
-      >
-        <SupplierForm
-          editingSupplier={editingSupplier}
-          onSubmit={handleSubmitSupplier}
-          onCancel={closeModal}
-        />
+        {!isLoadingSuppliers && visibleSuppliers.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-secondary-medium bg-white px-6 py-12 text-center">
+            {hasFilters ? (
+              <>
+                <p className="font-medium text-primary-900">Ningún proveedor coincide con los filtros</p>
+                <p className="mt-1 text-sm text-secondary-dark">Prueba con otra categoría u otra búsqueda.</p>
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                  className="mt-4 border-primary-200 text-primary hover:bg-primary-50"
+                >
+                  Limpiar filtros
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-primary-900">Aún no hay proveedores</p>
+                <p className="mt-1 text-sm text-secondary-dark">
+                  Agrega el primero para registrar sus datos de contacto y sus compras.
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <DataTable
+            data={visibleSuppliers}
+            columns={columns}
+            isLoading={isLoadingSuppliers}
+            initialPageSize={20}
+            hideAddButton
+            mobileTitle={(supplier) => <SupplierNameCell supplier={supplier} />}
+          />
+        )}
+      </section>
+
+      <FormModal isOpen={isModalOpen} onClose={closeModal} title={editingSupplier ? "Editar proveedor" : "Nuevo proveedor"}>
+        <SupplierForm editingSupplier={editingSupplier} onSubmit={handleSubmitSupplier} onCancel={closeModal} />
       </FormModal>
+    </div>
+  );
+}
+
+/** Nombre con su marca de destacado y, debajo, las categorias en texto: sin pastillas. */
+function SupplierNameCell({ supplier }: { supplier: Supplier }) {
+  const categories = supplier.categories.map(formatCategoryLabel).join(", ");
+
+  return (
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 font-medium text-gray-900">
+        {supplier.name}
+        {supplier.destacado ? (
+          <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" aria-label="Destacado" role="img" />
+        ) : null}
+      </p>
+      <p className="text-xs text-gray-500">{categories || "Sin categorías"}</p>
+    </div>
+  );
+}
+
+/** El telefono abre el chat de WhatsApp: reemplaza al boton "Chatear" de cada fila. */
+function ContactCell({ supplier }: { supplier: Supplier }) {
+  const phone = supplier.contact_phone?.trim();
+
+  return (
+    <div className="min-w-0">
+      {phone && supplier.chat_url ? (
+        <a
+          href={supplier.chat_url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded text-sm text-gray-900 hover:text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title="Abrir chat de WhatsApp"
+        >
+          <MessageCircle className="h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+          {phone}
+          <span className="sr-only">(abrir chat de WhatsApp)</span>
+        </a>
+      ) : (
+        <p className="text-sm text-gray-900">{phone || "-"}</p>
+      )}
+      {supplier.email ? <p className="text-xs text-gray-500">{supplier.email}</p> : null}
+    </div>
+  );
+}
+
+interface CompactSelectProps {
+  id: string;
+  label: string;
+  allLabel: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly { value: string; label: string }[];
+}
+
+/** Desplegable de filtro sin rotulo visible: la opcion "Todas..." ya dice que filtra. */
+function CompactSelect({ id, label, allLabel, value, onChange, options }: CompactSelectProps) {
+  return (
+    <div>
+      <Label htmlFor={id} className="sr-only">
+        {label}
+      </Label>
+      <Select
+        value={value || ALL_FILTER_VALUE}
+        onValueChange={(next) => onChange(next === ALL_FILTER_VALUE ? "" : next)}
+      >
+        <SelectTrigger id={id} className="w-full bg-white sm:w-52">
+          <SelectValue placeholder={allLabel} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ALL_FILTER_VALUE}>{allLabel}</SelectItem>
+          {options
+            .filter((option) => option.value && option.value !== ALL_FILTER_VALUE)
+            .map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

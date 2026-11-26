@@ -85,7 +85,7 @@ export const parseAmountInput = (
   if (!match) {
     return {
       ok: false,
-      error: "Escribe solo numeros, sin separadores de miles (ej. 1500,50).",
+      error: "Escribe solo números, sin separadores de miles (ej. 1500,50).",
     };
   }
 
@@ -93,7 +93,7 @@ export const parseAmountInput = (
   if (fraction.length > 2) {
     return {
       ok: false,
-      error: "Usa como maximo 2 decimales y no separes los miles (ej. 1500,50).",
+      error: "Usa como máximo 2 decimales y no separes los miles (ej. 1500,50).",
     };
   }
 
@@ -103,7 +103,7 @@ export const parseAmountInput = (
   }
 
   const cents = parseDecimalToCents(`${integerPart}.${fraction || "0"}`);
-  if (cents === null) return { ok: false, error: "Ingresa un monto valido." };
+  if (cents === null) return { ok: false, error: "Ingresa un monto válido." };
   if (cents <= 0n) return { ok: false, error: "El monto debe ser mayor a 0." };
 
   return { ok: true, value: centsToDecimalString(cents), cents };
