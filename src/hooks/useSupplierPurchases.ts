@@ -67,7 +67,7 @@ export const useSupplierPurchases = ({ supplierId, filters, enabled = true }: Us
     staleTime: 30_000,
   });
 
-  useApiErrorToast(isNotFoundError(query.error) ? null : query.error, "No se pudo cargar el historial de compras.");
+  // Sin aviso emergente: la pantalla muestra el error en su lugar, con "Reintentar".
 
   return query;
 };

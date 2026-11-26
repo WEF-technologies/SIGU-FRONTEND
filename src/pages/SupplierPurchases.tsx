@@ -22,7 +22,7 @@ import {
 import { formatDateOnly, toDateOnlyLocalValue } from "@/lib/dates";
 import { formatAmount, parseDecimalToCents } from "@/lib/money";
 import { SupplierPurchase, SupplierPurchaseFilters, SupplierPurchasePayload } from "@/types";
-import { ArrowLeft, Ban, Edit, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Ban, Edit, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 /**
  * Periodo del historial. Los rangos se calculan con la fecha local, no UTC
@@ -128,9 +128,13 @@ export default function SupplierPurchases() {
   const isSupplierInactive = isInactiveStatus(supplier?.status);
   const hasFilters = period !== "all" || Boolean(searchTerm.trim());
   const isLoading = purchasesQuery.isLoading || supplierQuery.isLoading;
-  const canRegister = Boolean(supplier) && !isSupplierInactive && !isHistoryUnavailable;
+  // Un fallo al cargar no es lo mismo que "sin compras": una lista vacia por
+  // error no puede mostrarse como historial vacio ni invitar a registrar.
+  const hasLoadError = purchasesQuery.isError && !isHistoryUnavailable;
+  const canRegister = Boolean(supplier) && !isSupplierInactive && !isHistoryUnavailable && !hasLoadError;
   // Sin ninguna compra no hay nada que resumir ni filtrar: solo se muestra el estado vacio.
-  const hasNoPurchasesAtAll = !isLoading && !hasFilters && purchases.length === 0;
+  // Solo con una respuesta correcta del servidor; nunca tras un error.
+  const hasNoPurchasesAtAll = purchasesQuery.isSuccess && !hasFilters && purchases.length === 0;
 
   const summary = useMemo(() => {
     const totalCents = purchases.reduce((sum, purchase) => sum + getAmountCents(purchase), 0n);
@@ -352,6 +356,14 @@ export default function SupplierPurchases() {
             compras aún no esté desplegada. Intenta de nuevo más tarde o avisa al administrador del sistema.
           </AlertDescription>
         </Alert>
+      ) : hasLoadError ? (
+        <LoadErrorState
+          message={purchasesQuery.error instanceof Error ? purchasesQuery.error.message : ""}
+          isRetrying={purchasesQuery.isFetching}
+          onRetry={() => void purchasesQuery.refetch()}
+          hasFilters={hasFilters}
+          onClearFilters={clearFilters}
+        />
       ) : hasNoPurchasesAtAll ? (
         <EmptyState hasFilters={false} canRegister={canRegister} onRegister={openCreate} onClearFilters={clearFilters} />
       ) : (
@@ -551,6 +563,43 @@ interface EmptyStateProps {
   canRegister: boolean;
   onRegister: () => void;
   onClearFilters: () => void;
+}
+
+interface LoadErrorStateProps {
+  message: string;
+  isRetrying: boolean;
+  onRetry: () => void;
+  hasFilters: boolean;
+  onClearFilters: () => void;
+}
+
+/**
+ * El historial no se pudo cargar (por ejemplo, un 500 del servidor). Se dice
+ * que fallo y como reintentar; no se muestran totales en cero ni "Aun no hay
+ * compras", que harian creer que el proveedor no tiene historial.
+ */
+function LoadErrorState({ message, isRetrying, onRetry, hasFilters, onClearFilters }: LoadErrorStateProps) {
+  return (
+    <div role="alert" className="rounded-lg border border-red-200 bg-white px-6 py-12 text-center">
+      <AlertTriangle className="mx-auto h-6 w-6 text-red-600" aria-hidden="true" />
+      <p className="mt-3 font-medium text-primary-900">No se pudo cargar el historial de compras</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-secondary-dark">
+        {message || "El servidor respondió con un error."} Si el problema continúa, avisa al administrador del
+        sistema.
+      </p>
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
+        <Button onClick={onRetry} disabled={isRetrying} className="bg-primary text-white hover:bg-primary-600">
+          <RefreshCw className={`h-4 w-4 ${isRetrying ? "animate-spin" : ""}`} />
+          {isRetrying ? "Reintentando..." : "Reintentar"}
+        </Button>
+        {hasFilters ? (
+          <Button variant="outline" onClick={onClearFilters} className="border-primary-200 text-primary hover:bg-primary-50">
+            Limpiar filtros
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 /** Un listado vacio dice que hacer a continuacion, no solo "No hay datos". */
