@@ -8,21 +8,22 @@ import {
   VehicleSpecificationPayload,
 } from "@/types";
 import { formatKilometers, formatKmNumber } from "@/lib/kilometers";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Edit, Gauge, Loader2, MapPin, Plus, Save, Wrench } from "lucide-react";
+import { Calendar, Check, Download, Edit, Gauge, Loader2, Plus, Save, Wrench, X } from "lucide-react";
 import { MaintenanceFormModal } from "@/components/maintenance/MaintenanceFormModal";
 import { useMaintenance } from "@/hooks/useMaintenance";
 import { maintenanceTypeConfig } from "@/constants/maintenanceTypes";
-import { VEHICLE_STATUS_OPTIONS } from "@/constants/filterOptions";
-import { getOptionLabel } from "@/lib/filtering";
+import { getVehicleStatusAppearance } from "@/constants/vehicleLocations";
+import { VehicleStatusBadge } from "@/components/vehicles/VehicleStatusBadge";
+import { formatDateOnly } from "@/lib/dates";
+import { cn } from "@/lib/utils";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
@@ -183,17 +184,6 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
 
   if (!vehicle) return null;
 
-  const getStatusBadge = (status: Vehicle['status']) => {
-    const statusConfig = {
-      available: { text: 'Operativa', className: 'bg-green-100 text-green-800' },
-      maintenance: { text: 'En Mantenimiento', className: 'bg-yellow-100 text-yellow-800' },
-      out_of_service: { text: 'Inactiva', className: 'bg-red-100 text-red-800' }
-    };
-    
-    const config = statusConfig[status] || { text: status, className: 'bg-blue-100 text-blue-800' };
-    return <Badge className={config.className}>{config.text}</Badge>;
-  };
-
   /**
    * Km efectivo: usa el mayor entre el km almacenado del vehículo y el km
    * del último M3 registrado. Evita mostrar "Faltan" inflado cuando el campo
@@ -226,6 +216,21 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   };
 
   const m3Status = getM3Status();
+  const m3Remaining =
+    effectiveCurrentKm && vehicle.next_m3_kilometers ? vehicle.next_m3_kilometers - effectiveCurrentKm : null;
+  /** Verde con margen, ámbar en los últimos 1.000 km, rojo si ya venció. */
+  const m3Tone =
+    m3Remaining === null
+      ? { bar: "bg-secondary-dark", text: "text-primary-900" }
+      : m3Remaining <= 0
+        ? { bar: "bg-red-600", text: "text-red-700" }
+        : m3Remaining <= 1000
+          ? { bar: "bg-amber-500", text: "text-amber-800" }
+          : { bar: "bg-primary-500", text: "text-primary-900" };
+  const m3Progress = calculateM3Progress();
+  const statusAppearance = getVehicleStatusAppearance(vehicle.status);
+  const lastMaintenance = vehicleMaintenances[0];
+  const currentKm = vehicle.current_kilometers || vehicle.kilometers || 0;
   // El backend deja ambos campos en null cuando a la unidad no le queda ningún M3.
   const hasM3 = vehicle.next_m3_kilometers != null || Boolean(vehicle.last_m3_date);
 
@@ -340,118 +345,175 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <span>Detalles del Vehículo - {vehicle.plate_number}</span>
-              {getStatusBadge(vehicle.status)}
-            </DialogTitle>
+        <DialogContent className="max-w-4xl max-h-[90vh] grid-cols-[minmax(0,1fr)] overflow-y-auto overflow-x-hidden gap-0 p-0">
+          {/* Cabecera: placa, unidad y sede, con el color de la sede */}
+          <DialogHeader className={cn("relative space-y-0 border-b px-5 pb-5 pt-6 text-left sm:px-6", statusAppearance.tintClassName)}>
+            <span aria-hidden="true" className={cn("absolute inset-x-0 top-0 h-1.5", statusAppearance.accentClassName)} />
+            <div className="flex flex-col gap-4 pr-8 sm:flex-row sm:items-center">
+              <div className="inline-flex w-fit flex-col items-center rounded-md border-2 border-primary-900 bg-white px-4 pb-1.5 pt-1 shadow-sm">
+                <span className="text-[10px] font-semibold tracking-[0.2em] text-secondary-dark">Venezuela</span>
+                <DialogTitle className="text-2xl font-extrabold leading-none tracking-[0.12em] text-primary-900 tabular-nums">
+                  {vehicle.plate_number}
+                </DialogTitle>
+              </div>
+              <div className="min-w-0 space-y-2">
+                <DialogDescription className="text-lg font-semibold leading-tight text-primary-900">
+                  {vehicle.brand} {vehicle.model} <span className="font-normal text-secondary-dark">{vehicle.year}</span>
+                </DialogDescription>
+                <div className="flex flex-wrap items-center gap-2">
+                  <VehicleStatusBadge status={vehicle.status} size="md" />
+                  {statusAppearance.kind === "sede" && (
+                    <span className="text-sm text-secondary-dark">Unidad operativa en esta sede</span>
+                  )}
+                </div>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="space-y-6">
-            {/* Información básica */}
-            <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <Label className="text-sm text-gray-600">Marca</Label>
-                  <p className="font-medium">{vehicle.brand}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-600">Modelo</Label>
-                  <p className="font-medium">{vehicle.model}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-600">Año</Label>
-                  <p className="font-medium">{vehicle.year}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-600">Placa</Label>
-                  <p className="font-medium">{vehicle.plate_number}</p>
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-600 flex items-center gap-1">
-                    <Gauge className="w-4 h-4" />
-                    Kilometraje Actual
-                  </Label>
+          <div className="min-w-0 space-y-6 px-5 py-5 sm:px-6">
+            {/* Datos clave */}
+            <dl className="grid grid-cols-1 divide-y rounded-lg border sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <div className="p-4">
+                <dt className="flex items-center gap-1.5 text-sm text-secondary-dark">
+                  <Gauge className="h-4 w-4" aria-hidden="true" />
+                  Kilometraje actual
+                </dt>
+                <dd className="mt-1">
                   {editingKm ? (
-                    <div className="flex gap-2 mt-1">
+                    <form
+                      className="flex items-center gap-1.5"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveKilometers();
+                      }}
+                    >
                       <Input
                         type="number"
+                        inputMode="numeric"
+                        min={1}
                         value={kmValue}
                         onChange={(e) => setKmValue(e.target.value)}
-                        placeholder={(vehicle.current_kilometers || vehicle.kilometers || 0).toString()}
-                        className="w-24"
+                        placeholder={currentKm.toString()}
+                        aria-label="Nuevo kilometraje"
+                        className="h-9 w-32"
+                        autoFocus
                       />
-                      <Button size="sm" onClick={handleSaveKilometers}>
-                        Guardar
+                      <Button type="submit" size="icon" className="h-9 w-9 shrink-0" aria-label="Guardar kilometraje">
+                        <Check className="h-4 w-4" />
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingKm(false)}>
-                        Cancelar
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        className="h-9 w-9 shrink-0"
+                        onClick={() => setEditingKm(false)}
+                        aria-label="Cancelar"
+                      >
+                        <X className="h-4 w-4" />
                       </Button>
-                    </div>
+                    </form>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <p className="font-medium">{formatKilometers(vehicle.current_kilometers || vehicle.kilometers || 0)}</p>
+                      <span className="text-2xl font-bold tabular-nums text-primary-900">{formatKilometers(currentKm)}</span>
                       <Button
-                        size="sm"
-                        variant="outline"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-secondary-dark hover:text-primary-900"
                         onClick={() => setEditingKm(true)}
+                        aria-label="Editar kilometraje"
+                        title="Editar kilometraje"
                       >
-                        <Edit className="w-3 h-3" />
+                        <Edit className="h-4 w-4" />
                       </Button>
                     </div>
                   )}
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-600 flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    Estado / Sede
-                  </Label>
-                  <p className="font-medium">{getOptionLabel(VEHICLE_STATUS_OPTIONS, vehicle.status)}</p>
-                </div>
+                </dd>
               </div>
-            </Card>
+              <div className="p-4">
+                <dt className="flex items-center gap-1.5 text-sm text-secondary-dark">
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  Último mantenimiento
+                </dt>
+                <dd className="mt-1">
+                  {lastMaintenance ? (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="text-2xl font-bold tabular-nums text-primary-900">
+                        {formatDateOnly(lastMaintenance.date)}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={maintenanceTypeConfig[lastMaintenance.type]?.color}
+                      >
+                        {lastMaintenance.type.toUpperCase()}
+                      </Badge>
+                      <span className="text-sm tabular-nums text-secondary-dark">
+                        a los {formatKilometers(lastMaintenance.kilometers)}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-base font-medium text-secondary-dark">Sin mantenimientos registrados</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
 
-            {/* Progreso M3 */}
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <Label className="font-medium flex items-center gap-2">
-                  <Wrench className="w-4 h-4" />
-                  Próximo Mantenimiento M3
-                </Label>
+            {/* Próximo M3 */}
+            <section aria-labelledby="vehicle-m3-heading" className="rounded-lg border p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 id="vehicle-m3-heading" className="flex items-center gap-2 font-semibold text-primary-900">
+                  <Wrench className="h-4 w-4" aria-hidden="true" />
+                  Próximo mantenimiento M3
+                </h3>
+                {hasM3 && (
+                  <p className={cn("text-sm font-semibold", m3Tone.text)}>
+                    {m3Status.isOverdue ? "Vencido" : `Faltan ${m3Status.text}`}
+                  </p>
+                )}
               </div>
               {hasM3 ? (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Último M3: {vehicle.last_m3_date ? new Date(vehicle.last_m3_date).toLocaleDateString() : 'Sin fecha'}</span>
-                    <span className={m3Status.isOverdue ? 'text-red-600 font-medium' : ''}>
-                      Faltan: {m3Status.text}
-                    </span>
+                <div className="mt-3 space-y-2">
+                  <div
+                    role="progressbar"
+                    aria-label="Recorrido desde el último M3"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(m3Progress)}
+                    className="h-3 w-full overflow-hidden rounded-full bg-secondary-light ring-1 ring-inset ring-secondary-medium"
+                  >
+                    <div className={cn("h-full rounded-full transition-all", m3Tone.bar)} style={{ width: `${m3Progress}%` }} />
                   </div>
-                  <Progress value={calculateM3Progress()} className="h-2" />
-                  <div className="text-xs text-gray-500">
-                    Próximo M3 en: {formatKilometers(vehicle.next_m3_kilometers, 'N/A')}
+                  <div className="flex flex-wrap justify-between gap-x-4 gap-y-1 text-sm text-secondary-dark">
+                    <span>
+                      Último M3: {vehicle.last_m3_date ? formatDateOnly(vehicle.last_m3_date) : "sin fecha"}
+                    </span>
+                    <span>
+                      Toca a los <strong className="font-semibold text-primary-900">{formatKilometers(vehicle.next_m3_kilometers, "N/A")}</strong>
+                    </span>
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-gray-500">
+                <p className="mt-2 text-sm text-secondary-dark">
                   Sin M3 registrado. El próximo se calcula al registrar un mantenimiento M3.
                 </p>
               )}
-            </Card>
+            </section>
 
             {/* Tabs para historial, ficha técnica y repuestos */}
             <Tabs defaultValue="maintenance" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="maintenance">Historial de Mantenimientos</TabsTrigger>
-                <TabsTrigger value="specs">Ficha Técnica</TabsTrigger>
-                <TabsTrigger value="parts">Repuestos</TabsTrigger>
+              <TabsList className="grid h-auto w-full grid-cols-3">
+                <TabsTrigger value="maintenance" className="whitespace-normal py-2">
+                  Mantenimientos <span className="ml-1 tabular-nums text-secondary-dark">{vehicleMaintenances.length}</span>
+                </TabsTrigger>
+                <TabsTrigger value="specs" className="whitespace-normal py-2">Ficha técnica</TabsTrigger>
+                <TabsTrigger value="parts" className="whitespace-normal py-2">
+                  Repuestos <span className="ml-1 tabular-nums text-secondary-dark">{spareParts.length}</span>
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="maintenance" className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Historial de Mantenimientos ({vehicleMaintenances.length})</h3>
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="font-semibold text-primary-900">Historial de mantenimientos</h3>
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -476,15 +538,15 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                   </div>
                 </div>
 
-                <Card>
+                <Card className="overflow-hidden">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="bg-secondary-light">
                       <TableRow>
                         <TableHead>Tipo</TableHead>
                         <TableHead>Fecha</TableHead>
                         <TableHead>Kilometraje</TableHead>
                         <TableHead>Descripción</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead>Ubicación</TableHead>
                         <TableHead>Realizado por</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -503,14 +565,14 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                                 className={maintenanceTypeConfig[maintenanceItem.type]?.color}
                                 variant="outline"
                               >
-                                {maintenanceItem.type}
+                                {maintenanceItem.type.toUpperCase()}
                               </Badge>
                             </TableCell>
-                            <TableCell>{new Date(maintenanceItem.date).toLocaleDateString()}</TableCell>
-                            <TableCell>{formatKilometers(maintenanceItem.kilometers)}</TableCell>
+                            <TableCell className="whitespace-nowrap tabular-nums">{formatDateOnly(maintenanceItem.date)}</TableCell>
+                            <TableCell className="whitespace-nowrap tabular-nums">{formatKilometers(maintenanceItem.kilometers)}</TableCell>
                             <TableCell>{maintenanceItem.description}</TableCell>
-                            <TableCell>{maintenanceItem.location || 'No especificada'}</TableCell>
-                            <TableCell>{maintenanceItem.performed_by || 'No especificado'}</TableCell>
+                            <TableCell>{maintenanceItem.location || <span className="text-secondary-dark">No especificada</span>}</TableCell>
+                            <TableCell>{maintenanceItem.performed_by || <span className="text-secondary-dark">No especificado</span>}</TableCell>
                           </TableRow>
                         ))
                       )}
@@ -522,7 +584,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
               <TabsContent value="specs" className="space-y-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 className="font-medium">Ficha Técnica del Vehículo</h3>
+                    <h3 className="font-semibold text-primary-900">Ficha técnica del vehículo</h3>
                     <p className="text-sm text-gray-500">
                       Estos datos permiten que el backend determine repuestos compatibles por especificación técnica.
                     </p>
@@ -631,14 +693,14 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
 
               <TabsContent value="parts" className="space-y-4">
                 <div className="space-y-1">
-                  <h3 className="font-medium">Repuestos Compatibles ({spareParts.length})</h3>
+                  <h3 className="font-semibold text-primary-900">Repuestos compatibles</h3>
                   <p className="text-sm text-gray-500">
                     Lista calculada por placa y ficha técnica registrada para este vehículo.
                   </p>
                 </div>
-                <Card>
+                <Card className="overflow-hidden">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="bg-secondary-light">
                       <TableRow>
                         <TableHead>Código</TableHead>
                         <TableHead>Descripción</TableHead>
@@ -658,7 +720,7 @@ export function VehicleDetailsModal({ vehicle, isOpen, onClose, onUpdateKilomete
                       ) : (
                         spareParts.map((part) => (
                           <TableRow key={part.id}>
-                            <TableCell>{part.code}</TableCell>
+                            <TableCell className="whitespace-nowrap font-medium">{part.code}</TableCell>
                             <TableCell>{part.description}</TableCell>
                             <TableCell>{part.quantity}</TableCell>
                             <TableCell>{part.company_location || "—"}</TableCell>

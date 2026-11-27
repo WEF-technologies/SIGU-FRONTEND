@@ -3,14 +3,15 @@ import { useState, useMemo } from "react";
 import { DataTable } from "@/components/shared/DataTable";
 import { FormModal } from "@/components/shared/FormModal";
 import { PageDataLoader } from "@/components/shared/PageDataLoader";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { VehicleFiltersComponent, VehicleFilters } from "@/components/vehicles/VehicleFilters";
 import { VehicleDetailsModal } from "@/components/vehicles/VehicleDetailsModal";
+import { VehicleStatusBadge } from "@/components/vehicles/VehicleStatusBadge";
+import { VehicleStatusSummary } from "@/components/vehicles/VehicleStatusSummary";
+import { getVehicleStatusAppearance } from "@/constants/vehicleLocations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Vehicle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthenticatedFetch } from "@/hooks/useAuthenticatedFetch";
@@ -237,13 +238,6 @@ export default function Vehicles() {
       return a.plate_number.localeCompare(b.plate_number, "es", { sensitivity: "base" });
     });
   }, [vehicles, filters, sortBy]);
-
-  const getStatusDisplay = (status: string) => {
-    if (status === "available") return <Badge className="bg-green-100 text-green-800">Operativa</Badge>;
-    if (status === "maintenance") return <Badge className="bg-yellow-100 text-yellow-800">En Mantenimiento</Badge>;
-    if (status === "out_of_service") return <Badge className="bg-red-100 text-red-800">Inactiva</Badge>;
-    return <Badge className="bg-blue-100 text-blue-800">{status}</Badge>;
-  };
 
   const resetForm = () => {
     setFormData({ ...EMPTY_FORM });
@@ -659,13 +653,26 @@ export default function Vehicles() {
           </div>
         </div>
 
+        <div className="border-b px-4 py-3">
+          <VehicleStatusSummary
+            statuses={vehicles.map((vehicle) => vehicle.status)}
+            options={filterOptions.status}
+            selected={filters.status}
+            onSelect={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+          />
+        </div>
+
         {/* Móvil y tablet: una tarjeta por vehículo */}
         {filteredVehicles.length === 0 ? (
           <p className="lg:hidden text-center py-8 text-secondary-dark">{emptyMessage}</p>
         ) : (
           <ul className="lg:hidden divide-y">
             {filteredVehicles.map((vehicle) => (
-              <li key={vehicle.id} className="p-4 space-y-3">
+              <li key={vehicle.id} className="relative p-4 pl-5 space-y-3">
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-y-3 left-0 w-1 rounded-r ${getVehicleStatusAppearance(vehicle.status).accentClassName}`}
+                />
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold text-lg leading-tight text-primary-900">{vehicle.plate_number}</p>
@@ -673,7 +680,7 @@ export default function Vehicles() {
                       {vehicle.brand} {vehicle.model} · {vehicle.year}
                     </p>
                   </div>
-                  <div className="shrink-0">{getStatusDisplay(vehicle.status)}</div>
+                  <div className="shrink-0"><VehicleStatusBadge status={vehicle.status} /></div>
                 </div>
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   <div>
@@ -701,7 +708,7 @@ export default function Vehicles() {
             <thead className="bg-secondary-light">
               <tr>
                 <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Vehículo</th>
-                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Estado</th>
+                <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Estado / Sede</th>
                 <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Último M3</th>
                 <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Próximo Mantenimiento</th>
                 <th className="px-3 xl:px-4 py-3 text-left font-semibold text-primary-900">Acciones</th>
@@ -717,13 +724,17 @@ export default function Vehicles() {
               ) : (
                 filteredVehicles.map((vehicle) => (
                   <tr key={vehicle.id} className="border-b hover:bg-secondary-light transition-colors">
-                    <td className="px-3 xl:px-4 py-4">
+                    <td className="relative px-3 xl:px-4 py-4">
+                      <span
+                        aria-hidden="true"
+                        className={`absolute inset-y-2 left-0 w-1 rounded-r ${getVehicleStatusAppearance(vehicle.status).accentClassName}`}
+                      />
                       <p className="font-semibold text-primary-900">{vehicle.plate_number}</p>
                       <p className="text-sm text-secondary-dark">
                         {vehicle.brand} {vehicle.model} · {vehicle.year}
                       </p>
                     </td>
-                    <td className="px-3 xl:px-4 py-4">{getStatusDisplay(vehicle.status)}</td>
+                    <td className="px-3 xl:px-4 py-4"><VehicleStatusBadge status={vehicle.status} /></td>
                     <td className="px-3 xl:px-4 py-4">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4 shrink-0 text-gray-400" />
@@ -792,7 +803,9 @@ export default function Vehicles() {
                   <SelectTrigger id="status"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {VEHICLE_FORM_STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                      <SelectItem key={option.value} value={option.value}>
+                        <VehicleStatusBadge status={option.value} />
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
